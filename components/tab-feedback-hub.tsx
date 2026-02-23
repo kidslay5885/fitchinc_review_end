@@ -11,14 +11,12 @@ interface TabFeedbackHubProps {
   platformName: string;
 }
 
-type TagValue = "platform" | "instructor" | null;
+type TagValue = Comment["tag"];
 
-// pSat(만족스러운 점), pRec(추천 의향)은 피드백 원문으로 가치 없음
-// → 이미 데이터 탭에서 수치 집계로 사용됨
+// 수치 집계용 필드는 피드백에서 제외
 const EXCLUDED_FIELDS = new Set(["pSat", "pRec"]);
 
-// 짧은/의미없는 응답 필터
-const NOISE_RE = /^(네|예|아니요|없습니다|없음|감사합니다|고맙습니다|좋습니다|좋았습니다|잘 모르겠습니다|모르겠습니다|특별히 없습니다|딱히 없습니다|아직 없습니다|글쎄요|x|X|-|강의 내용|커리큘럼|피드백|추천합니다|네 추천합니다|예 추천합니다|네 너무 좋습니다|[.\s]*)$/;
+const NOISE_RE = /^(네|예|아니요|없습니다|없음|감사합니다|고맙습니다|좋습니다|좋았습니다|잘 모르겠습니다|모르겠습니다|특별히 없습니다|딱히 없습니다|아직 없습니다|글쎄요|x|X|-|강의 내용|커리큘럼|피드백|추천합니다|네 추천합니다|예 추천합니다|네 너무 좋습니다|없어요|없읒|[.\s]*)$/;
 
 function isUsefulComment(c: { original_text: string; source_field: string }): boolean {
   if (EXCLUDED_FIELDS.has(c.source_field)) return false;
@@ -28,28 +26,62 @@ function isUsefulComment(c: { original_text: string; source_field: string }): bo
   return true;
 }
 
+// source_field → 한글 라벨
+const FIELD_LABELS: Record<string, string> = {
+  hopePlatform: "플랫폼에 바라는 점",
+  hopeInstructor: "강사에게 바라는 점",
+  pFree: "자유 의견",
+  lowScoreReason: "커리큘럼 불만족 사유",
+  lowFeedbackRequest: "피드백 개선 요청",
+};
+
+// 태그 → 표시
+const TAG_OPTIONS = [
+  { value: "", label: "미분류", color: "bg-gray-50 text-gray-500 border-gray-200" },
+  { value: "platform_pm", label: "PM", color: "bg-blue-50 text-blue-700 border-blue-200" },
+  { value: "platform_pd", label: "PD", color: "bg-indigo-50 text-indigo-700 border-indigo-200" },
+  { value: "platform_cs", label: "CS", color: "bg-cyan-50 text-cyan-700 border-cyan-200" },
+  { value: "platform_etc", label: "기타", color: "bg-slate-50 text-slate-600 border-slate-200" },
+  { value: "instructor", label: "강사", color: "bg-orange-50 text-orange-700 border-orange-200" },
+] as const;
+
+function getTagColor(tag: TagValue): string {
+  return TAG_OPTIONS.find((o) => o.value === (tag || ""))?.color || TAG_OPTIONS[0].color;
+}
+
+function isPlatformTag(tag: TagValue): boolean {
+  return tag === "platform_pm" || tag === "platform_pd" || tag === "platform_cs" || tag === "platform_etc";
+}
+
+// source_field 기반 자동 추천 태그 (tag가 null일 때 사용)
+function suggestTag(sourceField: string): TagValue {
+  if (sourceField === "hopePlatform") return "platform_etc";
+  if (sourceField === "hopeInstructor") return "instructor";
+  return null;
+}
+
 interface CommentWithCohort extends Comment {
   cohortLabel?: string;
 }
+
+type ViewMode = "all" | "platform" | "instructor" | "untagged";
+type PlatformSub = "all" | "pm" | "pd" | "cs" | "etc";
 
 export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedbackHubProps) {
   const [comments, setComments] = useState<CommentWithCohort[]>([]);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
-  // Filters
-  const [sentimentFilter, setSentimentFilter] = useState<"all" | "positive" | "negative">("all");
-  const [tagFilter, setTagFilter] = useState<"all" | "platform" | "instructor" | "none">("all");
+  const [viewMode, setViewMode] = useState<ViewMode>("all");
+  const [platformSub, setPlatformSub] = useState<PlatformSub>("all");
   const [cohortFilter, setCohortFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
 
-  // Selection
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [copied, setCopied] = useState(false);
 
   const cohortLabel = cohort?.label || null;
 
-  // Load comments when instructor/cohort changes
   useEffect(() => {
     loadComments();
   }, [platformName, instructor.name, cohortLabel]);
@@ -61,35 +93,26 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
         platform: platformName,
         instructor: instructor.name,
       });
-      if (cohortLabel) {
-        params.set("cohort", cohortLabel);
-      }
+      if (cohortLabel) params.set("cohort", cohortLabel);
 
       const res = await fetch(`/api/classify?${params}`);
       if (!res.ok) throw new Error();
       const data: Comment[] = await res.json();
 
-      // 의미 없는 댓글 필터링 (pSat, pRec, 노이즈)
       const useful = data.filter(isUsefulComment);
 
-      // If viewing all cohorts, enrich with cohort labels
       if (!cohortLabel) {
         const surveyRes = await fetch("/api/surveys");
         if (surveyRes.ok) {
           const surveys: Survey[] = await surveyRes.json();
           const surveyMap = new Map(surveys.map((s) => [s.id, s.cohort || ""]));
-          const enriched: CommentWithCohort[] = useful.map((c) => ({
-            ...c,
-            cohortLabel: surveyMap.get(c.survey_id) || "",
-          }));
-          setComments(enriched);
+          setComments(useful.map((c) => ({ ...c, cohortLabel: surveyMap.get(c.survey_id) || "" })));
         } else {
           setComments(useful);
         }
       } else {
-        setComments(useful.map((c) => ({ ...c, cohortLabel: cohortLabel })));
+        setComments(useful.map((c) => ({ ...c, cohortLabel })));
       }
-
       setLoaded(true);
     } catch {
       toast.error("피드백 로드 실패");
@@ -98,40 +121,61 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
     }
   };
 
-  // Available cohort labels for filter
+  // 실효 태그: 저장된 tag 또는 source_field 기반 추천
+  const effectiveTag = (c: CommentWithCohort): TagValue => c.tag ?? suggestTag(c.source_field);
+
+  // 기수 목록
   const cohortLabels = useMemo(() => {
     const labels = new Set(comments.map((c) => c.cohortLabel).filter(Boolean));
     return Array.from(labels).sort();
   }, [comments]);
 
-  // Filtered comments
+  // 필터링
   const filtered = useMemo(() => {
     return comments.filter((c) => {
-      if (sentimentFilter === "positive" && c.sentiment !== "positive") return false;
-      if (sentimentFilter === "negative" && c.sentiment !== "negative") return false;
-      if (tagFilter === "platform" && c.tag !== "platform") return false;
-      if (tagFilter === "instructor" && c.tag !== "instructor") return false;
-      if (tagFilter === "none" && c.tag !== null) return false;
+      const et = effectiveTag(c);
+
+      if (viewMode === "platform") {
+        if (!isPlatformTag(et)) return false;
+        if (platformSub === "pm" && et !== "platform_pm") return false;
+        if (platformSub === "pd" && et !== "platform_pd") return false;
+        if (platformSub === "cs" && et !== "platform_cs") return false;
+        if (platformSub === "etc" && et !== "platform_etc") return false;
+      }
+      if (viewMode === "instructor" && et !== "instructor") return false;
+      if (viewMode === "untagged" && et !== null) return false;
+
       if (cohortFilter !== "all" && c.cohortLabel !== cohortFilter) return false;
       if (search) {
         const s = search.toLowerCase();
-        if (
-          !c.original_text.toLowerCase().includes(s) &&
-          !c.respondent.toLowerCase().includes(s)
-        ) {
-          return false;
-        }
+        if (!c.original_text.toLowerCase().includes(s) && !c.respondent.toLowerCase().includes(s)) return false;
       }
       return true;
     });
-  }, [comments, sentimentFilter, tagFilter, cohortFilter, search]);
+  }, [comments, viewMode, platformSub, cohortFilter, search]);
 
-  // Counts
-  const positiveCount = comments.filter((c) => c.sentiment === "positive").length;
-  const negativeCount = comments.filter((c) => c.sentiment === "negative").length;
-  const platformTagCount = comments.filter((c) => c.tag === "platform").length;
-  const instructorTagCount = comments.filter((c) => c.tag === "instructor").length;
-  const untaggedCount = comments.filter((c) => !c.tag).length;
+  // 항목별 그룹핑
+  const grouped = useMemo(() => {
+    const groups: Record<string, CommentWithCohort[]> = {};
+    for (const c of filtered) {
+      const key = c.source_field;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(c);
+    }
+    // 정렬: hopePlatform → hopeInstructor → pFree → lowScoreReason → lowFeedbackRequest → 기타
+    const order = ["hopePlatform", "hopeInstructor", "pFree", "lowScoreReason", "lowFeedbackRequest"];
+    const sorted = Object.entries(groups).sort(([a], [b]) => {
+      const ai = order.indexOf(a);
+      const bi = order.indexOf(b);
+      return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+    });
+    return sorted;
+  }, [filtered]);
+
+  // 카운트
+  const platformCount = comments.filter((c) => isPlatformTag(effectiveTag(c))).length;
+  const instructorCount = comments.filter((c) => effectiveTag(c) === "instructor").length;
+  const untaggedCount = comments.filter((c) => effectiveTag(c) === null).length;
 
   const handleTagChange = async (commentId: string, tag: TagValue) => {
     try {
@@ -140,9 +184,7 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ commentId, tag }),
       });
-      setComments((prev) =>
-        prev.map((c) => (c.id === commentId ? { ...c, tag } : c))
-      );
+      setComments((prev) => prev.map((c) => (c.id === commentId ? { ...c, tag } : c)));
     } catch {
       toast.error("태그 변경 실패");
     }
@@ -157,32 +199,15 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
     });
   };
 
-  const selectAll = () => {
-    if (selected.size === filtered.length) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(filtered.map((c) => c.id)));
-    }
-  };
-
   const copySelected = () => {
     const items = comments.filter((c) => selected.has(c.id));
     const text = items
-      .map(
-        (c) =>
-          `"${c.original_text}" — ${c.respondent}${c.cohortLabel ? `, ${c.cohortLabel}` : ""}`
-      )
+      .map((c) => `"${c.original_text}" — ${c.respondent}${c.cohortLabel ? `, ${c.cohortLabel}` : ""}`)
       .join("\n\n");
     navigator.clipboard?.writeText(text);
     setCopied(true);
     toast.success(`${items.length}건 복사됨`);
     setTimeout(() => setCopied(false), 2000);
-  };
-
-  const borderColor = (tag: TagValue) => {
-    if (tag === "platform") return "border-l-blue-500";
-    if (tag === "instructor") return "border-l-orange-500";
-    return "border-l-gray-300";
   };
 
   if (loading && !loaded) {
@@ -199,46 +224,27 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
       <div className="text-center py-12 text-muted-foreground">
         <div className="text-[30px] opacity-25 mb-2">💬</div>
         <div className="text-[14px] font-bold">피드백 데이터가 없습니다</div>
-        <div className="text-[13px] mt-1">
-          설문 파일을 업로드하면 수강생 피드백이 여기에 표시됩니다
-        </div>
+        <div className="text-[13px] mt-1">설문 파일을 업로드하면 수강생 피드백이 여기에 표시됩니다</div>
       </div>
     );
   }
 
   return (
-    <div className="grid gap-3.5">
-      {/* Summary bar */}
-      <div className="flex items-center gap-3 py-2.5 px-4 bg-card rounded-xl border text-[12px]">
-        <span className="font-bold">전체 {comments.length}건</span>
-        <span className="text-muted-foreground">|</span>
-        <span className="text-emerald-600 font-semibold">긍정 {positiveCount}</span>
-        <span className="text-muted-foreground">·</span>
-        <span className="text-red-600 font-semibold">부정 {negativeCount}</span>
-        <span className="text-muted-foreground">|</span>
-        <span className="text-blue-600 font-semibold">플랫폼용 {platformTagCount}</span>
-        <span className="text-muted-foreground">·</span>
-        <span className="text-orange-600 font-semibold">강사용 {instructorTagCount}</span>
-        <span className="text-muted-foreground">·</span>
-        <span className="text-gray-500 font-semibold">미분류 {untaggedCount}</span>
-      </div>
-
-      {/* Filter bar */}
+    <div className="grid gap-3">
+      {/* Top filter: 전체 / 플랫폼 / 강사 / 미분류 */}
       <div className="flex gap-2 items-center flex-wrap">
-        {/* Sentiment filter */}
         <div className="flex gap-0.5 bg-muted rounded-lg p-0.5 border">
-          {(
-            [
-              { id: "all", label: "전체" },
-              { id: "positive", label: "긍정" },
-              { id: "negative", label: "부정" },
-            ] as const
-          ).map((f) => (
+          {([
+            { id: "all" as const, label: `전체 (${comments.length})` },
+            { id: "platform" as const, label: `플랫폼 (${platformCount})` },
+            { id: "instructor" as const, label: `강사 (${instructorCount})` },
+            { id: "untagged" as const, label: `미분류 (${untaggedCount})` },
+          ]).map((f) => (
             <button
               key={f.id}
-              onClick={() => setSentimentFilter(f.id)}
-              className={`py-1.5 px-3 rounded-md text-[12px] transition-colors ${
-                sentimentFilter === f.id
+              onClick={() => { setViewMode(f.id); setPlatformSub("all"); }}
+              className={`py-1.5 px-3.5 rounded-md text-[12px] transition-colors ${
+                viewMode === f.id
                   ? "bg-card font-bold text-primary shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
               }`}
@@ -248,31 +254,32 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
           ))}
         </div>
 
-        {/* Tag filter */}
-        <div className="flex gap-0.5 bg-muted rounded-lg p-0.5 border">
-          {(
-            [
-              { id: "all", label: "전체" },
-              { id: "platform", label: "플랫폼용" },
-              { id: "instructor", label: "강사용" },
-              { id: "none", label: "미분류" },
-            ] as const
-          ).map((f) => (
-            <button
-              key={f.id}
-              onClick={() => setTagFilter(f.id)}
-              className={`py-1.5 px-3 rounded-md text-[12px] transition-colors ${
-                tagFilter === f.id
-                  ? "bg-card font-bold text-primary shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
+        {/* Platform sub-filter */}
+        {viewMode === "platform" && (
+          <div className="flex gap-0.5 bg-blue-50 rounded-lg p-0.5 border border-blue-200">
+            {([
+              { id: "all" as const, label: "전체" },
+              { id: "pm" as const, label: "PM" },
+              { id: "pd" as const, label: "PD" },
+              { id: "cs" as const, label: "CS" },
+              { id: "etc" as const, label: "기타" },
+            ]).map((f) => (
+              <button
+                key={f.id}
+                onClick={() => setPlatformSub(f.id)}
+                className={`py-1 px-2.5 rounded-md text-[11px] transition-colors ${
+                  platformSub === f.id
+                    ? "bg-white font-bold text-blue-700 shadow-sm"
+                    : "text-blue-600/70 hover:text-blue-700"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        )}
 
-        {/* Cohort filter (only when viewing all) */}
+        {/* Cohort filter */}
         {!cohort && cohortLabels.length > 1 && (
           <select
             value={cohortFilter}
@@ -281,9 +288,7 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
           >
             <option value="all">전체 기수</option>
             {cohortLabels.map((l) => (
-              <option key={l} value={l}>
-                {l}
-              </option>
+              <option key={l} value={l}>{l}</option>
             ))}
           </select>
         )}
@@ -302,99 +307,100 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
         <span className="text-[12px] text-muted-foreground">{filtered.length}건</span>
       </div>
 
-      {/* Feedback cards */}
-      <div className="grid gap-2 max-h-[calc(100vh-340px)] overflow-y-auto">
-        {filtered.map((comment) => {
-          const isSelected = selected.has(comment.id);
-          const sentimentLabel =
-            comment.sentiment === "positive" ? "긍정" : comment.sentiment === "negative" ? "부정" : "중립";
-          const sentimentStyle =
-            comment.sentiment === "positive"
-              ? "text-emerald-600"
-              : comment.sentiment === "negative"
-              ? "text-red-600"
-              : "text-gray-500";
-
-          return (
-            <div
-              key={comment.id}
-              className={`p-3.5 rounded-xl border border-l-[3px] ${borderColor(comment.tag)} bg-card transition-colors ${
-                isSelected ? "ring-2 ring-primary/30 bg-primary/3" : ""
-              }`}
-            >
-              <div className="flex items-start gap-3">
-                {/* Checkbox */}
-                <label className="mt-0.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    onChange={() => toggleSelect(comment.id)}
-                    className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
-                  />
-                </label>
-
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  <p className="text-[13px] leading-relaxed mb-1.5">
-                    {comment.original_text}
-                  </p>
-                  <div className="flex items-center gap-2 text-[11px]">
-                    <span className="font-bold text-foreground/70">
-                      {comment.respondent}
-                    </span>
-                    {comment.cohortLabel && (
-                      <span className="text-muted-foreground">
-                        {comment.cohortLabel}
-                      </span>
-                    )}
-                    <span className="text-muted-foreground">
-                      {comment.source_field === "hopePlatform"
-                        ? "플랫폼 요청"
-                        : comment.source_field === "hopeInstructor"
-                        ? "강사 요청"
-                        : comment.source_field === "pFree"
-                        ? "후기"
-                        : comment.source_field}
-                    </span>
-                    <span className={`font-semibold ${sentimentStyle}`}>
-                      {sentimentLabel}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Tag dropdown */}
-                <select
-                  value={comment.tag || ""}
-                  onChange={(e) =>
-                    handleTagChange(
-                      comment.id,
-                      (e.target.value || null) as TagValue
-                    )
-                  }
-                  className={`shrink-0 text-[11px] py-1 px-2 rounded-md border font-semibold cursor-pointer ${
-                    comment.tag === "platform"
-                      ? "bg-blue-50 text-blue-700 border-blue-200"
-                      : comment.tag === "instructor"
-                      ? "bg-orange-50 text-orange-700 border-orange-200"
-                      : "bg-gray-50 text-gray-500 border-gray-200"
-                  }`}
-                >
-                  <option value="">미분류</option>
-                  <option value="platform">플랫폼용</option>
-                  <option value="instructor">강사용</option>
-                </select>
-              </div>
+      {/* Grouped feedback cards */}
+      <div className="grid gap-4 max-h-[calc(100vh-310px)] overflow-y-auto">
+        {grouped.map(([sourceField, items]) => (
+          <div key={sourceField}>
+            {/* Group header */}
+            <div className="flex items-center gap-2 mb-2 sticky top-0 bg-background py-1 z-10">
+              <span className="text-[13px] font-bold">
+                {FIELD_LABELS[sourceField] || sourceField}
+              </span>
+              <span className="text-[11px] text-muted-foreground">
+                {items.length}건
+              </span>
+              <div className="flex-1 border-b" />
             </div>
-          );
-        })}
+
+            {/* Cards */}
+            <div className="grid gap-1.5">
+              {items.map((comment) => {
+                const isSelected = selected.has(comment.id);
+                const et = effectiveTag(comment);
+                const isAutoTag = comment.tag === null && et !== null;
+
+                return (
+                  <div
+                    key={comment.id}
+                    className={`py-2.5 px-3.5 rounded-lg border bg-card transition-colors ${
+                      isSelected ? "ring-2 ring-primary/30 bg-primary/3" : ""
+                    }`}
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <label className="mt-0.5 cursor-pointer shrink-0">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelect(comment.id)}
+                          className="w-3.5 h-3.5 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                        />
+                      </label>
+
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] leading-relaxed">
+                          {comment.original_text}
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-1 text-[11px] text-muted-foreground">
+                          <span className="font-semibold text-foreground/60">
+                            {comment.respondent}
+                          </span>
+                          {comment.cohortLabel && (
+                            <span>{comment.cohortLabel}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Tag dropdown */}
+                      <select
+                        value={comment.tag || ""}
+                        onChange={(e) => handleTagChange(comment.id, (e.target.value || null) as TagValue)}
+                        className={`shrink-0 text-[10px] py-0.5 px-1.5 rounded border font-semibold cursor-pointer ${
+                          isAutoTag ? "opacity-50 " : ""
+                        }${getTagColor(et)}`}
+                      >
+                        <option value="">미분류</option>
+                        <optgroup label="플랫폼">
+                          <option value="platform_pm">PM</option>
+                          <option value="platform_pd">PD</option>
+                          <option value="platform_cs">CS</option>
+                          <option value="platform_etc">기타</option>
+                        </optgroup>
+                        <option value="instructor">강사</option>
+                      </select>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+
+        {filtered.length === 0 && (
+          <div className="text-center py-8 text-muted-foreground text-[13px]">
+            해당 조건의 피드백이 없습니다
+          </div>
+        )}
       </div>
 
-      {/* Action bar (when selected) */}
+      {/* Action bar */}
       {selected.size > 0 && (
         <div className="sticky bottom-0 flex items-center gap-3 py-3 px-4 bg-card rounded-xl border shadow-lg">
           <span className="text-[13px] font-bold">{selected.size}건 선택됨</span>
           <button
-            onClick={selectAll}
+            onClick={() => {
+              if (selected.size === filtered.length) setSelected(new Set());
+              else setSelected(new Set(filtered.map((c) => c.id)));
+            }}
             className="text-[12px] text-primary font-semibold hover:underline"
           >
             {selected.size === filtered.length ? "선택 해제" : "전체 선택"}
@@ -405,17 +411,13 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
             className="py-1.5 px-3 rounded-lg border text-[12px] text-muted-foreground hover:bg-accent transition-colors flex items-center gap-1"
           >
             <X className="w-3 h-3" />
-            선택 해제
+            해제
           </button>
           <button
             onClick={copySelected}
             className="py-1.5 px-4 rounded-lg bg-primary text-primary-foreground text-[12px] font-bold flex items-center gap-1.5 hover:opacity-90 transition-opacity"
           >
-            {copied ? (
-              <Check className="w-3.5 h-3.5" />
-            ) : (
-              <Copy className="w-3.5 h-3.5" />
-            )}
+            {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
             {copied ? "복사됨" : "원문 복사"}
           </button>
         </div>
