@@ -70,7 +70,7 @@ export function PlatformDashboard({ platform, onSelectInstructor }: PlatformDash
                 <div className="flex items-center gap-3.5 mb-3.5">
                   <div className="w-11 h-11 rounded-full bg-muted flex items-center justify-center overflow-hidden shrink-0">
                     {inst.photo ? (
-                      <img src={inst.photo} alt={inst.name} className="w-full h-full object-cover" />
+                      <img src={inst.photo} alt={inst.name} className="w-full h-full object-cover" style={{ objectPosition: inst.photoPosition || "center center" }} />
                     ) : (
                       <User className="w-5 h-5 text-muted-foreground" />
                     )}

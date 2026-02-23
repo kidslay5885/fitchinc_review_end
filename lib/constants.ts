@@ -10,10 +10,7 @@ export const KNOWN_INSTRUCTORS: Record<string, string[]> = {
   머니업클래스: ["셀팜", "머니테이커", "킴브로", "윙스"],
 };
 
-// Column mapping patterns for XLSX parsing (matched to actual Naver Form headers)
-// Order matters: first match wins per header. More specific patterns first.
 export const COLUMN_PATTERNS: Record<string, RegExp> = {
-  // --- PRE survey fields ---
   name: /수강생.*이름|이름|성명|성함/i,
   gender: /성별/i,
   age: /연령|나이/i,
@@ -24,7 +21,6 @@ export const COLUMN_PATTERNS: Record<string, RegExp> = {
   goal: /벌고.*싶은.*수익|목표.*수익|수익.*목표|목표.*금액/i,
   hopePlatform: /핏크닉.*바라|머니업.*바라/i,
   hopeInstructor: /강사.*바라|걱정.*강사/i,
-  // --- POST survey fields ---
   pSat: /만족스러웠던.*점/i,
   ps1: /커리큘럼.*만족/i,
   ps2: /피드백.*적절|피드백.*이루어/i,
@@ -33,16 +29,4 @@ export const COLUMN_PATTERNS: Record<string, RegExp> = {
   pRec: /추천.*지인|지인.*추천|추천하실/i,
 };
 
-export const THEME_COLORS = {
-  ac: "#3451B2",
-  acs: "rgba(52,81,178,0.06)",
-  acm: "rgba(52,81,178,0.14)",
-  gd: "#1A8754",
-  gds: "rgba(26,135,84,0.06)",
-  wn: "#B45309",
-  wns: "rgba(180,83,9,0.06)",
-  bd: "#C13838",
-  bds: "rgba(193,56,56,0.06)",
-  vt: "#6D4AE6",
-  vts: "rgba(109,74,230,0.06)",
-};
+export const PLATFORM_NAMES = ["핏크닉", "머니업클래스"] as const;

@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenAI } from "@google/genai";
 
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
 export async function POST(req: NextRequest) {
   try {
@@ -23,13 +21,7 @@ export async function POST(req: NextRequest) {
 긍정평가: ${JSON.stringify(analysis.strengths || [])}`
       : "";
 
-    const message = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 2000,
-      messages: [
-        {
-          role: "user",
-          content: `당신은 온라인 강의 플랫폼 PM입니다. 강사에게 보낼 피드백 메시지를 작성해주세요.
+    const prompt = `당신은 온라인 강의 플랫폼 PM입니다. 강사에게 보낼 피드백 메시지를 작성해주세요.
 
 ## 기본 정보:
 - 강사명: ${instructorName}
@@ -55,20 +47,19 @@ ${analysisSection}
 5. 서명: "— 핏크닉 PM ${pmName || "OOO"} 드림"
 6. 자연스러운 한국어, 존댓말 사용
 
-메시지만 출력해주세요 (JSON 아님):`,
-        },
-      ],
+메시지만 출력해주세요 (JSON 아님):`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
     });
 
-    const text =
-      message.content[0].type === "text" ? message.content[0].text : "";
+    const text = response.text || "";
 
     return NextResponse.json({ feedback: text.trim() });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "생성 실패";
     console.error("Feedback error:", error);
-    return NextResponse.json(
-      { error: error.message || "생성 실패" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

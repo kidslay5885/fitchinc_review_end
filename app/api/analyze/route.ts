@@ -1,79 +1,106 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenAI } from "@google/genai";
+import { getSupabase } from "@/lib/supabase";
 
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
 export async function POST(req: NextRequest) {
   try {
-    const { instructorName, freeTexts, hopeTexts } = await req.json();
-
-    if ((!freeTexts || freeTexts.length === 0) && (!hopeTexts || hopeTexts.length === 0)) {
-      return NextResponse.json({ complaints: [], suggestions: [], strengths: [] });
+    const { surveyId } = await req.json();
+    if (!surveyId) {
+      return NextResponse.json({ error: "surveyId 필요" }, { status: 400 });
     }
 
-    const freeSection =
-      freeTexts?.length > 0
-        ? `## 후기 설문 자유의견:\n${freeTexts.map((t: any) => `- ${t.name}: "${t.text}"`).join("\n")}`
-        : "";
+    const supabase = getSupabase();
 
-    const hopeSection =
-      hopeTexts?.length > 0
-        ? `## 사전 설문 바라는점:\n${hopeTexts.map((t: any) => `- ${t.name}: "${t.text}"`).join("\n")}`
-        : "";
+    const { data: comments, error: fetchError } = await supabase
+      .from("comments")
+      .select("*")
+      .eq("survey_id", surveyId)
+      .order("created_at");
 
-    const message = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 2000,
-      messages: [
-        {
-          role: "user",
-          content: `당신은 온라인 강의 플랫폼의 수강생 설문 분석 전문가입니다.
-아래는 "${instructorName}" 강사의 수강생 설문 응답입니다. 이 데이터를 분석하여 JSON 형태로 분류해주세요.
-
-${freeSection}
-
-${hopeSection}
-
-다음 JSON 형식으로 응답해주세요 (JSON만 출력, 다른 텍스트 없이):
-{
-  "complaints": [
-    { "theme": "불만 테마명", "count": 언급횟수, "who": ["이름1", "이름2"], "detail": "구체적 내용 요약" }
-  ],
-  "suggestions": [
-    { "from": "이름", "text": "제안 내용 요약" }
-  ],
-  "strengths": [
-    { "title": "긍정 포인트 제목", "responses": [{ "name": "이름", "text": "원문 또는 요약" }] }
-  ]
-}
-
-규칙:
-- 불만사항: 비슷한 주제끼리 그룹핑, 반복 횟수 표시, 단순 인사/감사 제외
-- 제안사항: 구체적인 개선 요청만 포함
-- 긍정평가: 의미있는 칭찬/만족 포인트만 (짧은 "좋았습니다" 제외)
-- ".", "없습니다", "잘 부탁드립니다" 등 무의미한 답변은 모두 무시`,
-        },
-      ],
-    });
-
-    const text =
-      message.content[0].type === "text" ? message.content[0].text : "";
-
-    // Extract JSON from response
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return NextResponse.json({ complaints: [], suggestions: [], strengths: [] });
+    if (fetchError) {
+      return NextResponse.json({ error: fetchError.message }, { status: 500 });
     }
 
-    const result = JSON.parse(jsonMatch[0]);
-    return NextResponse.json(result);
-  } catch (error: any) {
+    if (!comments || comments.length === 0) {
+      return NextResponse.json({ analyzed: 0 });
+    }
+
+    const commentList = comments.map((c, i) => ({
+      index: i,
+      respondent: c.respondent,
+      text: c.original_text,
+      field: c.source_field,
+    }));
+
+    const BATCH_SIZE = 50;
+    let totalAnalyzed = 0;
+
+    for (let offset = 0; offset < commentList.length; offset += BATCH_SIZE) {
+      const batch = commentList.slice(offset, offset + BATCH_SIZE);
+
+      const prompt = `당신은 온라인 강의 수강생 설문 분석 전문가입니다.
+아래 댓글들을 각각 긍정/부정/중립으로 분류하고, 핵심 내용을 한줄로 요약해주세요.
+
+댓글 목록:
+${batch.map((c) => `[${c.index}] ${c.respondent} (${c.field}): "${c.text}"`).join("\n")}
+
+다음 JSON 배열만 출력하세요 (다른 텍스트 없이):
+[
+  { "index": 0, "sentiment": "positive", "summary": "한줄 요약" },
+  ...
+]
+
+분류 기준:
+- positive: 만족, 감사, 추천, 좋았다, 도움이 됐다 등
+- negative: 불만, 아쉬움, 부족, 개선 요청 등
+- neutral: 단순 사실 전달, 무의미, 짧은 응답 등
+- ".", "없습니다", "없음" 등 무의미한 답변은 neutral`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: prompt,
+      });
+
+      const text = response.text || "";
+
+      const jsonMatch = text.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) continue;
+
+      try {
+        const results: { index: number; sentiment: string; summary: string }[] =
+          JSON.parse(jsonMatch[0]);
+
+        for (const r of results) {
+          const globalIndex = offset + r.index;
+          if (globalIndex >= comments.length) continue;
+
+          const comment = comments[globalIndex];
+          await supabase
+            .from("comments")
+            .update({
+              sentiment: r.sentiment,
+              ai_summary: r.summary,
+            })
+            .eq("id", comment.id);
+
+          totalAnalyzed++;
+        }
+      } catch {
+        console.error("JSON parse error for batch at offset", offset);
+      }
+    }
+
+    await supabase
+      .from("surveys")
+      .update({ status: "analyzed" })
+      .eq("id", surveyId);
+
+    return NextResponse.json({ analyzed: totalAnalyzed });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "분석 실패";
     console.error("Analysis error:", error);
-    return NextResponse.json(
-      { error: error.message || "분석 실패" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

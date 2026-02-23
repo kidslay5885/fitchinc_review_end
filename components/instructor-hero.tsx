@@ -35,7 +35,7 @@ export function InstructorHero({ platformName, instructor, cohort }: InstructorH
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center overflow-hidden shrink-0">
               {instructor.photo ? (
-                <img src={instructor.photo} alt={instructor.name} className="w-full h-full object-cover" />
+                <img src={instructor.photo} alt={instructor.name} className="w-full h-full object-cover" style={{ objectPosition: instructor.photoPosition || "center center" }} />
               ) : (
                 <User className="w-4.5 h-4.5 text-muted-foreground" />
               )}

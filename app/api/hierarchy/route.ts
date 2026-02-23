@@ -1,0 +1,82 @@
+import { NextResponse } from "next/server";
+import { getSupabase } from "@/lib/supabase";
+
+export async function GET() {
+  try {
+    const supabase = getSupabase();
+
+    const { data: surveys, error } = await supabase
+      .from("surveys")
+      .select("platform, instructor, cohort, survey_type, response_count, pm, start_date, end_date, total_students")
+      .not("platform", "is", null)
+      .not("instructor", "is", null)
+      .order("created_at");
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // 계층 구조 빌드: platform → instructor → cohort
+    const platformMap = new Map<string, Map<string, Set<string>>>();
+    const cohortMeta = new Map<string, { pm: string; startDate: string | null; endDate: string | null; totalStudents: number; preCount: number; postCount: number }>();
+
+    for (const s of surveys || []) {
+      if (!s.platform || !s.instructor) continue;
+
+      if (!platformMap.has(s.platform)) {
+        platformMap.set(s.platform, new Map());
+      }
+      const instMap = platformMap.get(s.platform)!;
+
+      if (!instMap.has(s.instructor)) {
+        instMap.set(s.instructor, new Set());
+      }
+
+      if (s.cohort) {
+        instMap.get(s.instructor)!.add(s.cohort);
+
+        const key = `${s.platform}|${s.instructor}|${s.cohort}`;
+        const existing = cohortMeta.get(key) || { pm: "", startDate: null, endDate: null, totalStudents: 0, preCount: 0, postCount: 0 };
+
+        if (s.pm) existing.pm = s.pm;
+        if (s.start_date) existing.startDate = s.start_date;
+        if (s.end_date) existing.endDate = s.end_date;
+        if (s.total_students) existing.totalStudents = s.total_students;
+
+        if (s.survey_type === "사전") {
+          existing.preCount += s.response_count || 0;
+        } else {
+          existing.postCount += s.response_count || 0;
+        }
+
+        cohortMeta.set(key, existing);
+      }
+    }
+
+    // 출력 형태
+    const result = Array.from(platformMap.entries()).map(([platformName, instMap]) => ({
+      name: platformName,
+      instructors: Array.from(instMap.entries()).map(([instName, cohortSet]) => ({
+        name: instName,
+        cohorts: Array.from(cohortSet).map((cohortLabel) => {
+          const key = `${platformName}|${instName}|${cohortLabel}`;
+          const meta = cohortMeta.get(key);
+          return {
+            label: cohortLabel,
+            pm: meta?.pm || "",
+            startDate: meta?.startDate || "",
+            endDate: meta?.endDate || "",
+            totalStudents: meta?.totalStudents || 0,
+            preCount: meta?.preCount || 0,
+            postCount: meta?.postCount || 0,
+          };
+        }),
+      })),
+    }));
+
+    return NextResponse.json(result);
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "계층 조회 실패";
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}

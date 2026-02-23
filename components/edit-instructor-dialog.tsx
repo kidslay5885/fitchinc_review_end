@@ -45,6 +45,18 @@ export function EditInstructorDialog({
     reader.readAsDataURL(file);
   };
 
+  // Parse photoPosition to get vertical percentage (0-100)
+  const getVerticalPosition = (): number => {
+    const pos = data.photoPosition || "center center";
+    const parts = pos.split(" ");
+    const yPart = parts[1] || "50%";
+    return parseInt(yPart) || 50;
+  };
+
+  const setVerticalPosition = (value: number) => {
+    setData((prev) => ({ ...prev, photoPosition: `center ${value}%` }));
+  };
+
   return (
     <div
       className="fixed inset-0 bg-black/20 z-[300] flex items-center justify-center"
@@ -68,7 +80,12 @@ export function EditInstructorDialog({
             <label className="cursor-pointer relative inline-block">
               <div className="w-[52px] h-[52px] rounded-full bg-muted flex items-center justify-center overflow-hidden border-2 border-muted">
                 {data.photo ? (
-                  <img src={data.photo} alt={data.name} className="w-full h-full object-cover" />
+                  <img
+                    src={data.photo}
+                    alt={data.name}
+                    className="w-full h-full object-cover"
+                    style={{ objectPosition: data.photoPosition || "center center" }}
+                  />
                 ) : (
                   <User className="w-6 h-6 text-muted-foreground" />
                 )}
@@ -101,6 +118,32 @@ export function EditInstructorDialog({
             />
           </div>
         </div>
+
+        {/* Photo position slider */}
+        {data.photo && (
+          <div className="mb-5 py-3 px-4 bg-muted/50 rounded-lg border">
+            <div className="flex items-center gap-3">
+              <label className="text-[11px] text-muted-foreground font-bold shrink-0">
+                사진 위치
+              </label>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={getVerticalPosition()}
+                onChange={(e) => setVerticalPosition(Number(e.target.value))}
+                className="flex-1 h-1.5 accent-primary cursor-pointer"
+              />
+              <span className="text-[11px] text-muted-foreground w-8 text-right">
+                {getVerticalPosition()}%
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-[10px] text-muted-foreground mt-1 px-[68px]">
+              <span>위</span>
+              <span>아래</span>
+            </div>
+          </div>
+        )}
 
         {/* Cohorts table */}
         <div className="text-[12px] font-bold text-muted-foreground mb-2.5">기수 정보</div>

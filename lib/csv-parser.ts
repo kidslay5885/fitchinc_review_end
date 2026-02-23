@@ -23,53 +23,33 @@ function mapColumns(headers: string[]): Record<string, string> {
   return mapping;
 }
 
-/**
- * Extract a clean name from potentially combined "성함 및 연락처" field.
- * Real data formats:
- *   "정성제/010-4177-4713"  → 정성제
- *   "01041233996/박지연"    → 박지연
- *   "김주리. 01022918533"   → 김주리
- *   "최철희 01058230438"    → 최철희
- *   "010-9246-9669"         → "" (phone only)
- *   "괜찮습니다"             → "" (irrelevant text)
- */
 const SKIP_NAMES = /^(머니업클래스|핏크닉|괜찮습니다|없습니다|감사합니다|필요없습니다|없음|010)$/i;
 
 function extractName(raw: string): string {
   if (!raw) return "";
   const text = raw.trim();
-
-  // Split by / , . separators
   const parts = text.split(/[/,.]/).map((s) => s.trim()).filter(Boolean);
 
   for (const part of parts) {
-    // Skip if the part is all digits (phone number)
     const digitsOnly = part.replace(/[-\s()]/g, "");
     if (/^\d+$/.test(digitsOnly)) continue;
 
-    // Remove embedded phone numbers
     let cleaned = part
       .replace(/\d{2,4}[-.\s]?\d{3,4}[-.\s]?\d{4}/g, "")
       .replace(/\b\d{10,11}\b/g, "")
       .trim();
 
-    // Skip known non-name text
     if (SKIP_NAMES.test(cleaned)) continue;
-
     if (cleaned.length >= 2) return cleaned;
   }
 
   return "";
 }
 
-/**
- * Extract a numeric score from text like "8", "8점", "10/10", "5 - 매우 그렇다"
- */
 function extractScore(raw: string): number {
   if (!raw) return 0;
   const n = parseFloat(raw);
   if (!isNaN(n)) return n;
-  // Try extracting first number from text
   const m = raw.match(/(\d+(\.\d+)?)/);
   return m ? parseFloat(m[1]) : 0;
 }
@@ -96,8 +76,6 @@ function parseRow(
     }
   }
 
-  // Name extraction: pre surveys have dedicated name column,
-  // post surveys use 커피쿠폰 성함+연락처 field (mapped via 성함 pattern)
   const rawName = get("name");
   const cleanName = extractName(rawName);
 
@@ -123,6 +101,8 @@ function parseRow(
   };
 }
 
+// ===== 클라이언트용: 파일 → SurveyResponse[] =====
+
 export async function parseXLSX(
   file: File,
   isPre: boolean
@@ -142,4 +122,106 @@ export async function parseXLSX(
   return rows
     .map((row, i) => parseRow(row, mapping, isPre, i))
     .filter((r) => r.name !== "");
+}
+
+// ===== 서버용: Buffer → SurveyResponse[] =====
+
+export function parseBufferToResponses(
+  buffer: ArrayBuffer | Buffer | Uint8Array,
+  isPre: boolean
+): SurveyResponse[] {
+  const data = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+  const workbook = XLSX.read(data, { type: "array" });
+  const sheetName = workbook.SheetNames[0];
+  const sheet = workbook.Sheets[sheetName];
+  const rows: RowData[] = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+  if (rows.length === 0) return [];
+
+  const headers = Object.keys(rows[0]);
+  const mapping = mapColumns(headers);
+
+  return rows
+    .map((row, i) => parseRow(row, mapping, isPre, i))
+    .filter((r) => r.name !== "");
+}
+
+// ===== 서버용: Buffer → 댓글 목록 =====
+
+// 피드백 허브에 가치 있는 텍스트 필드만 추출
+// pSat(만족스러운 점) → 키워드성 응답, 이미 만족도 집계에 사용
+// pRec(추천 의향) → yes/no 응답, 이미 추천률 수치로 집계
+const TEXT_FIELDS = ["hopePlatform", "hopeInstructor", "pFree"] as const;
+
+// 피드백으로 의미 없는 짧은/일반적 응답 필터
+const NOISE_PATTERNS = /^(네|예|아니요|없습니다|없음|감사합니다|고맙습니다|좋습니다|좋았습니다|잘 모르겠습니다|모르겠습니다|특별히 없습니다|딱히 없습니다|아직 없습니다|글쎄요|x|X|-|강의 내용|커리큘럼|피드백|추천합니다|네 추천합니다|예 추천합니다|네 너무 좋습니다|[.\s]*)$/;
+
+export interface ParsedComment {
+  respondent: string;
+  original_text: string;
+  source_field: string;
+}
+
+export function parseXLSXToComments(
+  buffer: ArrayBuffer | Buffer | Uint8Array,
+  isPre: boolean
+): ParsedComment[] {
+  const data = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+  const workbook = XLSX.read(data, { type: "array" });
+  const sheetName = workbook.SheetNames[0];
+  const sheet = workbook.Sheets[sheetName];
+  const rows: RowData[] = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+  if (rows.length === 0) return [];
+
+  const headers = Object.keys(rows[0]);
+  const mapping = mapColumns(headers);
+  const comments: ParsedComment[] = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const get = (field: string) => {
+      const col = mapping[field];
+      if (!col) return "";
+      const v = row[col];
+      return v == null ? "" : String(v).trim();
+    };
+
+    const rawName = get("name");
+    const respondent = extractName(rawName) || `응답자${i + 1}`;
+
+    for (const field of TEXT_FIELDS) {
+      if (isPre && !["hopePlatform", "hopeInstructor"].includes(field)) continue;
+      if (!isPre && ["hopePlatform", "hopeInstructor"].includes(field)) continue;
+
+      const text = get(field);
+      if (!text || text.length < 5) continue;
+      if (/^[.\s]*$/.test(text) || NOISE_PATTERNS.test(text.trim())) continue;
+
+      comments.push({ respondent, original_text: text, source_field: field });
+    }
+
+    const mappedCols = new Set(Object.values(mapping));
+    for (const [col, val] of Object.entries(row)) {
+      if (mappedCols.has(col)) continue;
+      const text = String(val).trim();
+      if (text.length >= 20 && !/^\d+$/.test(text)) {
+        if (NOISE_PATTERNS.test(text.trim())) continue;
+        comments.push({ respondent, original_text: text, source_field: col });
+      }
+    }
+  }
+
+  return comments;
+}
+
+export function countRespondents(
+  buffer: ArrayBuffer | Buffer | Uint8Array
+): number {
+  const data = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer);
+  const workbook = XLSX.read(data, { type: "array" });
+  const sheetName = workbook.SheetNames[0];
+  const sheet = workbook.Sheets[sheetName];
+  const rows: RowData[] = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+  return rows.length;
 }

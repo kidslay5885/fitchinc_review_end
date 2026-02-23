@@ -1,3 +1,47 @@
+// ===== Supabase DB 타입 =====
+
+export interface Survey {
+  id: string;
+  filename: string;
+  platform: string | null;
+  instructor: string | null;
+  cohort: string | null;
+  survey_type: "사전" | "후기";
+  status: "uploaded" | "analyzed" | "classified";
+  response_count: number;
+  pm: string;
+  start_date: string | null;
+  end_date: string | null;
+  total_students: number;
+  created_at: string;
+}
+
+export interface Comment {
+  id: string;
+  survey_id: string;
+  respondent: string;
+  original_text: string;
+  sentiment: "positive" | "negative" | "neutral" | null;
+  ai_summary: string | null;
+  source_field: string;
+  tag: "platform" | "instructor" | null;
+  created_at: string;
+}
+
+export interface ShareLink {
+  id: string;
+  token: string;
+  title: string;
+  filter_platform: string | null;
+  filter_instructor: string | null;
+  filter_cohort: string | null;
+  filter_sentiment: string | null;
+  created_at: string;
+  expires_at: string | null;
+}
+
+// ===== 클라이언트 앱 타입 (원래 UI용) =====
+
 export interface SurveyResponse {
   id: string;
   name: string;
@@ -10,14 +54,12 @@ export interface SurveyResponse {
   goal: string;
   hopePlatform: string;
   hopeInstructor: string;
-  // 후기 fields
   ps1: number;
   ps2: number;
   pSat: string;
   pFmt: string;
   pFree: string;
   pRec: string;
-  // raw data for unmapped columns
   rawData: Record<string, string>;
 }
 
@@ -37,6 +79,7 @@ export interface Instructor {
   name: string;
   category: string;
   photo: string;
+  photoPosition: string;
   cohorts: Cohort[];
 }
 
@@ -85,7 +128,22 @@ export interface ParsedFile {
   type: "사전" | "후기";
 }
 
-// Helper functions
+// ===== API 요청/응답 타입 =====
+
+export interface UploadResult {
+  survey: Survey;
+  commentCount: number;
+  responseCount: number;
+}
+
+export interface AnalyzeResult {
+  index: number;
+  sentiment: "positive" | "negative" | "neutral";
+  summary: string;
+}
+
+// ===== 헬퍼 함수 =====
+
 export function autoStatus(c: Cohort): "완료" | "진행중" | "준비중" {
   if (c.postResponses.length > 0) return "완료";
   if (c.preResponses.length > 0) return "진행중";

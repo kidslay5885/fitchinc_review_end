@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   AppProvider,
   useAppStore,
@@ -8,41 +8,79 @@ import {
   useSelectedInstructor,
   useSelectedCohort,
 } from "@/hooks/use-app-store";
+import { NavHeader } from "@/components/nav-header";
 import { AppSidebar } from "@/components/app-sidebar";
 import { PlatformDashboard } from "@/components/platform-dashboard";
 import { InstructorHero } from "@/components/instructor-hero";
-import { TabOverview } from "@/components/tab-overview";
-import { TabRawResponses } from "@/components/tab-raw-responses";
-import { TabAnalysis } from "@/components/tab-analysis";
+import { TabFeedbackHub } from "@/components/tab-feedback-hub";
 import { TabPMNotes } from "@/components/tab-pm-notes";
-import { TabFeedback } from "@/components/tab-feedback";
+import { TabData } from "@/components/tab-data";
 import { UploadDialog } from "@/components/upload-dialog";
 import { EditInstructorDialog } from "@/components/edit-instructor-dialog";
 import type { Instructor } from "@/lib/types";
-import { BarChart3 } from "lucide-react";
+import { BarChart3, Loader2 } from "lucide-react";
 
 const TABS = [
-  { id: "overview", icon: "📊", label: "수강생 개요" },
-  { id: "raw", icon: "📋", label: "응답 원본" },
-  { id: "analysis", icon: "🔍", label: "분석 & 이슈" },
+  { id: "feedback", icon: "💬", label: "피드백" },
   { id: "notes", icon: "📝", label: "PM 워크노트" },
-  { id: "feedback", icon: "💬", label: "강사 피드백" },
+  { id: "data", icon: "📊", label: "데이터" },
 ];
 
 function MainContent() {
-  const { state, dispatch } = useAppStore();
+  const { state, dispatch, loadCohortData } = useAppStore();
   const plat = useSelectedPlatform();
   const inst = useSelectedInstructor();
   const cohort = useSelectedCohort();
 
   const [showUpload, setShowUpload] = useState(false);
   const [editInst, setEditInst] = useState<Instructor | null>(null);
+  const [dataLoading, setDataLoading] = useState(false);
 
   const showPlatDash = plat && !inst;
+  const platformName = plat?.name || "";
+
+  // 강사/기수 선택 시 실제 데이터 지연 로딩
+  useEffect(() => {
+    if (!inst || !plat) return;
+
+    const loadData = async () => {
+      setDataLoading(true);
+      if (cohort) {
+        const needsLoad =
+          (cohort.preResponses.length > 0 && cohort.preResponses[0]?.name === "") ||
+          (cohort.postResponses.length > 0 && cohort.postResponses[0]?.name === "");
+        if (needsLoad) {
+          await loadCohortData(plat.name, inst.name, cohort.label);
+        }
+      } else {
+        for (const c of inst.cohorts) {
+          const needsLoad =
+            (c.preResponses.length > 0 && c.preResponses[0]?.name === "") ||
+            (c.postResponses.length > 0 && c.postResponses[0]?.name === "");
+          if (needsLoad) {
+            await loadCohortData(plat.name, inst.name, c.label);
+          }
+        }
+      }
+      setDataLoading(false);
+    };
+
+    loadData();
+  }, [inst?.id, cohort?.id, plat?.name]);
+
+  if (state.loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-3" />
+          <div className="text-[14px] text-muted-foreground">데이터 로딩 중...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* Edit instructor modal */}
       {editInst && (
         <EditInstructorDialog
           instructor={editInst}
@@ -52,27 +90,17 @@ function MainContent() {
         />
       )}
 
-      {/* Upload modal */}
       {showUpload && <UploadDialog onClose={() => setShowUpload(false)} />}
 
-      {/* Header */}
-      <header className="py-2.5 px-5 border-b flex items-center bg-card">
-        <div className="w-[26px] h-[26px] rounded-md bg-primary flex items-center justify-center text-[12px] font-black text-primary-foreground mr-2.5">
-          F
-        </div>
-        <span className="text-[15px] font-extrabold">클래스 인사이트</span>
-      </header>
+      <NavHeader />
 
-      <div className="flex" style={{ height: "calc(100vh - 50px)" }}>
-        {/* Sidebar */}
+      <div className="flex" style={{ height: "calc(100vh - 45px)" }}>
         <AppSidebar
           onUpload={() => setShowUpload(true)}
           onEditInstructor={(inst) => setEditInst(inst)}
         />
 
-        {/* Main area */}
         <main className="flex-1 overflow-y-auto p-5 px-6">
-          {/* No platform selected */}
           {!state.selectedPlatformId && (
             <div className="flex flex-col items-center justify-center h-full">
               <BarChart3 className="w-9 h-9 opacity-20 mb-3" />
@@ -85,7 +113,6 @@ function MainContent() {
             </div>
           )}
 
-          {/* Platform dashboard */}
           {showPlatDash && (
             <PlatformDashboard
               platform={plat}
@@ -93,16 +120,14 @@ function MainContent() {
             />
           )}
 
-          {/* Instructor view */}
           {inst && (
             <div>
               <InstructorHero
-                platformName={plat?.name || ""}
+                platformName={platformName}
                 instructor={inst}
                 cohort={cohort}
               />
 
-              {/* Tabs */}
               <div className="flex gap-0 border-b-2 border-border mb-5">
                 {TABS.map((t) => (
                   <button
@@ -119,21 +144,23 @@ function MainContent() {
                 ))}
               </div>
 
-              {/* Tab content */}
-              {state.activeTab === "overview" && (
-                <TabOverview instructor={inst} cohort={cohort} />
-              )}
-              {state.activeTab === "raw" && (
-                <TabRawResponses instructor={inst} cohort={cohort} />
-              )}
-              {state.activeTab === "analysis" && (
-                <TabAnalysis instructor={inst} cohort={cohort} />
-              )}
-              {state.activeTab === "notes" && (
-                <TabPMNotes instructor={inst} cohort={cohort} />
-              )}
-              {state.activeTab === "feedback" && (
-                <TabFeedback instructor={inst} cohort={cohort} />
+              {dataLoading ? (
+                <div className="text-center py-12">
+                  <Loader2 className="w-6 h-6 animate-spin text-primary mx-auto mb-2" />
+                  <div className="text-[13px] text-muted-foreground">데이터 로딩 중...</div>
+                </div>
+              ) : (
+                <>
+                  {state.activeTab === "feedback" && (
+                    <TabFeedbackHub instructor={inst} cohort={cohort} platformName={platformName} />
+                  )}
+                  {state.activeTab === "notes" && (
+                    <TabPMNotes instructor={inst} cohort={cohort} platformName={platformName} />
+                  )}
+                  {state.activeTab === "data" && (
+                    <TabData instructor={inst} cohort={cohort} />
+                  )}
+                </>
               )}
             </div>
           )}

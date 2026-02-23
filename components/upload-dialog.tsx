@@ -3,8 +3,6 @@
 import { useState, useCallback } from "react";
 import { useAppStore } from "@/hooks/use-app-store";
 import { parseFilename } from "@/lib/filename-parser";
-import { parseXLSX } from "@/lib/csv-parser";
-import type { ParsedFile, Instructor } from "@/lib/types";
 import { X, FileSpreadsheet, Upload, Loader2, CheckCircle, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 
@@ -23,7 +21,7 @@ interface UploadFileState {
 }
 
 export function UploadDialog({ onClose }: UploadDialogProps) {
-  const { state, dispatch } = useAppStore();
+  const { state, refreshHierarchy } = useAppStore();
   const [files, setFiles] = useState<UploadFileState[]>([]);
   const [step, setStep] = useState<"upload" | "confirm" | "processing">("upload");
 
@@ -96,27 +94,24 @@ export function UploadDialog({ onClose }: UploadDialogProps) {
       );
 
       try {
-        const isPre = f.type === "사전";
-        const responses = await parseXLSX(f.file, isPre);
+        const formData = new FormData();
+        formData.append("file", f.file);
+        formData.append("survey_type", f.type);
+        formData.append("platform", f.platform);
+        formData.append("instructor", f.inst);
+        formData.append("cohort", f.cohort);
 
-        if (responses.length === 0) {
-          setFiles((prev) =>
-            prev.map((file, idx) =>
-              idx === i ? { ...file, status: "error" } : file
-            )
-          );
-          toast.error(`${f.name}: 데이터가 비어있습니다`);
-          continue;
+        const res = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.error || "업로드 실패");
         }
 
-        dispatch({
-          type: "ADD_RESPONSES",
-          platformName: f.platform,
-          instructorName: f.inst,
-          cohortLabel: f.cohort,
-          surveyType: f.type,
-          responses,
-        });
+        const data = await res.json();
 
         setFiles((prev) =>
           prev.map((file, idx) =>
@@ -124,17 +119,21 @@ export function UploadDialog({ onClose }: UploadDialogProps) {
           )
         );
 
-        toast.success(`${f.name}: ${responses.length}명 업로드 완료`);
-      } catch (err: any) {
+        toast.success(`${f.name}: ${data.responseCount}명 업로드 완료`);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "업로드 실패";
         console.error(`[Upload] ${f.name} 실패:`, err);
         setFiles((prev) =>
           prev.map((file, idx) =>
             idx === i ? { ...file, status: "error" } : file
           )
         );
-        toast.error(`${f.name}: ${err?.message || "파싱 실패"}`);
+        toast.error(`${f.name}: ${msg}`);
       }
     }
+
+    // 업로드 완료 후 계층 새로고침
+    await refreshHierarchy();
   };
 
   const allDone = files.every((f) => f.status === "done" || f.status === "error");
@@ -196,7 +195,7 @@ export function UploadDialog({ onClose }: UploadDialogProps) {
         {step === "confirm" && files.length > 0 && (
           <div>
             <div className="text-[12px] font-bold text-muted-foreground mb-2">
-              🤖 AI 자동 인식 결과 — 틀리면 직접 수정해주세요
+              AI 자동 인식 결과 — 틀리면 직접 수정해주세요
             </div>
             {files.map((f, i) => {
               const hasInst = !!f.inst;
@@ -236,7 +235,7 @@ export function UploadDialog({ onClose }: UploadDialogProps) {
                     </div>
                     <div>
                       <label className="text-[10px] font-bold text-muted-foreground block mb-1">
-                        강사 {hasInst ? "✅" : "⚠️"}
+                        강사
                       </label>
                       <input
                         value={f.inst}
@@ -255,7 +254,7 @@ export function UploadDialog({ onClose }: UploadDialogProps) {
                     </div>
                     <div>
                       <label className="text-[10px] font-bold text-muted-foreground block mb-1">
-                        기수 {hasCohort ? "✅" : "⚠️"}
+                        기수
                       </label>
                       <input
                         value={f.cohort}
@@ -268,7 +267,7 @@ export function UploadDialog({ onClose }: UploadDialogProps) {
                     </div>
                     <div>
                       <label className="text-[10px] font-bold text-muted-foreground block mb-1">
-                        유형 ✅
+                        유형
                       </label>
                       <select
                         value={f.type}
@@ -298,7 +297,7 @@ export function UploadDialog({ onClose }: UploadDialogProps) {
                 disabled={hasInvalid}
                 className="flex-[2] py-2.5 rounded-lg bg-primary text-primary-foreground text-[14px] font-bold hover:opacity-90 disabled:opacity-50 transition-opacity"
               >
-                ✅ 확인 후 업로드 ({files.length}개)
+                확인 후 업로드 ({files.length}개)
               </button>
             </div>
           </div>
@@ -344,7 +343,7 @@ export function UploadDialog({ onClose }: UploadDialogProps) {
         {/* Empty state hint */}
         {step === "upload" && files.length === 0 && (
           <div className="py-2.5 px-3.5 rounded-lg bg-primary/5 text-[12px] text-primary">
-            💡 파일명에 강사명/기수가 포함되어 있으면 AI가 자동으로 인식합니다.
+            파일명에 강사명/기수가 포함되어 있으면 AI가 자동으로 인식합니다.
             <br />
             예: &quot;민대표_1기_사전설문.xlsx&quot; → 민대표 · 1기 · 사전
           </div>
