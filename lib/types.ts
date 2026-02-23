@@ -1,0 +1,115 @@
+export interface SurveyResponse {
+  id: string;
+  name: string;
+  gender: string;
+  age: string;
+  job: string;
+  hours: string;
+  channel: string;
+  computer: number;
+  goal: string;
+  hopePlatform: string;
+  hopeInstructor: string;
+  // 후기 fields
+  ps1: number;
+  ps2: number;
+  pSat: string;
+  pFmt: string;
+  pFree: string;
+  pRec: string;
+  // raw data for unmapped columns
+  rawData: Record<string, string>;
+}
+
+export interface Cohort {
+  id: string;
+  label: string;
+  pm: string;
+  date: string;
+  endDate: string;
+  totalStudents: number;
+  preResponses: SurveyResponse[];
+  postResponses: SurveyResponse[];
+}
+
+export interface Instructor {
+  id: string;
+  name: string;
+  category: string;
+  photo: string;
+  cohorts: Cohort[];
+}
+
+export interface Platform {
+  id: string;
+  name: string;
+  instructors: Instructor[];
+}
+
+export interface ComplaintItem {
+  theme: string;
+  count: number;
+  who: string[];
+  detail: string;
+}
+
+export interface SuggestionItem {
+  from: string;
+  text: string;
+}
+
+export interface StrengthItem {
+  title: string;
+  responses: { name: string; text: string }[];
+}
+
+export interface AnalysisResult {
+  complaints: ComplaintItem[];
+  suggestions: SuggestionItem[];
+  strengths: StrengthItem[];
+}
+
+export interface NoteData {
+  good: string;
+  bad: string;
+  action: string;
+  memo: string;
+}
+
+export interface ParsedFile {
+  file: File;
+  name: string;
+  platform: string;
+  inst: string;
+  cohort: string;
+  type: "사전" | "후기";
+}
+
+// Helper functions
+export function autoStatus(c: Cohort): "완료" | "진행중" | "준비중" {
+  if (c.postResponses.length > 0) return "완료";
+  if (c.preResponses.length > 0) return "진행중";
+  return "준비중";
+}
+
+export function statusColor(s: string): string {
+  if (s === "완료") return "text-emerald-600";
+  if (s === "진행중") return "text-amber-600";
+  return "text-muted-foreground";
+}
+
+export function statusBg(s: string): string {
+  if (s === "완료") return "bg-emerald-50 text-emerald-700 border-emerald-200";
+  if (s === "진행중") return "bg-amber-50 text-amber-700 border-amber-200";
+  return "bg-muted text-muted-foreground border-border";
+}
+
+export function cohortAvgScore(c: Cohort): number {
+  if (c.postResponses.length === 0) return 0;
+  const total = c.postResponses.reduce((a, r) => a + (r.ps1 + r.ps2) / 2, 0);
+  return Math.round((total / c.postResponses.length) * 100) / 100;
+}
+
+export function generateId(): string {
+  return Math.random().toString(36).slice(2, 10);
+}
