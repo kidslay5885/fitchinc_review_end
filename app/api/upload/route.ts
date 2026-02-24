@@ -27,9 +27,37 @@ export async function POST(req: NextRequest) {
 
     const responseCount = countRespondents(buffer);
     const comments = parseXLSXToComments(buffer, isPre);
-    const responses = parseBufferToResponses(buffer, isPre);
+    let responses = parseBufferToResponses(buffer, isPre);
+
+    // 응답자 이름 기준 중복 제거 (같은 이름이 여러 행이면 마지막 것만 유지)
+    const nameMap = new Map<string, typeof responses[number]>();
+    for (const r of responses) {
+      const key = r.name.trim();
+      if (key) nameMap.set(key, r);
+    }
+    const dedupedResponses = [...nameMap.values()];
+    const dupCount = responses.length - dedupedResponses.length;
+    responses = dedupedResponses;
 
     const supabase = getSupabase();
+
+    // 중복 설문 체크: 같은 (platform, instructor, cohort, survey_type) 존재 시 기존 데이터 삭제
+    let replaced = false;
+    if (platform && instructor && cohort) {
+      const { data: existing } = await supabase
+        .from("surveys")
+        .select("id")
+        .match({ platform, instructor, cohort, survey_type: surveyType });
+
+      if (existing && existing.length > 0) {
+        const oldIds = existing.map((s) => s.id);
+        // 기존 응답·코멘트·설문 삭제 (cascade 없으면 수동 삭제)
+        await supabase.from("survey_responses").delete().in("survey_id", oldIds);
+        await supabase.from("comments").delete().in("survey_id", oldIds);
+        await supabase.from("surveys").delete().in("id", oldIds);
+        replaced = true;
+      }
+    }
 
     // surveys 테이블에 저장
     const { data: survey, error: surveyError } = await supabase
@@ -41,7 +69,7 @@ export async function POST(req: NextRequest) {
         cohort,
         survey_type: surveyType,
         status: platform && instructor && cohort ? "classified" : "uploaded",
-        response_count: responseCount,
+        response_count: responses.length,
       })
       .select()
       .single();
@@ -54,9 +82,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // comments 테이블에 저장
+    // comments 테이블에 저장 (응답자 이름 기준 중복 제거)
     if (comments.length > 0) {
-      const commentRows = comments.map((c) => ({
+      const commentDedup = new Map<string, typeof comments[number]>();
+      for (const c of comments) {
+        const key = `${c.respondent}::${c.source_field}::${c.original_text}`;
+        commentDedup.set(key, c);
+      }
+
+      const commentRows = [...commentDedup.values()].map((c) => ({
         survey_id: survey.id,
         respondent: c.respondent,
         original_text: c.original_text,
@@ -114,6 +148,8 @@ export async function POST(req: NextRequest) {
       survey,
       commentCount: comments.length,
       responseCount: responses.length,
+      replaced,
+      dupCount,
     });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "업로드 실패";
