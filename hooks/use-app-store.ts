@@ -334,8 +334,38 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // localStorage에 저장된 강사 사진 복원 (새로고침 후에도 유지)
+      // 서버 앱 설정 복원 (강사 사진, 기수 순서) - 새 창/새로고침 시 유지
       if (typeof window !== "undefined") {
+        try {
+          const res = await fetch("/api/app-settings");
+          if (res.ok) {
+            const { instructorPhotos, cohortOrders } = await res.json();
+            for (const p of platforms) {
+              for (const inst of p.instructors) {
+                const key = `instructor_photo:${p.name}:${inst.name}`;
+                const photoData = instructorPhotos?.[key];
+                if (photoData?.photo != null) {
+                  inst.photo = photoData.photo || "";
+                  inst.photoPosition = photoData.photoPosition || "center center";
+                }
+              }
+              for (const inst of p.instructors) {
+                const key = `cohort_order:${p.name}:${inst.name}`;
+                const labels = cohortOrders?.[key];
+                if (Array.isArray(labels) && labels.length > 0) {
+                  try {
+                    localStorage.setItem(`cohort-order-${p.name}-${inst.name}`, JSON.stringify(labels));
+                  } catch {
+                    // ignore
+                  }
+                }
+              }
+            }
+          }
+        } catch {
+          // API 실패 시 localStorage만 사용
+        }
+        // localStorage에 저장된 강사 사진·수강생 수 복원 (서버보다 우선 적용)
         for (const p of platforms) {
           for (const inst of p.instructors) {
             try {

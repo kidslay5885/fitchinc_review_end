@@ -89,10 +89,22 @@ function MainContent() {
           onSave={(updated) => {
             if (plat) {
               try {
+                const payload = { photo: updated.photo || "", photoPosition: updated.photoPosition || "center center" };
                 localStorage.setItem(
                   `instructor-photo-${plat.name}-${updated.name}`,
-                  JSON.stringify({ photo: updated.photo || "", photoPosition: updated.photoPosition || "center center" })
+                  JSON.stringify(payload)
                 );
+                fetch("/api/app-settings", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    type: "instructor_photo",
+                    platform: plat.name,
+                    instructor: updated.name,
+                    photo: payload.photo,
+                    photoPosition: payload.photoPosition,
+                  }),
+                }).catch(() => {});
               } catch {}
             }
             dispatch({ type: "UPDATE_INSTRUCTOR", instructor: updated });

@@ -147,6 +147,16 @@ export function AppSidebar({ onUpload, onEditInstructor }: AppSidebarProps) {
                       labels.splice(dropIndex, 0, removed);
                       setCohortOrder(plat.name, instructor.name, labels);
                       setOrderKey((k) => k + 1);
+                      fetch("/api/app-settings", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          type: "cohort_order",
+                          platform: plat.name,
+                          instructor: instructor.name,
+                          labels,
+                        }),
+                      }).catch(() => {});
                     };
                     return (
                       <div className="pl-7 py-1.5 space-y-0.5">

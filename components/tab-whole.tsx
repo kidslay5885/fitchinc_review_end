@@ -131,16 +131,14 @@ export function TabWhole({ instructor, platformName, selectedCohort, onGoToQuali
         );
       })()}
 
-      {/* 기수 선택: 탭 내 로컬 필터만 (페이지 이동 없음, 전체 보기 내에서 해당 데이터만 표시) */}
-      {orderedCohorts.length > 1 && (
+      {/* 보기 선택: 전체 보기 탭에서 "전체"일 때만 표시. 기수 선택 후 들어오면 이전처럼 보기 버튼 없이 표시 */}
+      {orderedCohorts.length > 1 && showAll && (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[13px] font-semibold text-muted-foreground mr-1">보기:</span>
           <button
             type="button"
             onClick={() => setViewCohortLabel(null)}
-            className={`py-2 px-4 rounded-lg text-[14px] font-semibold transition-colors ${
-              showAll ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
-            }`}
+            className="py-2 px-4 rounded-lg text-[14px] font-semibold transition-colors bg-primary text-primary-foreground"
           >
             전체 보기
           </button>
@@ -149,9 +147,7 @@ export function TabWhole({ instructor, platformName, selectedCohort, onGoToQuali
               key={c.id}
               type="button"
               onClick={() => setViewCohortLabel(c.label)}
-              className={`py-2 px-4 rounded-lg text-[14px] font-semibold transition-colors ${
-                viewCohortLabel === c.label ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
-              }`}
+              className="py-2 px-4 rounded-lg text-[14px] font-semibold transition-colors bg-muted text-muted-foreground hover:bg-muted/80"
             >
               {c.label}
             </button>
