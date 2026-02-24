@@ -61,33 +61,25 @@ export function TabWhole({ instructor, platformName, selectedCohort, onGoToQuali
   const safeCohorts = currentCohorts.length > 0 ? currentCohorts : orderedCohorts;
 
   const tocEntries = useMemo((): TocEntry[] => {
-    if (safeCohorts.length > 1) {
-      return safeCohorts.map((c) => ({
-        id: `cohort-${slug(c.label)}`,
-        label: c.label,
-      }));
-    }
     const out: TocEntry[] = [];
-    for (const cohort of safeCohorts) {
-      for (const field of PRE_FIELDS) {
-        const items = cohort.preResponses
-          .map((r) => getResponseText(r, field))
-          .filter((s) => s.length > 2);
-        if (items.length === 0) continue;
-        const label = FIELD_LABELS[field] || field;
-        out.push({ id: `pre-${slug(cohort.label)}-${field}`, label: `사전 · ${label}` });
-      }
-      for (const field of POST_FIELDS) {
-        const items = cohort.postResponses
-          .map((r) => getResponseText(r, field))
-          .filter((s) => s.length > 2);
-        if (items.length === 0) continue;
-        const label = POST_FIELD_LABELS[field] || FIELD_LABELS[field] || field;
-        out.push({ id: `post-${slug(cohort.label)}-${field}`, label: `후기 · ${label}` });
-      }
+    for (const field of PRE_FIELDS) {
+      const hasData = safeCohorts.some((c) =>
+        c.preResponses.some((r) => getResponseText(r, field).length > 2)
+      );
+      if (!hasData) continue;
+      const label = FIELD_LABELS[field] || field;
+      out.push({ id: `pre-${field}`, label: `사전 · ${label}` });
+    }
+    for (const field of POST_FIELDS) {
+      const hasData = safeCohorts.some((c) =>
+        c.postResponses.some((r) => getResponseText(r, field).length > 2)
+      );
+      if (!hasData) continue;
+      const label = POST_FIELD_LABELS[field] || FIELD_LABELS[field] || field;
+      out.push({ id: `post-${field}`, label: `후기 · ${label}` });
     }
     return out;
-  }, [showAll, safeCohorts, orderedCohorts]);
+  }, [safeCohorts]);
 
   const scrollTo = (id: string) => {
     const el = document.getElementById(id);
@@ -196,23 +188,20 @@ export function TabWhole({ instructor, platformName, selectedCohort, onGoToQuali
           {tocEntries.length > 0 && (
             <nav className="sticky top-2 z-10 rounded-xl border bg-card/95 backdrop-blur p-3 shadow-sm">
               <div className="text-[12px] font-semibold text-muted-foreground mb-2 px-1">
-                {showAll && orderedCohorts.length > 1 ? "기수별로 이동" : "목차 (클릭하면 해당 문항으로 이동)"}
+                목차 (클릭하면 해당 문항으로 이동)
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {tocEntries.map((e) => {
                   const isPre = e.label.startsWith("사전");
-                  const isCohort = showAll && orderedCohorts.length > 1 && orderedCohorts.some((c) => c.label === e.label);
                   return (
                     <button
                       key={e.id}
                       type="button"
                       onClick={() => scrollTo(e.id)}
                       className={`py-1.5 px-2.5 rounded-md text-[13px] font-medium border transition-colors ${
-                        isCohort
-                          ? "bg-primary/10 text-primary border-primary/30 hover:bg-primary/20"
-                          : isPre
-                            ? "bg-blue-100/90 text-blue-800 border-blue-200 hover:bg-blue-200/90"
-                            : "bg-emerald-100/90 text-emerald-800 border-emerald-200 hover:bg-emerald-200/90"
+                        isPre
+                          ? "bg-blue-100/90 text-blue-800 border-blue-200 hover:bg-blue-200/90"
+                          : "bg-emerald-100/90 text-emerald-800 border-emerald-200 hover:bg-emerald-200/90"
                       }`}
                     >
                       {e.label}
@@ -228,44 +217,44 @@ export function TabWhole({ instructor, platformName, selectedCohort, onGoToQuali
             <section id="section-pre" className="rounded-xl border border-blue-200/60 bg-blue-50/30 p-4 sm:p-5 scroll-mt-24">
               <h3 className="text-[17px] font-bold border-b-2 border-blue-400/50 pb-2 mb-5 text-blue-700">사전 설문</h3>
               <div className="grid gap-8">
-                {safeCohorts.map((cohort) => (
-                  <div
-                    key={cohort.id}
-                    id={showAll && orderedCohorts.length > 1 ? `cohort-${slug(cohort.label)}` : undefined}
-                    className="rounded-xl border bg-card overflow-hidden border-blue-100 scroll-mt-[6rem]"
-                  >
-                    {showAll && orderedCohorts.length > 1 && (
-                      <div className="px-4 py-2.5 bg-blue-100/60 text-[14px] font-bold text-foreground border-b border-blue-100">
-                        {cohort.label}
+                {PRE_FIELDS.map((field) => {
+                  const label = FIELD_LABELS[field] || field;
+                  const cohortsWithField = safeCohorts.filter((c) =>
+                    c.preResponses.some((r) => getResponseText(r, field).length > 2)
+                  );
+                  if (cohortsWithField.length === 0) return null;
+                  return (
+                    <div key={field} id={`pre-${field}`} className="rounded-xl border bg-card overflow-hidden border-blue-100 scroll-mt-[6rem]">
+                      <div className="py-2.5 px-4 rounded-t-lg bg-blue-100/80 border-b border-blue-200 text-[15px] font-bold text-blue-900">
+                        {label}
                       </div>
-                    )}
-                    <div className="p-4 space-y-6">
-                      {PRE_FIELDS.map((field) => {
-                        const label = FIELD_LABELS[field] || field;
-                        const items = cohort.preResponses
-                          .map((r) => ({ name: r.name, text: getResponseText(r, field) }))
-                          .filter((x) => x.text.length > 2);
-                        const sectionId = `pre-${slug(cohort.label)}-${field}`;
-                        if (items.length === 0) return null;
-                        return (
-                          <div key={field} id={sectionId} className="scroll-mt-[6rem] pt-1">
-                            <div className="py-2.5 px-3 mb-2 rounded-lg bg-blue-100/80 border-l-4 border-blue-500 text-[15px] font-bold text-blue-900">
-                              {label}
+                      <div className="p-4 space-y-5">
+                        {cohortsWithField.map((cohort) => {
+                          const items = cohort.preResponses
+                            .map((r) => ({ name: r.name, text: getResponseText(r, field) }))
+                            .filter((x) => x.text.length > 2);
+                          return (
+                            <div key={cohort.id}>
+                              {safeCohorts.length > 1 && (
+                                <div className="text-[13px] font-bold text-blue-700 mb-2 pl-1 pb-1 border-b border-blue-100">
+                                  {cohort.label}
+                                </div>
+                              )}
+                              <ul className="space-y-2 pl-1">
+                                {items.map((item, i) => (
+                                  <li key={i} className="text-[14px] pl-3 border-l-2 border-muted">
+                                    <span className="font-medium text-foreground/90">{item.name}:</span>{" "}
+                                    <span className="text-muted-foreground">{item.text}</span>
+                                  </li>
+                                ))}
+                              </ul>
                             </div>
-                            <ul className="space-y-2 pl-1">
-                              {items.map((item, i) => (
-                                <li key={i} className="text-[14px] pl-3 border-l-2 border-muted">
-                                  <span className="font-medium text-foreground/90">{item.name}:</span>{" "}
-                                  <span className="text-muted-foreground">{item.text}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
 
@@ -273,40 +262,44 @@ export function TabWhole({ instructor, platformName, selectedCohort, onGoToQuali
             <section id="section-post" className="rounded-xl border border-emerald-200/60 bg-emerald-50/30 p-4 sm:p-5 scroll-mt-24">
               <h3 className="text-[17px] font-bold border-b-2 border-emerald-400/50 pb-2 mb-5 text-emerald-700">후기 설문</h3>
               <div className="grid gap-8">
-                {safeCohorts.map((cohort) => (
-                  <div key={cohort.id} className="rounded-xl border bg-card overflow-hidden border-emerald-100">
-                    {showAll && orderedCohorts.length > 1 && (
-                      <div className="px-4 py-2.5 bg-emerald-100/60 text-[14px] font-bold text-foreground border-b border-emerald-100">
-                        {cohort.label}
+                {POST_FIELDS.map((field) => {
+                  const label = POST_FIELD_LABELS[field] || FIELD_LABELS[field] || field;
+                  const cohortsWithField = safeCohorts.filter((c) =>
+                    c.postResponses.some((r) => getResponseText(r, field).length > 2)
+                  );
+                  if (cohortsWithField.length === 0) return null;
+                  return (
+                    <div key={field} id={`post-${field}`} className="rounded-xl border bg-card overflow-hidden border-emerald-100 scroll-mt-[6rem]">
+                      <div className="py-2.5 px-4 rounded-t-lg bg-emerald-100/80 border-b border-emerald-200 text-[15px] font-bold text-emerald-900">
+                        {label}
                       </div>
-                    )}
-                    <div className="p-4 space-y-6">
-                      {POST_FIELDS.map((field) => {
-                        const label = POST_FIELD_LABELS[field] || FIELD_LABELS[field] || field;
-                        const items = cohort.postResponses
-                          .map((r) => ({ name: r.name, text: getResponseText(r, field) }))
-                          .filter((x) => x.text.length > 2);
-                        const sectionId = `post-${slug(cohort.label)}-${field}`;
-                        if (items.length === 0) return null;
-                        return (
-                          <div key={field} id={sectionId} className="scroll-mt-[6rem] pt-1">
-                            <div className="py-2.5 px-3 mb-2 rounded-lg bg-emerald-100/80 border-l-4 border-emerald-500 text-[15px] font-bold text-emerald-900">
-                              {label}
+                      <div className="p-4 space-y-5">
+                        {cohortsWithField.map((cohort) => {
+                          const items = cohort.postResponses
+                            .map((r) => ({ name: r.name, text: getResponseText(r, field) }))
+                            .filter((x) => x.text.length > 2);
+                          return (
+                            <div key={cohort.id}>
+                              {safeCohorts.length > 1 && (
+                                <div className="text-[13px] font-bold text-emerald-700 mb-2 pl-1 pb-1 border-b border-emerald-100">
+                                  {cohort.label}
+                                </div>
+                              )}
+                              <ul className="space-y-2 pl-1">
+                                {items.map((item, i) => (
+                                  <li key={i} className="text-[14px] pl-3 border-l-2 border-muted">
+                                    <span className="font-medium text-foreground/90">{item.name}:</span>{" "}
+                                    <span className="text-muted-foreground">{item.text}</span>
+                                  </li>
+                                ))}
+                              </ul>
                             </div>
-                            <ul className="space-y-2 pl-1">
-                              {items.map((item, i) => (
-                                <li key={i} className="text-[14px] pl-3 border-l-2 border-muted">
-                                  <span className="font-medium text-foreground/90">{item.name}:</span>{" "}
-                                  <span className="text-muted-foreground">{item.text}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
           </div>
