@@ -61,8 +61,8 @@ export function TabWhole({ instructor, platformName, selectedCohort, onGoToQuali
   const safeCohorts = currentCohorts.length > 0 ? currentCohorts : orderedCohorts;
 
   const tocEntries = useMemo((): TocEntry[] => {
-    if (showAll && orderedCohorts.length > 1) {
-      return orderedCohorts.map((c) => ({
+    if (safeCohorts.length > 1) {
+      return safeCohorts.map((c) => ({
         id: `cohort-${slug(c.label)}`,
         label: c.label,
       }));
