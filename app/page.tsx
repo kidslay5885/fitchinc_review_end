@@ -88,24 +88,28 @@ function MainContent() {
           instructor={editInst}
           onSave={(updated) => {
             if (plat) {
+              const payload = { photo: updated.photo || "", photoPosition: updated.photoPosition || "center center" };
+              // 서버 저장 (localStorage 실패와 무관하게 항상 실행)
+              fetch("/api/app-settings", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  type: "instructor_photo",
+                  platform: plat.name,
+                  instructor: updated.name,
+                  photo: payload.photo,
+                  photoPosition: payload.photoPosition,
+                }),
+              }).catch(() => {});
+              // localStorage 저장 (quota 초과해도 서버엔 이미 저장됨)
               try {
-                const payload = { photo: updated.photo || "", photoPosition: updated.photoPosition || "center center" };
                 localStorage.setItem(
                   `instructor-photo-${plat.name}-${updated.name}`,
                   JSON.stringify(payload)
                 );
-                fetch("/api/app-settings", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    type: "instructor_photo",
-                    platform: plat.name,
-                    instructor: updated.name,
-                    photo: payload.photo,
-                    photoPosition: payload.photoPosition,
-                  }),
-                }).catch(() => {});
-              } catch {}
+              } catch {
+                // quota 초과 시 무시 — 서버에서 복원됨
+              }
             }
             dispatch({ type: "UPDATE_INSTRUCTOR", instructor: updated });
           }}

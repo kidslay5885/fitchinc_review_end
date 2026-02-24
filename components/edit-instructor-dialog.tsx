@@ -38,11 +38,36 @@ export function EditInstructorDialog({
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      setData((prev) => ({ ...prev, photo: ev.target?.result as string }));
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const MAX = 256;
+      let w = img.width;
+      let h = img.height;
+      if (w > MAX || h > MAX) {
+        const ratio = Math.min(MAX / w, MAX / h);
+        w = Math.round(w * ratio);
+        h = Math.round(h * ratio);
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0, w, h);
+      const compressed = canvas.toDataURL("image/jpeg", 0.8);
+      setData((prev) => ({ ...prev, photo: compressed }));
+      URL.revokeObjectURL(url);
     };
-    reader.readAsDataURL(file);
+    img.onerror = () => {
+      // fallback: 압축 실패 시 원본 base64
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        setData((prev) => ({ ...prev, photo: ev.target?.result as string }));
+      };
+      reader.readAsDataURL(file);
+      URL.revokeObjectURL(url);
+    };
+    img.src = url;
   };
 
   // Parse photoPosition to get vertical percentage (0-100)

@@ -365,15 +365,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
         } catch {
           // API 실패 시 localStorage만 사용
         }
-        // localStorage에 저장된 강사 사진·수강생 수 복원 (서버보다 우선 적용)
+        // localStorage에 저장된 강사 사진·수강생 수 복원 (서버에 없을 때만 적용)
         for (const p of platforms) {
           for (const inst of p.instructors) {
             try {
               const raw = localStorage.getItem(`instructor-photo-${p.name}-${inst.name}`);
               if (raw) {
-                const { photo, photoPosition } = JSON.parse(raw);
-                inst.photo = photo || "";
-                inst.photoPosition = photoPosition || "center center";
+                const parsed = JSON.parse(raw);
+                // 서버에서 이미 복원된 사진이 있으면 덮어쓰지 않음
+                if (!inst.photo && parsed.photo) {
+                  inst.photo = parsed.photo;
+                  inst.photoPosition = parsed.photoPosition || "center center";
+                }
               }
             } catch {
               // ignore
