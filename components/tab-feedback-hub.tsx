@@ -15,7 +15,7 @@ import {
   type TagValue,
   type PlatformSub,
 } from "@/lib/feedback-utils";
-import { Loader2, Search, Copy, Check, X, Send, FileText, Sparkles } from "lucide-react";
+import { Loader2, Search, Copy, Check, X, FileText, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 type HubView = "untagged" | "instructor" | "platform" | "all";
@@ -79,6 +79,13 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
     });
   };
 
+  const updateSuggestion = (commentId: string, update: Partial<{ tag: TagValue; sentiment: "positive" | "negative" | "neutral" }>) => {
+    setAiSuggestions((prev) => {
+      if (!prev[commentId]) return prev;
+      return { ...prev, [commentId]: { ...prev[commentId], ...update } };
+    });
+  };
+
   const fetchAiSuggestions = async () => {
     const untagged = comments.filter((c) => effectiveTag(c) === null);
     if (untagged.length === 0) {
@@ -101,9 +108,9 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
         map[s.commentId] = { tag: s.tag, sentiment: s.sentiment };
       }
       setAiSuggestions(map);
-      toast.success(`AI 제안 ${Object.keys(map).length}건 불러옴. 카드에서 적용·무시 후 더블체크하세요.`);
+      toast.success(`AI 분류 ${Object.keys(map).length}건 완료`);
     } catch {
-      toast.error("AI 제안 불러오기 실패");
+      toast.error("AI 분류 실패");
     } finally {
       setAiSuggestLoading(false);
     }
@@ -159,27 +166,6 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
   const untaggedCount = comments.filter((c) => effectiveTag(c) === null).length;
   const instructorCount = comments.filter((c) => effectiveTag(c) === "instructor").length;
   const platformCount = comments.filter((c) => isPlatformTag(effectiveTag(c))).length;
-  const platformPmCount = comments.filter((c) => effectiveTag(c) === "platform_pm").length;
-  const platformPdCount = comments.filter((c) => effectiveTag(c) === "platform_pd").length;
-  const platformCsCount = comments.filter((c) => effectiveTag(c) === "platform_cs").length;
-  const platformEtcCount = comments.filter((c) => effectiveTag(c) === "platform_etc").length;
-  const isReviewComplete = untaggedCount === 0;
-
-  // 태그별 긍정/부정/기타 건수 (전달 요약용)
-  const sentimentByTag = useMemo(() => {
-    const acc: Record<string, { positive: number; negative: number; other: number }> = {};
-    const tags: TagValue[] = ["instructor", "platform_pm", "platform_pd", "platform_cs", "platform_etc"];
-    tags.forEach((t) => { if (t) acc[t] = { positive: 0, negative: 0, other: 0 }; });
-    comments.forEach((c) => {
-      const et = effectiveTag(c);
-      if (!et || !acc[et]) return;
-      const s = c.sentiment;
-      if (s === "positive") acc[et].positive++;
-      else if (s === "negative") acc[et].negative++;
-      else acc[et].other++;
-    });
-    return acc;
-  }, [comments]);
 
   // 필터링
   const filtered = useMemo(() => {
@@ -274,6 +260,37 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
     }
   };
 
+  // AI 분류 전체 적용
+  const handleBulkApplyAi = async () => {
+    const entries = Object.entries(aiSuggestions);
+    if (entries.length === 0) return;
+    setTagging(true);
+    try {
+      await Promise.all(
+        entries.map(([commentId, { tag, sentiment }]) =>
+          fetch("/api/classify", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ commentId, tag, sentiment }),
+          })
+        )
+      );
+      setComments((prev) =>
+        prev.map((c) => {
+          const suggestion = aiSuggestions[c.id];
+          if (!suggestion) return c;
+          return { ...c, tag: suggestion.tag, sentiment: suggestion.sentiment };
+        })
+      );
+      toast.success(`${entries.length}건 AI 분류 적용 완료`);
+      setAiSuggestions({});
+    } catch {
+      toast.error("AI 분류 적용 실패");
+    } finally {
+      setTagging(false);
+    }
+  };
+
   // 복사 (강사 뷰)
   const copySelected = () => {
     const items = filtered.filter((c) => selected.has(c.id));
@@ -362,30 +379,57 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
                 </span>
               )}
             </div>
-            {/* 미분류 + AI 제안 있음: 눈에 띄게 표시, 적용 시 더블체크 후 제거 */}
+            {/* 미분류 + AI 분류 결과: 태그·감정 버튼 그룹으로 편집 가능 */}
             {aiSuggestion && (
-              <div className="mt-2 flex items-center gap-2 flex-wrap">
-                <span className="text-[11px] font-bold text-amber-800 bg-amber-200/80 px-1.5 py-0.5 rounded">
-                  AI 제안: {getTagLabel(aiSuggestion.tag)} · {aiSuggestion.sentiment === "positive" ? "긍정" : aiSuggestion.sentiment === "negative" ? "부정" : "중립"}
-                </span>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    await handleTagChange(comment.id, aiSuggestion.tag);
-                    await handleSentimentChange(comment.id, aiSuggestion.sentiment);
-                    clearSuggestion(comment.id);
-                    toast.success("적용됨. 더블체크 완료 시 카드에서 사라집니다.");
-                  }}
-                  className="py-0.5 px-2 rounded text-[11px] font-semibold bg-primary text-primary-foreground hover:opacity-90"
-                >
-                  적용
-                </button>
+              <div className="mt-2 flex items-center gap-2 flex-wrap text-[11px]">
+                <span className="font-semibold text-amber-800 shrink-0">AI:</span>
+                {/* 태그 버튼 그룹 */}
+                <div className="flex gap-0.5">
+                  {TAG_OPTIONS.filter((o) => o.value !== "").map((opt) => {
+                    const isActive = aiSuggestion.tag === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => updateSuggestion(comment.id, { tag: opt.value as TagValue })}
+                        className={`py-0.5 px-1.5 rounded border transition-colors ${
+                          isActive ? opt.color + " font-bold" : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted"
+                        }`}
+                      >
+                        {opt.label}{isActive ? "\u25CF" : ""}
+                      </button>
+                    );
+                  })}
+                </div>
+                {/* 감정 버튼 그룹 */}
+                <div className="flex gap-0.5">
+                  {([
+                    { id: "positive" as const, label: "긍정", activeClass: "bg-emerald-100 text-emerald-800 border-emerald-200" },
+                    { id: "negative" as const, label: "부정", activeClass: "bg-rose-100 text-rose-800 border-rose-200" },
+                    { id: "neutral" as const, label: "중립", activeClass: "bg-muted text-foreground border-border" },
+                  ]).map((s) => {
+                    const isActive = aiSuggestion.sentiment === s.id;
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => updateSuggestion(comment.id, { sentiment: s.id })}
+                        className={`py-0.5 px-1.5 rounded border transition-colors ${
+                          isActive ? s.activeClass + " font-bold" : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted"
+                        }`}
+                      >
+                        {s.label}{isActive ? "\u25CF" : ""}
+                      </button>
+                    );
+                  })}
+                </div>
+                {/* 무시 */}
                 <button
                   type="button"
                   onClick={() => clearSuggestion(comment.id)}
-                  className="py-0.5 px-2 rounded text-[11px] text-muted-foreground border hover:bg-muted"
+                  className="py-0.5 px-1.5 rounded text-muted-foreground border hover:bg-muted ml-auto"
                 >
-                  무시
+                  ✕ 무시
                 </button>
               </div>
             )}
@@ -457,12 +501,9 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
 
   return (
     <div className="grid gap-3">
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-6">
-        <div className="grid gap-3 min-w-0">
-      {/* 전달 대상 + 미분류일 때 AI 제안 불러오기 */}
+      {/* 뷰 탭 + 미분류일 때 AI 자동 분류 */}
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[12px] font-semibold text-muted-foreground">전달 대상</span>
           {hubView === "untagged" && untaggedCount > 0 && (
             <button
               type="button"
@@ -471,7 +512,7 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
               className="flex items-center gap-1 py-1 px-2.5 rounded-md text-[12px] font-semibold bg-amber-100 text-amber-800 border border-amber-200 hover:bg-amber-200 disabled:opacity-50"
             >
               {aiSuggestLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-              AI 제안 불러오기
+              AI 자동 분류
             </button>
           )}
         </div>
@@ -618,8 +659,31 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
         )}
       </div>
 
-      {/* 미분류 뷰: 일괄 태깅 액션 바 */}
-      {hubView === "untagged" && selected.size > 0 && (
+      {/* 미분류 뷰: AI 전체 적용 바 (AI 제안 있을 때) */}
+      {hubView === "untagged" && Object.keys(aiSuggestions).length > 0 && (
+        <div className="sticky bottom-0 flex items-center gap-3 py-3 px-4 bg-amber-50 rounded-xl border border-amber-200 shadow-lg">
+          <Sparkles className="w-4 h-4 text-amber-600" />
+          <span className="text-[14px] font-bold text-amber-800">AI 분류 {Object.keys(aiSuggestions).length}건</span>
+          <div className="flex-1" />
+          {tagging && <Loader2 className="w-4 h-4 animate-spin text-primary" />}
+          <button
+            onClick={handleBulkApplyAi}
+            disabled={tagging}
+            className="py-1.5 px-4 rounded-lg bg-primary text-primary-foreground text-[13px] font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
+          >
+            전체 적용
+          </button>
+          <button
+            onClick={() => setAiSuggestions({})}
+            className="py-1.5 px-3 rounded-lg border text-[13px] text-muted-foreground hover:bg-accent transition-colors"
+          >
+            전체 초기화
+          </button>
+        </div>
+      )}
+
+      {/* 미분류 뷰: 일괄 태깅 액션 바 (AI 제안 없을 때) */}
+      {hubView === "untagged" && Object.keys(aiSuggestions).length === 0 && selected.size > 0 && (
         <div className="sticky bottom-0 flex items-center gap-3 py-3 px-4 bg-card rounded-xl border shadow-lg">
           <span className="text-[14px] font-bold">{selected.size}건 선택</span>
           <button
@@ -717,57 +781,6 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
           className="w-full min-h-[72px] py-2 px-3 rounded-lg border text-[13px] bg-background resize-y"
           rows={3}
         />
-      </div>
-        </div>
-
-        {/* 오른쪽(데스크톱) / 상단(모바일): 후기 요약 — 폭 고정으로 결과 없을 때 넓어짐 방지 */}
-        <div className="order-first lg:order-2 w-full lg:w-[260px] lg:min-w-[260px] lg:max-w-[260px] lg:shrink-0">
-          <div className="sticky top-4 rounded-xl border bg-card p-4 shadow-sm">
-            <div className="mb-1">
-              <div className="flex items-center gap-1.5">
-                <Send className="w-4 h-4 text-primary" />
-                <span className="text-[14px] font-bold">후기 요약</span>
-              </div>
-              <p className="text-[11px] text-muted-foreground mt-0.5">전달 대상별 건수 (후기·사전 설문 피드백 검수 기준)</p>
-            </div>
-            <div className="grid gap-2.5 text-[13px]">
-              {([
-                { key: "instructor" as const, label: "강사", count: instructorCount },
-                { key: "platform_pm" as const, label: "플랫폼 PM", count: platformPmCount },
-                { key: "platform_pd" as const, label: "플랫폼 PD", count: platformPdCount },
-                { key: "platform_cs" as const, label: "플랫폼 CS", count: platformCsCount },
-                { key: "platform_etc" as const, label: "플랫폼 기타", count: platformEtcCount },
-              ]).map(({ key, label, count }) => {
-                const s = sentimentByTag[key];
-                const hasSentiment = s && (s.positive > 0 || s.negative > 0);
-                return (
-                  <div key={key} className="flex flex-col gap-0.5">
-                    <div className="flex justify-between items-baseline">
-                      <span className="text-muted-foreground">{label}</span>
-                      <span className="font-semibold">{count}건</span>
-                    </div>
-                    {hasSentiment && (
-                      <div className="text-[11px] text-muted-foreground pl-0.5 flex gap-2">
-                        {s!.positive > 0 && <span className="text-emerald-600">긍정 {s!.positive}</span>}
-                        {s!.negative > 0 && <span className="text-rose-600">부정 {s!.negative}</span>}
-                        {s!.other > 0 && <span>구분없음 {s!.other}</span>}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-              <div className="border-t pt-2 mt-1 flex justify-between">
-                <span className="text-muted-foreground">미분류</span>
-                <span className={`font-semibold ${untaggedCount > 0 ? "text-amber-600" : "text-emerald-600"}`}>
-                  {untaggedCount}건
-                </span>
-              </div>
-            </div>
-            <div className={`mt-3 py-2 px-3 rounded-lg text-center text-[13px] font-semibold ${isReviewComplete ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-amber-50 text-amber-700 border border-amber-200"}`}>
-              {isReviewComplete ? "검수 완료 · 전달 가능" : `미분류 ${untaggedCount}건 남음 · 검수 후 전달 가능`}
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );
