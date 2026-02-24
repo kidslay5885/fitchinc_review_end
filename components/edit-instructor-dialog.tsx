@@ -110,7 +110,7 @@ export function EditInstructorDialog({
             />
           </div>
           <div>
-            <label className="text-[11px] text-muted-foreground font-bold block mb-1">업종</label>
+            <label className="text-[11px] text-muted-foreground font-bold block mb-1">강의명</label>
             <input
               value={data.category}
               onChange={(e) => setData({ ...data, category: e.target.value })}

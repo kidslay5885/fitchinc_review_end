@@ -169,27 +169,9 @@ export function TabWhole({ instructor, platformName, selectedCohort, onGoToQuali
         </div>
       ) : (
         <>
-          {/* 목차 + 사전/후기 바로가기: 한 기수 선택 시 상단에 사전·후기 이동 버튼 노출 */}
+          {/* 목차 (사전/후기 버튼 없음, 심플하게) */}
           {tocEntries.length > 0 && (
-            <nav className="sticky top-2 z-10 rounded-xl border bg-card/95 backdrop-blur p-3 shadow-sm space-y-3">
-              {!showAll && currentCohorts.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => scrollTo("section-pre")}
-                    className="py-1.5 px-3 rounded-lg text-[12px] font-semibold bg-blue-100 text-blue-800 border border-blue-200 hover:bg-blue-200/90"
-                  >
-                    ↑ 사전 설문
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => scrollTo("section-post")}
-                    className="py-1.5 px-3 rounded-lg text-[12px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200 hover:bg-emerald-200/90"
-                  >
-                    ↓ 후기 설문
-                  </button>
-                </div>
-              )}
+            <nav className="sticky top-2 z-10 rounded-xl border bg-card/95 backdrop-blur p-3 shadow-sm">
               <div className="text-[12px] font-semibold text-muted-foreground mb-2 px-1">
                 {showAll && orderedCohorts.length > 1 ? "기수별로 이동" : "목차 (클릭하면 해당 문항으로 이동)"}
               </div>

@@ -642,8 +642,8 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
           </div>
         )}
 
-        {/* 설문 문항: 네이버 폼의 어떤 질문에서 나온 응답인지 */}
-        {sourceFieldsInData.length > 1 && (
+        {/* 설문 문항 필터: 전체 뷰가 아닐 때만 표시 (세부 분류 > 전체 UI는 이전처럼 심플하게) */}
+        {sourceFieldsInData.length > 1 && hubView !== "all" && (
           <div className="flex items-center gap-1.5 shrink-0">
             <span className="text-[12px] font-semibold text-muted-foreground whitespace-nowrap">설문 문항</span>
             <select
