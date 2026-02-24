@@ -155,10 +155,13 @@ export function statusBg(s: string): string {
   return "bg-muted text-muted-foreground border-border";
 }
 
+/** 10점 만점 기준으로 반환 (원본 5점 이하면 ×2, 초과면 그대로, 상한 10) */
 export function cohortAvgScore(c: Cohort): number {
   if (c.postResponses.length === 0) return 0;
   const total = c.postResponses.reduce((a, r) => a + (r.ps1 + r.ps2) / 2, 0);
-  return Math.round((total / c.postResponses.length) * 100) / 100;
+  const raw = total / c.postResponses.length;
+  const outOf10 = raw <= 5 ? Math.min(10, raw * 2) : Math.min(10, raw);
+  return Math.round(outOf10 * 100) / 100;
 }
 
 export function generateId(): string {

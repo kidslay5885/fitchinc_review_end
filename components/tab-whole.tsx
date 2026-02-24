@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import type { Instructor, Cohort, SurveyResponse } from "@/lib/types";
 import { FIELD_LABELS } from "@/lib/feedback-utils";
-import { Info } from "lucide-react";
+import { getOrderedCohorts, setCohortOrder } from "@/lib/cohort-order";
+import { Info, GripVertical, ChevronUp, ChevronDown, X } from "lucide-react";
 
 const PRE_FIELDS = ["hopePlatform", "hopeInstructor"] as const;
 const POST_FIELD_LABELS: Record<string, string> = {
@@ -29,22 +30,29 @@ function slug(id: string): string {
 
 interface TabWholeProps {
   instructor: Instructor;
-  platformName?: string;
-  selectedCohort?: Cohort | null;
+  platformName: string;
+  selectedCohort: Cohort | null;
+  onSelectCohort: (cohortId: string | null) => void;
 }
 
 /** 목차 한 항목: id + 표시 라벨 */
 type TocEntry = { id: string; label: string };
 
-export function TabWhole({ instructor }: TabWholeProps) {
-  const [cohortFilter, setCohortFilter] = useState<string>("all");
+export function TabWhole({ instructor, platformName, selectedCohort, onSelectCohort }: TabWholeProps) {
+  const [orderModalOpen, setOrderModalOpen] = useState(false);
+  const [orderKey, setOrderKey] = useState(0);
 
-  const cohorts = instructor.cohorts.filter((c) => c.preResponses.length > 0 || c.postResponses.length > 0);
-  const currentCohorts = cohortFilter === "all" ? cohorts : cohorts.filter((c) => c.label === cohortFilter);
+  const cohortsWithData = instructor.cohorts.filter((c) => c.preResponses.length > 0 || c.postResponses.length > 0);
+  const orderedCohorts = useMemo(
+    () => getOrderedCohorts(platformName, instructor.name, cohortsWithData),
+    [platformName, instructor.name, cohortsWithData, orderKey]
+  );
+  const currentCohorts = selectedCohort ? [selectedCohort] : orderedCohorts;
+  const showAll = !selectedCohort;
 
   const tocEntries = useMemo((): TocEntry[] => {
     const out: TocEntry[] = [];
-    const showCohortInToc = cohortFilter === "all" && currentCohorts.length > 1;
+    const showCohortInToc = showAll && currentCohorts.length > 1;
     for (const cohort of currentCohorts) {
       const prefix = showCohortInToc ? `${cohort.label} · ` : "";
       for (const field of PRE_FIELDS) {
@@ -67,7 +75,7 @@ export function TabWhole({ instructor }: TabWholeProps) {
       }
     }
     return out;
-  }, [cohortFilter, currentCohorts]);
+  }, [showAll, currentCohorts]);
 
   const scrollTo = (id: string) => {
     const el = document.getElementById(id);
@@ -75,58 +83,58 @@ export function TabWhole({ instructor }: TabWholeProps) {
     el.scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
   };
 
+  const handleSaveOrder = (labels: string[]) => {
+    setCohortOrder(platformName, instructor.name, labels);
+    setOrderKey((k) => k + 1);
+    setOrderModalOpen(false);
+  };
+
   return (
     <div className="grid gap-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="text-[18px] font-extrabold">전체 설문 결과</h2>
-        {cohorts.length > 1 && (
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2">
-              <span className="text-[13px] text-muted-foreground">기수</span>
-              <select
-                value={cohortFilter}
-                onChange={(e) => setCohortFilter(e.target.value)}
-                className="py-1.5 px-3 rounded-lg border text-[14px] bg-card"
-              >
-                <option value="all">전체 기수</option>
-                {cohorts.map((c) => (
-                  <option key={c.id} value={c.label}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {cohortFilter === "all" && (
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-[12px] text-muted-foreground">기수별 보기:</span>
-                <button
-                  type="button"
-                  onClick={() => setCohortFilter("all")}
-                  className="py-1 px-2.5 rounded-md text-[13px] font-medium bg-primary text-primary-foreground"
-                >
-                  전체
-                </button>
-                {cohorts.map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => setCohortFilter(c.label)}
-                    className="py-1 px-2.5 rounded-md text-[13px] font-medium bg-muted hover:bg-muted/80 text-foreground"
-                  >
-                    {c.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
       </div>
+
+      {/* 기수 선택: 목차 바로 위, 버튼 형태로 눈에 띄게 */}
+      {orderedCohorts.length > 1 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[13px] font-semibold text-muted-foreground mr-1">보기:</span>
+          <button
+            type="button"
+            onClick={() => onSelectCohort(null)}
+            className={`py-2 px-4 rounded-lg text-[14px] font-semibold transition-colors ${
+              showAll ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
+            }`}
+          >
+            전체 보기
+          </button>
+          {orderedCohorts.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => onSelectCohort(c.id)}
+              className={`py-2 px-4 rounded-lg text-[14px] font-semibold transition-colors ${
+                selectedCohort?.id === c.id ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
+              }`}
+            >
+              {c.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => setOrderModalOpen(true)}
+            className="py-2 px-3 rounded-lg text-[13px] text-muted-foreground hover:bg-muted border border-dashed"
+          >
+            기수 순서 변경
+          </button>
+        </div>
+      )}
 
       {/* 설문 문항 기준 설명 */}
       <div className="rounded-lg border bg-muted/40 p-4 flex gap-3">
         <Info className="w-5 h-5 text-muted-foreground shrink-0 mt-0.5" />
         <div className="text-[13px] text-muted-foreground leading-relaxed">
-          <span className="font-semibold text-foreground">설문 문항 기준:</span> 사전 설문 2문항(플랫폼에 바라는 점, 강사에게 바라는 점), 후기 설문 6문항(자유 의견, 만족스러웠던 점, 선호 방식, 추천 의향, 커리큘럼 불만족 사유, 피드백 개선 요청)은 네이버 폼 설문지의 질문 항목과 1:1로 매핑되어 있습니다. 업로드한 엑셀의 열 이름과 동일한 항목만 여기 목차로 표시됩니다.
+          <span className="font-semibold text-foreground">설문 문항 기준:</span> 업로드한 엑셀의 열 이름과 동일한 항목만 여기 목차로 표시됩니다. 목차를 클릭하여 전체 항목을 편하게 확인할 수 있습니다.
         </div>
       </div>
 
@@ -169,7 +177,7 @@ export function TabWhole({ instructor }: TabWholeProps) {
               <div className="grid gap-8">
                 {currentCohorts.map((cohort) => (
                   <div key={cohort.id} className="rounded-xl border bg-card overflow-hidden border-blue-100">
-                    {cohortFilter === "all" && cohorts.length > 1 && (
+                    {showAll && orderedCohorts.length > 1 && (
                       <div className="px-4 py-2.5 bg-blue-100/60 text-[14px] font-bold text-foreground border-b border-blue-100">
                         {cohort.label}
                       </div>
@@ -183,7 +191,7 @@ export function TabWhole({ instructor }: TabWholeProps) {
                         const sectionId = `pre-${slug(cohort.label)}-${field}`;
                         if (items.length === 0) return null;
                         return (
-                          <div key={field} id={sectionId} className="scroll-mt-[7rem] pt-1">
+                          <div key={field} id={sectionId} className="scroll-mt-[6rem] pt-1">
                             <div className="py-2.5 px-3 mb-2 rounded-lg bg-blue-100/80 border-l-4 border-blue-500 text-[15px] font-bold text-blue-900">
                               {label}
                             </div>
@@ -210,7 +218,7 @@ export function TabWhole({ instructor }: TabWholeProps) {
               <div className="grid gap-8">
                 {currentCohorts.map((cohort) => (
                   <div key={cohort.id} className="rounded-xl border bg-card overflow-hidden border-emerald-100">
-                    {cohortFilter === "all" && cohorts.length > 1 && (
+                    {showAll && orderedCohorts.length > 1 && (
                       <div className="px-4 py-2.5 bg-emerald-100/60 text-[14px] font-bold text-foreground border-b border-emerald-100">
                         {cohort.label}
                       </div>
@@ -224,7 +232,7 @@ export function TabWhole({ instructor }: TabWholeProps) {
                         const sectionId = `post-${slug(cohort.label)}-${field}`;
                         if (items.length === 0) return null;
                         return (
-                          <div key={field} id={sectionId} className="scroll-mt-[7rem] pt-1">
+                          <div key={field} id={sectionId} className="scroll-mt-[6rem] pt-1">
                             <div className="py-2.5 px-3 mb-2 rounded-lg bg-emerald-100/80 border-l-4 border-emerald-500 text-[15px] font-bold text-emerald-900">
                               {label}
                             </div>
@@ -247,6 +255,98 @@ export function TabWhole({ instructor }: TabWholeProps) {
           </div>
         </>
       )}
+
+      {/* 기수 순서 변경 모달 */}
+      {orderModalOpen && (
+        <OrderModal
+          labels={orderedCohorts.map((c) => c.label)}
+          onSave={handleSaveOrder}
+          onClose={() => setOrderModalOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function OrderModal({
+  labels,
+  onSave,
+  onClose,
+}: {
+  labels: string[];
+  onSave: (labels: string[]) => void;
+  onClose: () => void;
+}) {
+  const [list, setList] = useState<string[]>(labels);
+  useEffect(() => {
+    setList(labels);
+  }, [labels]);
+
+  const move = (index: number, delta: number) => {
+    const next = [...list];
+    const j = index + delta;
+    if (j < 0 || j >= next.length) return;
+    [next[index], next[j]] = [next[j], next[index]];
+    setList(next);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div
+        className="bg-card rounded-xl border shadow-xl p-5 w-full max-w-sm"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <span className="text-[15px] font-bold">기수 순서 변경</span>
+          <button type="button" onClick={onClose} className="p-1 rounded hover:bg-muted">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <p className="text-[13px] text-muted-foreground mb-3">위아래로 이동해 원하는 순서로 맞추세요.</p>
+        <ul className="space-y-1 mb-4">
+          {list.map((label, i) => (
+            <li
+              key={label}
+              className="flex items-center gap-2 py-2 px-3 rounded-lg bg-muted/50 border"
+            >
+              <GripVertical className="w-4 h-4 text-muted-foreground shrink-0" />
+              <span className="flex-1 font-medium">{label}</span>
+              <button
+                type="button"
+                onClick={() => move(i, -1)}
+                disabled={i === 0}
+                className="p-1 rounded hover:bg-muted disabled:opacity-30"
+              >
+                <ChevronUp className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => move(i, 1)}
+                disabled={i === list.length - 1}
+                className="p-1 rounded hover:bg-muted disabled:opacity-30"
+              >
+                <ChevronDown className="w-4 h-4" />
+              </button>
+            </li>
+          ))}
+        </ul>
+        <div className="flex gap-2 justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="py-1.5 px-3 rounded-lg border text-[13px] font-medium"
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            onClick={() => onSave(list)}
+            className="py-1.5 px-4 rounded-lg bg-primary text-primary-foreground text-[13px] font-bold"
+          >
+            적용
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

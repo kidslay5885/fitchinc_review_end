@@ -2,7 +2,8 @@
 
 import type { Platform } from "@/lib/types";
 import { autoStatus, statusBg, cohortAvgScore } from "@/lib/types";
-import { aggregateInstructor, computeScores } from "@/lib/analysis-engine";
+import { aggregateInstructor } from "@/lib/analysis-engine";
+import { getOrderedCohorts } from "@/lib/cohort-order";
 import { User } from "lucide-react";
 
 interface PlatformDashboardProps {
@@ -35,11 +36,14 @@ export function PlatformDashboard({ platform, onSelectInstructor }: PlatformDash
               <span className="text-[11px] text-muted-foreground/80 ml-1">(후기 설문 수집 기준)</span>
             </div>
           </div>
-          <div className="text-center px-5 py-2.5 bg-card rounded-[10px] border">
+          <div
+            className="text-center px-5 py-2.5 bg-card rounded-[10px] border"
+            title="후기 설문의 커리큘럼(ps1)·피드백(ps2) 문항 점수 평균을 10점 만점으로 환산한 값입니다. 기수별 (커리큘럼+피드백)/2 평균을 다시 평균낸 수치입니다."
+          >
             <div className="text-[11px] font-bold text-muted-foreground mb-0.5">강의 만족도 평균</div>
             <div className="text-[28px] font-extrabold leading-none">
-              <span className={Number(avg) >= 4.5 ? "text-emerald-600" : "text-primary"}>{avg}</span>
-              <span className="text-[13px] font-normal text-muted-foreground">/5</span>
+              <span className={Number(avg) >= 9 ? "text-emerald-600" : "text-primary"}>{avg}</span>
+              <span className="text-[13px] font-normal text-muted-foreground">/10</span>
             </div>
           </div>
         </div>
@@ -56,8 +60,9 @@ export function PlatformDashboard({ platform, onSelectInstructor }: PlatformDash
       ) : (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-3.5">
           {platform.instructors.map((inst) => {
-            const { totalPre, avgScore } = aggregateInstructor(inst.cohorts);
-            const last = inst.cohorts[inst.cohorts.length - 1];
+            const ordered = getOrderedCohorts(platform.name, inst.name, inst.cohorts);
+            const { totalPre, avgScore } = aggregateInstructor(ordered);
+            const last = ordered[ordered.length - 1];
             const lastStatus = last ? autoStatus(last) : "준비중";
             const ia = avgScore > 0 ? avgScore.toFixed(1) : "-";
 
@@ -83,7 +88,7 @@ export function PlatformDashboard({ platform, onSelectInstructor }: PlatformDash
                     <div className="text-center">
                       <div
                         className={`text-[20px] font-extrabold ${
-                          Number(ia) >= 4.5 ? "text-emerald-600" : "text-primary"
+                          Number(ia) >= 9 ? "text-emerald-600" : "text-primary"
                         }`}
                       >
                         {ia}
@@ -94,7 +99,7 @@ export function PlatformDashboard({ platform, onSelectInstructor }: PlatformDash
                 </div>
                 <div className="flex gap-5 mb-3 pb-3 border-b">
                   <div>
-                    <span className="text-[16px] font-bold">{inst.cohorts.length}</span>
+                    <span className="text-[16px] font-bold">{ordered.length}</span>
                     <span className="text-[13px] text-muted-foreground">기</span>
                   </div>
                   <div>

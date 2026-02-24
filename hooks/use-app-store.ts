@@ -348,6 +348,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
             } catch {
               // ignore
             }
+            for (const c of inst.cohorts) {
+              try {
+                const v = localStorage.getItem(`total-students-${p.name}-${inst.name}-${c.label}`);
+                if (v && /^\d+$/.test(v)) c.totalStudents = parseInt(v, 10);
+              } catch {
+                // ignore
+              }
+            }
           }
         }
       }

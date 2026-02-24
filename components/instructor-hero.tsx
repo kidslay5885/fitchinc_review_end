@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import type { Instructor, Cohort } from "@/lib/types";
 import { computeScores } from "@/lib/analysis-engine";
 import { RingScore } from "./ring-score";
-import { User } from "lucide-react";
+import { User, X } from "lucide-react";
 
 interface InstructorHeroProps {
   platformName: string;
@@ -47,6 +47,7 @@ export function InstructorHero({ platformName, instructor, cohort, onUpdateCohor
   const scores = computeScores(postResponses);
   const currentPM = cohort?.pm || instructor.cohorts[0]?.pm || "-";
   const hasData = preResponses.length > 0 || postResponses.length > 0;
+  const [photoOpen, setPhotoOpen] = useState(false);
 
   return (
     <div className="bg-card rounded-xl border p-4 px-5 mb-4">
@@ -56,13 +57,17 @@ export function InstructorHero({ platformName, instructor, cohort, onUpdateCohor
             {platformName} · {instructor.category}
           </div>
           <div className="flex items-center gap-3.5">
-            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-muted flex items-center justify-center overflow-hidden shrink-0 ring-2 ring-border/50">
+            <button
+              type="button"
+              onClick={() => instructor.photo && setPhotoOpen(true)}
+              className={`w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-muted flex items-center justify-center overflow-hidden shrink-0 ring-2 ring-border/50 ${instructor.photo ? "cursor-pointer hover:ring-primary/50 transition-shadow" : ""}`}
+            >
               {instructor.photo ? (
                 <img src={instructor.photo} alt={instructor.name} className="w-full h-full object-contain" style={{ objectPosition: instructor.photoPosition || "center top" }} />
               ) : (
                 <User className="w-7 h-7 sm:w-8 sm:h-8 text-muted-foreground" />
               )}
-            </div>
+            </button>
             <div className="text-[22px] font-extrabold">
               {instructor.name}{" "}
               <span className="font-normal text-muted-foreground text-[16px]">
@@ -81,8 +86,8 @@ export function InstructorHero({ platformName, instructor, cohort, onUpdateCohor
             {postResponses.length > 0 && (
               <>
                 <div className="flex gap-2 items-center">
-                  <RingScore score={scores.ps1Avg} label="커리큘럼" />
-                  <RingScore score={scores.ps2Avg} label="피드백" />
+                  <RingScore score={scores.ps1Avg} label="커리큘럼" max={10} excluded={scores.ps1Excluded} />
+                  <RingScore score={scores.ps2Avg} label="피드백" max={10} excluded={scores.ps2Excluded} />
                 </div>
                 <div className="border-l pl-4 text-[14px] text-muted-foreground leading-relaxed space-y-0.5">
                   <div className="flex items-center gap-2 mb-1.5">
@@ -113,6 +118,18 @@ export function InstructorHero({ platformName, instructor, cohort, onUpdateCohor
                     />
                     <span className="text-muted-foreground">명</span>
                   </div>
+                  {(() => {
+                    const total = parseInt(totalInput, 10) || 0;
+                    const prePct = total > 0 ? Math.round((preResponses.length / total) * 100) : 0;
+                    const postPct = total > 0 ? Math.round((postResponses.length / total) * 100) : 0;
+                    return total > 0 ? (
+                      <div className="text-[12px] text-muted-foreground mb-0.5">
+                        참여 비율 사전 <strong className="text-foreground">{prePct}%</strong>
+                        {" · "}
+                        후기 <strong className="text-foreground">{postPct}%</strong>
+                      </div>
+                    ) : null;
+                  })()}
                   <div>
                     사전 설문 <strong className="text-foreground">{preResponses.length}</strong>명
                   </div>
@@ -140,6 +157,30 @@ export function InstructorHero({ platformName, instructor, cohort, onUpdateCohor
           </div>
         )}
       </div>
+
+      {photoOpen && instructor.photo && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setPhotoOpen(false)}
+          role="dialog"
+          aria-label="강사 사진 확대"
+        >
+          <button
+            type="button"
+            onClick={() => setPhotoOpen(false)}
+            className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white"
+            aria-label="닫기"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <img
+            src={instructor.photo}
+            alt={instructor.name}
+            className="max-w-[90vw] max-h-[85vh] object-contain rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }

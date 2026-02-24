@@ -5,16 +5,36 @@ interface RingScoreProps {
   max?: number;
   size?: number;
   label?: string;
+  title?: string;
+  excluded?: boolean;
 }
 
-export function RingScore({ score, max = 5, size = 50, label }: RingScoreProps) {
-  const p = score / max;
+export function RingScore({ score, max = 10, size = 50, label, title, excluded }: RingScoreProps) {
+  const defaultTitle =
+    label === "커리큘럼"
+      ? "후기 설문의 커리큘럼(ps1) 문항 평균을 10점 만점으로 수치화한 결과입니다."
+      : label === "피드백"
+        ? "후기 설문의 피드백(ps2) 문항 평균을 10점 만점으로 수치화한 결과입니다."
+        : undefined;
+
+  if (excluded) {
+    return (
+      <div className="flex flex-col items-center gap-1" title={title ?? defaultTitle ?? "폼 항목 차이로 측정되지 않아 해당 항목은 제외되었습니다."}>
+        <div className="relative flex items-center justify-center rounded-full border-2 border-dashed border-muted" style={{ width: size, height: size }}>
+          <span className="text-[10px] font-semibold text-muted-foreground">제외</span>
+        </div>
+        {label && <span className="text-[10px] text-muted-foreground">{label}</span>}
+      </div>
+    );
+  }
+
+  const p = Math.min(1, score / max);
   const r = (size - 7) / 2;
   const ci = Math.PI * 2 * r;
   const color = p >= 0.9 ? "#1A8754" : p >= 0.7 ? "#3451B2" : "#B45309";
 
   return (
-    <div className="flex flex-col items-center gap-1">
+    <div className="flex flex-col items-center gap-1" title={title ?? defaultTitle}>
       <div className="relative" style={{ width: size, height: size }}>
         <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
           <circle

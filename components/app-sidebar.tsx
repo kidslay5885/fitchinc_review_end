@@ -2,6 +2,7 @@
 
 import { useAppStore, useSelectedPlatform } from "@/hooks/use-app-store";
 import { autoStatus, statusBg } from "@/lib/types";
+import { getOrderedCohorts } from "@/lib/cohort-order";
 import { Settings, Upload, ChevronDown, ChevronUp, User } from "lucide-react";
 import type { Instructor } from "@/lib/types";
 
@@ -80,7 +81,7 @@ export function AppSidebar({ onUpload, onEditInstructor }: AppSidebarProps) {
                           id: isSel ? null : instructor.id,
                         })
                       }
-                      className={`flex-1 py-1.5 px-1.5 rounded-lg cursor-pointer transition-colors ${
+                      className={`flex-1 py-2 px-2 rounded-lg cursor-pointer transition-colors min-w-0 ${
                         isSel
                           ? "bg-primary/5 border border-primary/15"
                           : "border border-transparent hover:bg-accent"
@@ -88,7 +89,7 @@ export function AppSidebar({ onUpload, onEditInstructor }: AppSidebarProps) {
                     >
                       <div className="flex items-center gap-1">
                         <span
-                          className={`text-[13px] flex-1 ${isSel ? "font-bold" : "font-medium"}`}
+                          className={`text-[14px] flex-1 truncate ${isSel ? "font-bold" : "font-medium"}`}
                         >
                           {instructor.name}
                         </span>
@@ -97,62 +98,71 @@ export function AppSidebar({ onUpload, onEditInstructor }: AppSidebarProps) {
                             e.stopPropagation();
                             onEditInstructor(instructor);
                           }}
-                          className="text-muted-foreground cursor-pointer opacity-50 hover:opacity-100"
+                          className="text-muted-foreground cursor-pointer opacity-50 hover:opacity-100 shrink-0"
                         >
-                          <Settings className="w-3 h-3" />
+                          <Settings className="w-3.5 h-3.5" />
                         </span>
                       </div>
-                      <div className="text-[10px] text-muted-foreground">{instructor.category}</div>
+                      <div className="text-[11px] text-muted-foreground">{instructor.category}</div>
                     </div>
-                    {isSel && (
-                      <span className="text-muted-foreground text-[10px]">
-                        {isSel ? (
-                          <ChevronUp className="w-3 h-3" />
-                        ) : (
-                          <ChevronDown className="w-3 h-3" />
-                        )}
-                      </span>
-                    )}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        dispatch({
+                          type: "SELECT_INSTRUCTOR",
+                          id: isSel ? null : instructor.id,
+                        });
+                      }}
+                      className="shrink-0 p-1 rounded text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                      aria-label={isSel ? "접기" : "펼치기"}
+                    >
+                      {isSel ? (
+                        <ChevronUp className="w-4 h-4" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4" />
+                      )}
+                    </button>
                   </div>
 
-                  {/* Cohorts: 전체 보기 / 기수 - 클릭 영역 넓게 */}
-                  {isSel && (
-                    <div className="pl-8 py-2 space-y-1">
+                  {/* Cohorts: 전체 보기 / 기수 (저장된 순서) */}
+                  {isSel && plat && (
+                    <div className="pl-7 py-1.5 space-y-0.5">
                       <div
                         onClick={() => dispatch({ type: "SELECT_COHORT", id: null })}
-                        className={`py-2.5 px-3 rounded-lg text-[14px] cursor-pointer border-l-[3px] min-h-[44px] flex items-center ${
+                        className={`py-1.5 px-2.5 rounded-md text-[12px] cursor-pointer border-l-2 min-h-[32px] flex items-center ${
                           !state.selectedCohortId
-                            ? "font-bold text-primary bg-primary/5 border-l-primary"
+                            ? "font-semibold text-primary bg-primary/5 border-l-primary"
                             : "text-muted-foreground border-l-transparent hover:bg-accent"
                         }`}
                       >
                         전체 보기
                       </div>
-                      {instructor.cohorts.map((c) => {
+                      {getOrderedCohorts(plat.name, instructor.name, instructor.cohorts).map((c) => {
                         const status = autoStatus(c);
                         const isSelCo = state.selectedCohortId === c.id;
                         return (
                           <div
                             key={c.id}
                             onClick={() => dispatch({ type: "SELECT_COHORT", id: c.id })}
-                            className={`py-2.5 px-3 rounded-lg text-[14px] cursor-pointer border-l-[3px] min-h-[44px] flex flex-col justify-center ${
+                            className={`py-1.5 px-2.5 rounded-md text-[12px] cursor-pointer border-l-2 min-h-[32px] flex flex-col justify-center ${
                               isSelCo
-                                ? "bg-primary/5 border-l-primary font-bold text-primary"
+                                ? "bg-primary/5 border-l-primary font-semibold text-primary"
                                 : "border-l-transparent hover:bg-accent"
                             }`}
                           >
                             <div className="flex justify-between items-center gap-1">
-                              <span className={isSelCo ? "font-bold text-primary" : "font-medium"}>
+                              <span className={isSelCo ? "font-semibold text-primary" : ""}>
                                 {c.label}
                               </span>
                               <span
-                                className={`text-[11px] px-1.5 py-0.5 rounded border font-bold shrink-0 ${statusBg(status)}`}
+                                className={`text-[10px] px-1 py-0.5 rounded border font-bold shrink-0 ${statusBg(status)}`}
                               >
                                 {status}
                               </span>
                             </div>
                             {c.pm && (
-                              <div className="text-[11px] text-muted-foreground mt-0.5">담당PM {c.pm}</div>
+                              <div className="text-[10px] text-muted-foreground mt-0.5">담당PM {c.pm}</div>
                             )}
                           </div>
                         );

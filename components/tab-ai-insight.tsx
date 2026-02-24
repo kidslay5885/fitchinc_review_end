@@ -4,19 +4,13 @@ import { useState, useEffect, useMemo } from "react";
 import type { Instructor, Cohort, AnalysisResult } from "@/lib/types";
 import { computeScores } from "@/lib/analysis-engine";
 import { RingScore } from "./ring-score";
-import { Loader2, RefreshCw, AlertTriangle, Flame, ThumbsUp, Lightbulb, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, Sparkles, Flame, ThumbsUp, Lightbulb, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 
 interface TabAIInsightProps {
   instructor: Instructor;
   cohort: Cohort | null;
   platformName: string;
-}
-
-interface RiskSignal {
-  label: string;
-  detail: string;
-  severity: "high" | "medium";
 }
 
 export function TabAIInsight({ instructor, cohort, platformName }: TabAIInsightProps) {
@@ -47,56 +41,6 @@ export function TabAIInsight({ instructor, cohort, platformName }: TabAIInsightP
       ? cohort.postResponses.length
       : instructor.cohorts.reduce((a, c) => a + c.postResponses.length, 0);
   }, [instructor, cohort]);
-
-  // 리스크 시그널 계산
-  const risks = useMemo((): RiskSignal[] => {
-    const signals: RiskSignal[] = [];
-
-    // 후기 응답률
-    if (preCount > 0) {
-      const responseRate = Math.round((postCount / preCount) * 100);
-      if (responseRate < 50) {
-        signals.push({
-          label: "낮은 후기 응답률",
-          detail: `후기 응답률 ${responseRate}% (${postCount}/${preCount}명)`,
-          severity: responseRate < 30 ? "high" : "medium",
-        });
-      }
-    }
-
-    // 낮은 점수
-    if (postCount > 0) {
-      if (scores.ps1Avg > 0 && scores.ps1Avg < 3.5) {
-        signals.push({
-          label: "커리큘럼 만족도 낮음",
-          detail: `커리큘럼 점수 ${scores.ps1Avg}/5`,
-          severity: scores.ps1Avg < 3 ? "high" : "medium",
-        });
-      }
-      if (scores.ps2Avg > 0 && scores.ps2Avg < 3.5) {
-        signals.push({
-          label: "피드백 만족도 낮음",
-          detail: `피드백 점수 ${scores.ps2Avg}/5`,
-          severity: scores.ps2Avg < 3 ? "high" : "medium",
-        });
-      }
-    }
-
-    // 동일 테마 불만 3건+
-    if (analysis?.complaints) {
-      for (const c of analysis.complaints) {
-        if (c.count >= 3) {
-          signals.push({
-            label: `"${c.theme}" 불만 반복`,
-            detail: `${c.count}건 반복`,
-            severity: c.count >= 5 ? "high" : "medium",
-          });
-        }
-      }
-    }
-
-    return signals;
-  }, [scores, preCount, postCount, analysis]);
 
   // 캐시 확인
   useEffect(() => {
@@ -163,7 +107,7 @@ export function TabAIInsight({ instructor, cohort, platformName }: TabAIInsightP
       const data: AnalysisResult = await res.json();
       setAnalysis(data);
       setLoaded(true);
-      toast.success("AI 분석 완료");
+      toast.success("AI 인사이트 생성 완료");
     } catch {
       toast.error("AI 분석 실패");
     } finally {
@@ -189,9 +133,9 @@ export function TabAIInsight({ instructor, cohort, platformName }: TabAIInsightP
           {loading ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
           ) : (
-            <RefreshCw className="w-3.5 h-3.5" />
+            <Sparkles className="w-3.5 h-3.5" />
           )}
-          {loading ? "분석 중..." : "분석 요청"}
+          {loading ? "분석 중..." : loaded ? "다시 분석하기" : "AI 인사이트 얻기"}
         </button>
       </div>
 
@@ -200,8 +144,8 @@ export function TabAIInsight({ instructor, cohort, platformName }: TabAIInsightP
         <div className="bg-card rounded-xl border p-5">
           <div className="flex items-center gap-6 flex-wrap">
             <div className="flex gap-3 items-center">
-              <RingScore score={scores.ps1Avg} label="커리큘럼" />
-              <RingScore score={scores.ps2Avg} label="피드백" />
+              <RingScore score={scores.ps1Avg} label="커리큘럼" max={10} excluded={scores.ps1Excluded} title="후기 설문의 커리큘럼(ps1) 문항 평균을 10점 만점으로 수치화한 결과입니다." />
+              <RingScore score={scores.ps2Avg} label="피드백" max={10} excluded={scores.ps2Excluded} title="후기 설문의 피드백(ps2) 문항 평균을 10점 만점으로 수치화한 결과입니다." />
             </div>
             <div className="border-l pl-5 grid gap-1 text-[14px]">
               {scores.recRate > 0 && (
@@ -225,40 +169,13 @@ export function TabAIInsight({ instructor, cohort, platformName }: TabAIInsightP
         </div>
       )}
 
-      {/* 리스크 시그널 */}
-      {risks.length > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-          <div className="flex items-center gap-1.5 mb-2.5">
-            <AlertTriangle className="w-4 h-4 text-amber-600" />
-            <span className="text-[14px] font-bold text-amber-800">리스크 시그널</span>
-          </div>
-          <ul className="grid gap-1.5">
-            {risks.map((r, i) => (
-              <li key={i} className="flex items-start gap-2 text-[14px]">
-                <span
-                  className={`mt-0.5 w-1.5 h-1.5 rounded-full shrink-0 ${
-                    r.severity === "high" ? "bg-red-500" : "bg-amber-500"
-                  }`}
-                />
-                <span className="text-amber-900">
-                  {r.detail}
-                  {r.severity === "high" && (
-                    <span className="text-red-600 font-bold ml-1">— 주의</span>
-                  )}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
       {/* AI 분석 결과 */}
       {!loaded && !loading && (
         <div className="text-center py-12 text-muted-foreground">
           <Lightbulb className="w-8 h-8 opacity-20 mx-auto mb-3" />
           <div className="text-[14px] font-bold">AI 분석 결과가 없습니다</div>
           <div className="text-[13px] mt-1">
-            &quot;분석 요청&quot; 버튼을 눌러 AI 인사이트를 생성하세요
+            &quot;AI 인사이트 얻기&quot; 버튼을 눌러 분석을 실행하세요
           </div>
         </div>
       )}

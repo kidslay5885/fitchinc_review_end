@@ -45,24 +45,47 @@ export function computeDemographics(responses: SurveyResponse[]): DemographicSta
   };
 }
 
-export function computeScores(postResponses: SurveyResponse[]) {
-  if (postResponses.length === 0) return { ps1Avg: 0, ps2Avg: 0, recRate: 0 };
+export interface ComputeScoresResult {
+  ps1Avg: number;
+  ps2Avg: number;
+  recRate: number;
+  ps1Excluded: boolean;
+  ps2Excluded: boolean;
+}
+
+/** 10점 만점으로 통일 (원본이 5점 이하면 ×2, 초과면 그대로, 상한 10). 측정 불가 시 제외 플래그 */
+export function computeScores(postResponses: SurveyResponse[]): ComputeScoresResult {
+  if (postResponses.length === 0)
+    return { ps1Avg: 0, ps2Avg: 0, recRate: 0, ps1Excluded: false, ps2Excluded: false };
 
   let ps1Sum = 0;
   let ps2Sum = 0;
   let recCount = 0;
+  let ps1Count = 0;
+  let ps2Count = 0;
 
   for (const r of postResponses) {
-    ps1Sum += r.ps1;
-    ps2Sum += r.ps2;
+    if (r.ps1 > 0) {
+      ps1Sum += r.ps1;
+      ps1Count++;
+    }
+    if (r.ps2 > 0) {
+      ps2Sum += r.ps2;
+      ps2Count++;
+    }
     if (/네|넵|추천|강추|할|싶/i.test(r.pRec)) recCount++;
   }
 
   const n = postResponses.length;
+  const to10 = (raw: number) => (raw <= 5 ? Math.min(10, Math.round(raw * 2 * 100) / 100) : Math.min(10, Math.round(raw * 100) / 100));
+  const rawPs1 = ps1Count > 0 ? ps1Sum / ps1Count : 0;
+  const rawPs2 = ps2Count > 0 ? ps2Sum / ps2Count : 0;
   return {
-    ps1Avg: Math.round((ps1Sum / n) * 100) / 100,
-    ps2Avg: Math.round((ps2Sum / n) * 100) / 100,
+    ps1Avg: to10(rawPs1),
+    ps2Avg: to10(rawPs2),
     recRate: Math.round((recCount / n) * 1000) / 10,
+    ps1Excluded: n > 0 && ps1Count === 0,
+    ps2Excluded: n > 0 && ps2Count === 0,
   };
 }
 
@@ -133,9 +156,9 @@ export function aggregateInstructor(cohorts: Cohort[]) {
     if (avg.ps1Avg > 0) scores.push((avg.ps1Avg + avg.ps2Avg) / 2);
   }
 
-  const avgScore = scores.length > 0
-    ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 100) / 100
-    : 0;
+  const rawAvg =
+    scores.length > 0 ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 100) / 100 : 0;
+  const avgScore = rawAvg <= 5 ? Math.min(10, rawAvg * 2) : Math.min(10, rawAvg);
 
   return { totalPre, totalPost, avgScore };
 }

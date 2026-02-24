@@ -15,7 +15,7 @@ import {
   type TagValue,
   type PlatformSub,
 } from "@/lib/feedback-utils";
-import { Loader2, Search, Copy, Check, X, FileText, Sparkles } from "lucide-react";
+import { Loader2, Search, Copy, Check, X, FileText, Sparkles, Download } from "lucide-react";
 import { toast } from "sonner";
 
 type HubView = "untagged" | "instructor" | "platform" | "all";
@@ -201,6 +201,37 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
       return true;
     });
   }, [comments, hubView, platformSub, cohortFilter, sourceFieldFilter, sentimentFilter, search]);
+
+  const exportToExcel = () => {
+    if (filtered.length === 0) {
+      toast.info("내보낼 데이터가 없습니다");
+      return;
+    }
+    const headers = ["기수", "전달대상", "감정", "설문 문항", "응답자", "원문"];
+    const escape = (s: string) => {
+      const t = String(s ?? "").replace(/"/g, '""');
+      return t.includes(",") || t.includes('"') || t.includes("\n") ? `"${t}"` : t;
+    };
+    const sentimentLabel = (s: Comment["sentiment"]) => (s === "positive" ? "긍정" : s === "negative" ? "부정" : s === "neutral" ? "미구분" : "");
+    const rows = filtered.map((c) => [
+      (c as CommentWithCohort).cohortLabel ?? "",
+      getTagLabel(effectiveTag(c)),
+      sentimentLabel(c.sentiment),
+      FIELD_LABELS[c.source_field] ?? c.source_field,
+      c.respondent ?? "",
+      c.original_text ?? "",
+    ]);
+    const csv = [headers.join(","), ...rows.map((r) => r.map(escape).join(","))].join("\n");
+    const bom = "\uFEFF";
+    const blob = new Blob([bom + csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `피드백_${instructor.name}_${cohort?.label ?? "전체"}_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`${filtered.length}건 엑셀(CSV)로 내보냈습니다`);
+  };
 
   type SentimentValue = "positive" | "negative" | "neutral";
 
@@ -519,28 +550,40 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
             </button>
           )}
         </div>
-        <div className="flex gap-0.5 bg-muted rounded-lg p-0.5 border w-fit">
-          {([
-            { id: "all" as HubView, label: `전체 ${comments.length}` },
-            { id: "platform" as HubView, label: `플랫폼 ${platformCount}` },
-            { id: "instructor" as HubView, label: `강사 ${instructorCount}` },
-            { id: "untagged" as HubView, label: `미분류 ${untaggedCount}` },
-          ]).map((v) => (
-            <button
-              key={v.id}
-              onClick={() => {
-                setHubView(v.id);
-                setPlatformSub("all");
-              }}
-              className={`py-1.5 px-3.5 rounded-md text-[13px] transition-colors ${
-                hubView === v.id
-                  ? "bg-card font-bold text-primary shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {v.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex gap-0.5 bg-muted rounded-lg p-0.5 border w-fit">
+            {([
+              { id: "all" as HubView, label: `전체 ${comments.length}` },
+              { id: "platform" as HubView, label: `플랫폼 ${platformCount}` },
+              { id: "instructor" as HubView, label: `강사 ${instructorCount}` },
+              { id: "untagged" as HubView, label: `미분류 ${untaggedCount}` },
+            ]).map((v) => (
+              <button
+                key={v.id}
+                onClick={() => {
+                  setHubView(v.id);
+                  setPlatformSub("all");
+                }}
+                className={`py-1.5 px-3.5 rounded-md text-[13px] transition-colors ${
+                  hubView === v.id
+                    ? "bg-card font-bold text-primary shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {v.label}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={exportToExcel}
+            disabled={filtered.length === 0}
+            className="flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-[13px] font-medium border bg-card hover:bg-muted/80 text-foreground disabled:opacity-50 disabled:pointer-events-none transition-colors"
+            title="현재 보기 조건에 맞는 목록을 엑셀(CSV)로 다운로드합니다"
+          >
+            <Download className="w-3.5 h-3.5" />
+            엑셀으로 내보내기
+          </button>
         </div>
       </div>
 

@@ -2,6 +2,7 @@
 
 import type { Instructor } from "@/lib/types";
 import { computeScores } from "@/lib/analysis-engine";
+import { getOrderedCohorts } from "@/lib/cohort-order";
 import { BarChart3 } from "lucide-react";
 
 interface TabQualityOverviewProps {
@@ -10,7 +11,8 @@ interface TabQualityOverviewProps {
 }
 
 export function TabQualityOverview({ instructor, platformName }: TabQualityOverviewProps) {
-  const rows = instructor.cohorts.map((c) => {
+  const ordered = getOrderedCohorts(platformName, instructor.name, instructor.cohorts);
+  const rows = ordered.map((c) => {
     const scores = computeScores(c.postResponses);
     const preN = c.preResponses.length;
     const postN = c.postResponses.length;

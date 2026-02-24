@@ -139,7 +139,20 @@ function MainContent() {
                   platformName={platformName}
                   instructor={inst}
                   cohort={cohort}
-                  onUpdateCohort={cohort ? (c) => dispatch({ type: "UPDATE_COHORT", instructorId: inst.id, cohort: c }) : undefined}
+                  onUpdateCohort={
+                    cohort
+                      ? (c) => {
+                          dispatch({ type: "UPDATE_COHORT", instructorId: inst.id, cohort: c });
+                          if (plat)
+                            try {
+                              localStorage.setItem(
+                                `total-students-${plat.name}-${inst.name}-${c.label}`,
+                                String(c.totalStudents ?? 0)
+                              );
+                            } catch {}
+                        }
+                      : undefined
+                  }
                 />
 
                 <div className="flex gap-0 border-b-2 border-border mb-5">
@@ -166,7 +179,12 @@ function MainContent() {
                 ) : (
                   <>
                     {state.activeTab === "whole" && (
-                      <TabWhole instructor={inst} platformName={platformName} selectedCohort={cohort} />
+                      <TabWhole
+                        instructor={inst}
+                        platformName={platformName}
+                        selectedCohort={cohort}
+                        onSelectCohort={(id) => dispatch({ type: "SELECT_COHORT", id })}
+                      />
                     )}
                     {(state.activeTab === "feedback" || (state.activeTab === "quality" && cohort)) && (
                       <TabFeedbackHub instructor={inst} cohort={cohort} platformName={platformName} />
