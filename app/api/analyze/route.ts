@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 import { getSupabase } from "@/lib/supabase";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+function getAI() {
+  return new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -58,7 +60,7 @@ ${batch.map((c) => `[${c.index}] ${c.respondent} (${c.field}): "${c.text}"`).joi
 - neutral: 단순 사실 전달, 무의미, 짧은 응답 등
 - ".", "없습니다", "없음" 등 무의미한 답변은 neutral`;
 
-      const response = await ai.models.generateContent({
+      const response = await getAI().models.generateContent({
         model: "gemini-2.5-flash",
         contents: prompt,
       });

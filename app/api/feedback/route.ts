@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+function getAI() {
+  return new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -49,7 +51,7 @@ ${analysisSection}
 
 메시지만 출력해주세요 (JSON 아님):`;
 
-    const response = await ai.models.generateContent({
+    const response = await getAI().models.generateContent({
       model: "gemini-2.5-flash",
       contents: prompt,
     });

@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 import { getSupabase } from "@/lib/supabase";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+function getAI() {
+  return new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+}
 
 // POST: 불만/제안/강점 테마 분류
 export async function POST(req: NextRequest) {
@@ -46,7 +48,7 @@ ${(hopeTexts || []).map((t: { name: string; text: string }, i: number) => `[${i}
 - 1~2줄 단답은 무시
 - JSON만 출력, 다른 텍스트 없이`;
 
-    const response = await ai.models.generateContent({
+    const response = await getAI().models.generateContent({
       model: "gemini-2.5-flash",
       contents: prompt,
     });
