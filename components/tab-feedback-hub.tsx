@@ -104,6 +104,27 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
   const untaggedCount = comments.filter((c) => effectiveTag(c) === null).length;
   const instructorCount = comments.filter((c) => effectiveTag(c) === "instructor").length;
   const platformCount = comments.filter((c) => isPlatformTag(effectiveTag(c))).length;
+  const platformPmCount = comments.filter((c) => effectiveTag(c) === "platform_pm").length;
+  const platformPdCount = comments.filter((c) => effectiveTag(c) === "platform_pd").length;
+  const platformCsCount = comments.filter((c) => effectiveTag(c) === "platform_cs").length;
+  const platformEtcCount = comments.filter((c) => effectiveTag(c) === "platform_etc").length;
+  const isReviewComplete = untaggedCount === 0;
+
+  // 태그별 긍정/부정/기타 건수 (전달 요약용)
+  const sentimentByTag = useMemo(() => {
+    const acc: Record<string, { positive: number; negative: number; other: number }> = {};
+    const tags: TagValue[] = ["instructor", "platform_pm", "platform_pd", "platform_cs", "platform_etc"];
+    tags.forEach((t) => { if (t) acc[t] = { positive: 0, negative: 0, other: 0 }; });
+    comments.forEach((c) => {
+      const et = effectiveTag(c);
+      if (!et || !acc[et]) return;
+      const s = c.sentiment;
+      if (s === "positive") acc[et].positive++;
+      else if (s === "negative") acc[et].negative++;
+      else acc[et].other++;
+    });
+    return acc;
+  }, [comments]);
 
   // 필터링
   const filtered = useMemo(() => {
@@ -350,28 +371,6 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
       </div>
     );
   };
-
-  const platformPmCount = comments.filter((c) => effectiveTag(c) === "platform_pm").length;
-  const platformPdCount = comments.filter((c) => effectiveTag(c) === "platform_pd").length;
-  const platformCsCount = comments.filter((c) => effectiveTag(c) === "platform_cs").length;
-  const platformEtcCount = comments.filter((c) => effectiveTag(c) === "platform_etc").length;
-  const isReviewComplete = untaggedCount === 0;
-
-  // 태그별 긍정/부정/기타 건수 (전달 요약용, 번잡하지 않게)
-  const sentimentByTag = useMemo(() => {
-    const acc: Record<string, { positive: number; negative: number; other: number }> = {};
-    const tags: TagValue[] = ["instructor", "platform_pm", "platform_pd", "platform_cs", "platform_etc"];
-    tags.forEach((t) => { acc[t] = { positive: 0, negative: 0, other: 0 }; });
-    comments.forEach((c) => {
-      const et = effectiveTag(c);
-      if (!et || !acc[et]) return;
-      const s = c.sentiment;
-      if (s === "positive") acc[et].positive++;
-      else if (s === "negative") acc[et].negative++;
-      else acc[et].other++;
-    });
-    return acc;
-  }, [comments]);
 
   return (
     <div className="grid gap-3">
