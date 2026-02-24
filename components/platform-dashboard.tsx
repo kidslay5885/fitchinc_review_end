@@ -30,9 +30,9 @@ export function PlatformDashboard({ platform, onSelectInstructor }: PlatformDash
         <div className="flex justify-between items-center">
           <div>
             <div className="text-[22px] font-extrabold">{platform.name}</div>
-            <div className="text-[13px] text-muted-foreground mt-1">
-              강사 {platform.instructors.length}명 · 설문 참여 {totalSurvey}명 · 설문 완료{" "}
-              {doneCohorts.length}기수
+            <div className="text-[13px] text-muted-foreground mt-1" title="완료 = 해당 기수에서 후기 설문이 1건 이상 수집된 경우">
+              강사 {platform.instructors.length}명 · 설문 참여 {totalSurvey}명 · 설문 완료 {doneCohorts.length}기수
+              <span className="text-[11px] text-muted-foreground/80 ml-1">(후기 설문 수집 기준)</span>
             </div>
           </div>
           <div className="text-center px-5 py-2.5 bg-card rounded-[10px] border">
@@ -67,17 +67,17 @@ export function PlatformDashboard({ platform, onSelectInstructor }: PlatformDash
                 onClick={() => onSelectInstructor(inst.id)}
                 className="bg-card rounded-xl border p-5 cursor-pointer hover:shadow-md transition-shadow"
               >
-                <div className="flex items-center gap-3.5 mb-3.5">
-                  <div className="w-11 h-11 rounded-full bg-muted flex items-center justify-center overflow-hidden shrink-0">
+                <div className="flex items-center gap-4 mb-3.5">
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-muted flex items-center justify-center overflow-hidden shrink-0 ring-2 ring-border/50">
                     {inst.photo ? (
-                      <img src={inst.photo} alt={inst.name} className="w-full h-full object-cover" style={{ objectPosition: inst.photoPosition || "center center" }} />
+                      <img src={inst.photo} alt={inst.name} className="w-full h-full object-contain" style={{ objectPosition: inst.photoPosition || "center top" }} />
                     ) : (
-                      <User className="w-5 h-5 text-muted-foreground" />
+                      <User className="w-8 h-8 sm:w-10 sm:h-10 text-muted-foreground" />
                     )}
                   </div>
-                  <div className="flex-1">
-                    <div className="text-[16px] font-bold">{inst.name}</div>
-                    <div className="text-[13px] text-muted-foreground">{inst.category}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[18px] sm:text-[20px] font-bold leading-tight">{inst.name}</div>
+                    <div className="text-[13px] text-muted-foreground mt-0.5">{inst.category}</div>
                   </div>
                   {ia !== "-" && (
                     <div className="text-center">
@@ -106,6 +106,7 @@ export function PlatformDashboard({ platform, onSelectInstructor }: PlatformDash
                   <div className="flex items-center justify-between">
                     <span
                       className={`text-[11px] px-1.5 py-0.5 rounded border font-bold ${statusBg(lastStatus)}`}
+                      title={lastStatus === "완료" ? "후기 설문 1건 이상 수집됨" : lastStatus === "진행중" ? "사전 설문만 수집됨" : "사전·후기 미수집"}
                     >
                       {last.label} {lastStatus}
                     </span>

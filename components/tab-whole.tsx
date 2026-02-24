@@ -71,7 +71,9 @@ export function TabWhole({ instructor }: TabWholeProps) {
 
   const scrollTo = (id: string) => {
     const el = document.getElementById(id);
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (!el) return;
+    const y = el.getBoundingClientRect().top + window.scrollY - 88;
+    window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
   };
 
   return (
@@ -140,29 +142,36 @@ export function TabWhole({ instructor }: TabWholeProps) {
             <nav className="sticky top-2 z-10 rounded-xl border bg-card/95 backdrop-blur p-3 shadow-sm">
               <div className="text-[12px] font-semibold text-muted-foreground mb-2 px-1">목차 (클릭하면 해당 문항으로 이동)</div>
               <div className="flex flex-wrap gap-1.5">
-                {tocEntries.map((e) => (
-                  <button
-                    key={e.id}
-                    type="button"
-                    onClick={() => scrollTo(e.id)}
-                    className="py-1.5 px-2.5 rounded-md text-[13px] font-medium bg-muted/80 hover:bg-muted text-foreground border border-transparent hover:border-border transition-colors"
-                  >
-                    {e.label}
-                  </button>
-                ))}
+                {tocEntries.map((e) => {
+                  const isPre = e.label.includes("사전");
+                  return (
+                    <button
+                      key={e.id}
+                      type="button"
+                      onClick={() => scrollTo(e.id)}
+                      className={`py-1.5 px-2.5 rounded-md text-[13px] font-medium border transition-colors ${
+                        isPre
+                          ? "bg-blue-100/90 text-blue-800 border-blue-200 hover:bg-blue-200/90"
+                          : "bg-emerald-100/90 text-emerald-800 border-emerald-200 hover:bg-emerald-200/90"
+                      }`}
+                    >
+                      {e.label}
+                    </button>
+                  );
+                })}
               </div>
             </nav>
           )}
 
           <div className="grid gap-10">
             {/* 사전 설문 */}
-            <section>
-              <h3 className="text-[17px] font-bold border-b-2 border-primary/30 pb-2 mb-5 text-primary">사전 설문</h3>
+            <section className="rounded-xl border border-blue-200/60 bg-blue-50/30 p-4 sm:p-5">
+              <h3 className="text-[17px] font-bold border-b-2 border-blue-400/50 pb-2 mb-5 text-blue-700">사전 설문</h3>
               <div className="grid gap-8">
                 {currentCohorts.map((cohort) => (
-                  <div key={cohort.id} className="rounded-xl border bg-card overflow-hidden">
+                  <div key={cohort.id} className="rounded-xl border bg-card overflow-hidden border-blue-100">
                     {cohortFilter === "all" && cohorts.length > 1 && (
-                      <div className="px-4 py-2.5 bg-muted/60 text-[14px] font-bold text-foreground border-b">
+                      <div className="px-4 py-2.5 bg-blue-100/60 text-[14px] font-bold text-foreground border-b border-blue-100">
                         {cohort.label}
                       </div>
                     )}
@@ -176,7 +185,7 @@ export function TabWhole({ instructor }: TabWholeProps) {
                         if (items.length === 0) return null;
                         return (
                           <div key={field} id={sectionId} className="scroll-mt-24 pt-1">
-                            <div className="py-2.5 px-3 mb-2 rounded-lg bg-primary/10 border-l-4 border-primary text-[15px] font-bold text-foreground">
+                            <div className="py-2.5 px-3 mb-2 rounded-lg bg-blue-100/80 border-l-4 border-blue-500 text-[15px] font-bold text-blue-900">
                               {label}
                             </div>
                             <ul className="space-y-2 pl-1">
@@ -197,13 +206,13 @@ export function TabWhole({ instructor }: TabWholeProps) {
             </section>
 
             {/* 후기 설문 */}
-            <section>
-              <h3 className="text-[17px] font-bold border-b-2 border-primary/30 pb-2 mb-5 text-primary">후기 설문</h3>
+            <section className="rounded-xl border border-emerald-200/60 bg-emerald-50/30 p-4 sm:p-5">
+              <h3 className="text-[17px] font-bold border-b-2 border-emerald-400/50 pb-2 mb-5 text-emerald-700">후기 설문</h3>
               <div className="grid gap-8">
                 {currentCohorts.map((cohort) => (
-                  <div key={cohort.id} className="rounded-xl border bg-card overflow-hidden">
+                  <div key={cohort.id} className="rounded-xl border bg-card overflow-hidden border-emerald-100">
                     {cohortFilter === "all" && cohorts.length > 1 && (
-                      <div className="px-4 py-2.5 bg-muted/60 text-[14px] font-bold text-foreground border-b">
+                      <div className="px-4 py-2.5 bg-emerald-100/60 text-[14px] font-bold text-foreground border-b border-emerald-100">
                         {cohort.label}
                       </div>
                     )}
@@ -217,7 +226,7 @@ export function TabWhole({ instructor }: TabWholeProps) {
                         if (items.length === 0) return null;
                         return (
                           <div key={field} id={sectionId} className="scroll-mt-24 pt-1">
-                            <div className="py-2.5 px-3 mb-2 rounded-lg bg-primary/10 border-l-4 border-primary text-[15px] font-bold text-foreground">
+                            <div className="py-2.5 px-3 mb-2 rounded-lg bg-emerald-100/80 border-l-4 border-emerald-500 text-[15px] font-bold text-emerald-900">
                               {label}
                             </div>
                             <ul className="space-y-2 pl-1">
