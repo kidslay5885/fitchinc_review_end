@@ -32,7 +32,7 @@ export async function GET() {
         const v = value as { photo?: string; photoPosition?: string };
         instructorPhotos[key] = {
           photo: typeof v.photo === "string" ? v.photo : "",
-          photoPosition: typeof v.photoPosition === "string" ? v.photoPosition : "center center",
+          photoPosition: typeof v.photoPosition === "string" ? v.photoPosition : "center 2%",
         };
       } else if (key.startsWith("cohort_order:") && Array.isArray(value)) {
         cohortOrders[key] = value.filter((x) => typeof x === "string");
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "platform, instructor 필요" }, { status: 400 });
       }
       const key = photoKey(platform, instructor);
-      const value = { photo: photo || "", photoPosition: photoPosition || "center center" };
+      const value = { photo: photo || "", photoPosition: photoPosition || "center 2%" };
 
       const supabase = getSupabase();
       const { error } = await supabase.from(TABLE).upsert(

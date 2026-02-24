@@ -110,7 +110,7 @@ function reducer(state: AppState, action: Action): AppState {
           name: action.instructorName,
           category: action.instructorCategory || "",
           photo: "",
-          photoPosition: "center center",
+          photoPosition: "center 2%",
           cohorts: [],
         });
         instIdx = plat.instructors.length - 1;
@@ -292,7 +292,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             name: ai.name,
             category: "",
             photo: "",
-            photoPosition: "center center",
+            photoPosition: "center 2%",
             cohorts: ai.cohorts.map((ac: { label: string; pm: string; preCount: number; postCount: number; startDate: string; endDate: string; totalStudents: number }) => ({
               id: generateId(),
               label: ac.label,
@@ -318,7 +318,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               name: ai.name,
               category: "",
               photo: "",
-              photoPosition: "center center",
+              photoPosition: "center 2%",
               cohorts: ai.cohorts.map((ac: { label: string; pm: string; preCount: number; postCount: number; startDate: string; endDate: string; totalStudents: number }) => ({
                 id: generateId(),
                 label: ac.label,
@@ -346,7 +346,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 const photoData = instructorPhotos?.[key];
                 if (photoData?.photo != null) {
                   inst.photo = photoData.photo || "";
-                  inst.photoPosition = photoData.photoPosition || "center center";
+                  inst.photoPosition = photoData.photoPosition || "center 2%";
                 }
               }
               for (const inst of p.instructors) {
@@ -375,7 +375,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 // 서버에서 이미 복원된 사진이 있으면 덮어쓰지 않음
                 if (!inst.photo && parsed.photo) {
                   inst.photo = parsed.photo;
-                  inst.photoPosition = parsed.photoPosition || "center center";
+                  inst.photoPosition = parsed.photoPosition || "center 2%";
                 }
               }
             } catch {

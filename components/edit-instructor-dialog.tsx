@@ -74,7 +74,7 @@ export function EditInstructorDialog({
 
   // Parse photoPosition to get vertical percentage (0-100)
   const getVerticalPosition = (): number => {
-    const pos = data.photoPosition || "center center";
+    const pos = data.photoPosition || "center 2%";
     const parts = pos.split(" ");
     const yPart = parts[1] || "50%";
     return parseInt(yPart) || 50;
@@ -111,7 +111,7 @@ export function EditInstructorDialog({
                     src={data.photo}
                     alt={data.name}
                     className="w-full h-full object-cover"
-                    style={{ objectPosition: data.photoPosition || "center center" }}
+                    style={{ objectPosition: data.photoPosition || "center 2%" }}
                   />
                 ) : (
                   <User className="w-6 h-6 text-muted-foreground" />

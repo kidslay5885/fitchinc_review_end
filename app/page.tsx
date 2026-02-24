@@ -88,7 +88,7 @@ function MainContent() {
           instructor={editInst}
           onSave={(updated) => {
             if (plat) {
-              const payload = { photo: updated.photo || "", photoPosition: updated.photoPosition || "center center" };
+              const payload = { photo: updated.photo || "", photoPosition: updated.photoPosition || "center 2%" };
               // 서버 저장 (localStorage 실패와 무관하게 항상 실행)
               fetch("/api/app-settings", {
                 method: "POST",
