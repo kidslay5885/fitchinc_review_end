@@ -32,12 +32,12 @@ export function InstructorHero({ platformName, instructor, cohort }: InstructorH
           <div className="text-[12px] font-extrabold text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
             {platformName} · {instructor.category}
           </div>
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center overflow-hidden shrink-0">
+          <div className="flex items-center gap-3.5">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-muted flex items-center justify-center overflow-hidden shrink-0 ring-2 ring-border/50">
               {instructor.photo ? (
                 <img src={instructor.photo} alt={instructor.name} className="w-full h-full object-cover" style={{ objectPosition: instructor.photoPosition || "center center" }} />
               ) : (
-                <User className="w-4.5 h-4.5 text-muted-foreground" />
+                <User className="w-7 h-7 sm:w-8 sm:h-8 text-muted-foreground" />
               )}
             </div>
             <div className="text-[22px] font-extrabold">

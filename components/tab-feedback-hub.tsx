@@ -16,7 +16,7 @@ import {
   type TagValue,
   type PlatformSub,
 } from "@/lib/feedback-utils";
-import { Loader2, Search, Copy, Check, X, Send, FileCheck } from "lucide-react";
+import { Loader2, Search, Copy, Check, X, Send } from "lucide-react";
 import { toast } from "sonner";
 
 type HubView = "untagged" | "instructor" | "platform" | "all";
@@ -139,17 +139,35 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
     return null; // 플랫 리스트
   }, [filtered, hubView]);
 
+  type SentimentValue = "positive" | "negative" | "neutral";
+
   // 개별 태그 변경
   const handleTagChange = async (commentId: string, tag: TagValue) => {
     try {
-      await fetch("/api/classify", {
+      const res = await fetch("/api/classify", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ commentId, tag }),
       });
+      if (!res.ok) throw new Error();
       setComments((prev) => prev.map((c) => (c.id === commentId ? { ...c, tag } : c)));
     } catch {
       toast.error("태그 변경 실패");
+    }
+  };
+
+  // 개별 긍정/부정 설정 (전달 요약에 반영)
+  const handleSentimentChange = async (commentId: string, sentiment: SentimentValue) => {
+    try {
+      const res = await fetch("/api/classify", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commentId, sentiment }),
+      });
+      if (!res.ok) throw new Error();
+      setComments((prev) => prev.map((c) => (c.id === commentId ? { ...c, sentiment } : c)));
+    } catch {
+      toast.error("평가 구분 저장 실패");
     }
   };
 
@@ -256,18 +274,46 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
 
           <div className="flex-1 min-w-0">
             <p className="text-[14px] leading-relaxed">{comment.original_text}</p>
-            <div className="flex items-center gap-1.5 mt-1 text-[12px] text-muted-foreground">
+            <div className="flex items-center gap-1.5 mt-1 text-[12px] text-muted-foreground flex-wrap">
               <span className="font-semibold text-foreground/60">
                 {comment.respondent}
               </span>
               {comment.cohortLabel && <span>{comment.cohortLabel}</span>}
-              {/* 미분류/전체 뷰에서 출처 뱃지 */}
               {(hubView === "untagged" || hubView === "all") && (
                 <span className="text-[11px] bg-muted px-1.5 py-0.5 rounded">
                   {FIELD_LABELS[comment.source_field] || comment.source_field}
                 </span>
               )}
             </div>
+            {/* 분류된 댓글만: 긍정/부정 구분 (전달 요약에 반영, 번잡하지 않게 한 줄) */}
+            {et && (
+              <div className="flex items-center gap-1 mt-1.5">
+                <span className="text-[11px] text-muted-foreground mr-0.5">평가:</span>
+                {(["positive", "negative", "neutral"] as const).map((s) => {
+                  const cur = comment.sentiment || null;
+                  const isActive = cur === s;
+                  const label = s === "positive" ? "긍정" : s === "negative" ? "부정" : "구분없음";
+                  return (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => handleSentimentChange(comment.id, s)}
+                      className={`py-0.5 px-1.5 rounded text-[11px] transition-colors ${
+                        isActive
+                          ? s === "positive"
+                            ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                            : s === "negative"
+                              ? "bg-rose-100 text-rose-800 border border-rose-200"
+                              : "bg-muted text-foreground border border-border"
+                          : "bg-muted/50 text-muted-foreground border border-transparent hover:bg-muted"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* 전체 뷰: 태그 드롭다운 */}
@@ -311,20 +357,24 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
   const platformEtcCount = comments.filter((c) => effectiveTag(c) === "platform_etc").length;
   const isReviewComplete = untaggedCount === 0;
 
+  // 태그별 긍정/부정/기타 건수 (전달 요약용, 번잡하지 않게)
+  const sentimentByTag = useMemo(() => {
+    const acc: Record<string, { positive: number; negative: number; other: number }> = {};
+    const tags: TagValue[] = ["instructor", "platform_pm", "platform_pd", "platform_cs", "platform_etc"];
+    tags.forEach((t) => { acc[t] = { positive: 0, negative: 0, other: 0 }; });
+    comments.forEach((c) => {
+      const et = effectiveTag(c);
+      if (!et || !acc[et]) return;
+      const s = c.sentiment;
+      if (s === "positive") acc[et].positive++;
+      else if (s === "negative") acc[et].negative++;
+      else acc[et].other++;
+    });
+    return acc;
+  }, [comments]);
+
   return (
     <div className="grid gap-3">
-      {/* 플로우 안내: 후기 데이터 → 검수 → 전달 */}
-      <div className="flex items-center gap-2 py-2 px-3 rounded-lg bg-muted/50 border border-border text-[13px] text-muted-foreground">
-        <FileCheck className="w-4 h-4 shrink-0 text-primary/70" />
-        <span>
-          <strong className="text-foreground">후기 데이터</strong>
-          <span className="mx-1.5">→</span>
-          <strong className="text-foreground">콘텐츠 개발팀 검수</strong>
-          <span className="mx-1.5">→</span>
-          <strong className="text-foreground">플랫폼 · 강사 전달</strong>
-        </span>
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-6">
         <div className="grid gap-3 min-w-0">
       {/* 뷰 전환 */}
@@ -551,27 +601,32 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
               <Send className="w-4 h-4 text-primary" />
               <span className="text-[14px] font-bold">전달 요약</span>
             </div>
-            <div className="grid gap-2 text-[13px]">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">강사</span>
-                <span className="font-semibold">{instructorCount}건</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">플랫폼 PM</span>
-                <span className="font-semibold">{platformPmCount}건</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">플랫폼 PD</span>
-                <span className="font-semibold">{platformPdCount}건</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">플랫폼 CS</span>
-                <span className="font-semibold">{platformCsCount}건</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">플랫폼 기타</span>
-                <span className="font-semibold">{platformEtcCount}건</span>
-              </div>
+            <div className="grid gap-2.5 text-[13px]">
+              {([
+                { key: "instructor" as const, label: "강사", count: instructorCount },
+                { key: "platform_pm" as const, label: "플랫폼 PM", count: platformPmCount },
+                { key: "platform_pd" as const, label: "플랫폼 PD", count: platformPdCount },
+                { key: "platform_cs" as const, label: "플랫폼 CS", count: platformCsCount },
+                { key: "platform_etc" as const, label: "플랫폼 기타", count: platformEtcCount },
+              ]).map(({ key, label, count }) => {
+                const s = sentimentByTag[key];
+                const hasSentiment = s && (s.positive > 0 || s.negative > 0);
+                return (
+                  <div key={key} className="flex flex-col gap-0.5">
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-muted-foreground">{label}</span>
+                      <span className="font-semibold">{count}건</span>
+                    </div>
+                    {hasSentiment && (
+                      <div className="text-[11px] text-muted-foreground pl-0.5 flex gap-2">
+                        {s!.positive > 0 && <span className="text-emerald-600">긍정 {s!.positive}</span>}
+                        {s!.negative > 0 && <span className="text-rose-600">부정 {s!.negative}</span>}
+                        {s!.other > 0 && <span>구분없음 {s!.other}</span>}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
               <div className="border-t pt-2 mt-1 flex justify-between">
                 <span className="text-muted-foreground">미분류</span>
                 <span className={`font-semibold ${untaggedCount > 0 ? "text-amber-600" : "text-emerald-600"}`}>
