@@ -34,7 +34,7 @@ const initialState: AppState = {
   selectedPlatformId: null,
   selectedInstructorId: null,
   selectedCohortId: null,
-  activeTab: "feedback",
+  activeTab: "whole",
   hydrated: false,
   loading: true,
 };
@@ -87,11 +87,11 @@ function reducer(state: AppState, action: Action): AppState {
         ...state,
         selectedInstructorId: action.id,
         selectedCohortId: null,
-        activeTab: "feedback",
+        activeTab: "whole",
       };
 
     case "SELECT_COHORT":
-      return { ...state, selectedCohortId: action.id, activeTab: "feedback" };
+      return { ...state, selectedCohortId: action.id, activeTab: "whole" };
 
     case "SET_TAB":
       return { ...state, activeTab: action.tab };

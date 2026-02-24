@@ -25,10 +25,16 @@ export function InstructorHero({ platformName, instructor, cohort, onUpdateCohor
       setTotalInput(cohort.totalStudents ? String(cohort.totalStudents) : "");
       return;
     }
+    // 전체 보기: 기수별 수강생 합으로 자동 반영, 없으면 localStorage
+    const sum = instructor.cohorts.reduce((a, c) => a + (c.totalStudents || 0), 0);
+    if (sum > 0) {
+      setTotalInput(String(sum));
+      return;
+    }
     if (typeof window === "undefined") return;
     const v = localStorage.getItem(storageKey);
     setTotalInput(v && /^\d+$/.test(v) ? v : "");
-  }, [cohort?.id, cohort?.totalStudents, cohort, storageKey]);
+  }, [cohort?.id, cohort?.totalStudents, cohort, storageKey, instructor.cohorts]);
 
   // Aggregate responses
   const preResponses = cohort
@@ -97,8 +103,10 @@ export function InstructorHero({ platformName, instructor, cohort, onUpdateCohor
                       onBlur={() => {
                         const n = parseInt(totalInput, 10);
                         if (cohort && (isNaN(n) || n < 0)) setTotalInput(cohort.totalStudents ? String(cohort.totalStudents) : "");
-                        if (!cohort && typeof window !== "undefined" && (isNaN(n) || n < 0))
-                          setTotalInput(localStorage.getItem(storageKey) || "");
+                        if (!cohort && (isNaN(n) || n < 0)) {
+                          const sum = instructor.cohorts.reduce((a, c) => a + (c.totalStudents || 0), 0);
+                          setTotalInput(sum > 0 ? String(sum) : (typeof window !== "undefined" ? localStorage.getItem(storageKey) || "" : ""));
+                        }
                       }}
                       placeholder="명"
                       className="w-16 py-0.5 px-1.5 rounded border text-[13px] bg-card text-foreground"

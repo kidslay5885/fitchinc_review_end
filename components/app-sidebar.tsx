@@ -115,12 +115,12 @@ export function AppSidebar({ onUpload, onEditInstructor }: AppSidebarProps) {
                     )}
                   </div>
 
-                  {/* Cohorts */}
+                  {/* Cohorts: 전체 보기 / 기수 - 클릭 영역 넓게 */}
                   {isSel && (
-                    <div className="pl-9 py-1">
+                    <div className="pl-8 py-2 space-y-1">
                       <div
                         onClick={() => dispatch({ type: "SELECT_COHORT", id: null })}
-                        className={`py-1 px-2 rounded text-[12px] cursor-pointer mb-0.5 border-l-[2.5px] ${
+                        className={`py-2.5 px-3 rounded-lg text-[14px] cursor-pointer border-l-[3px] min-h-[44px] flex items-center ${
                           !state.selectedCohortId
                             ? "font-bold text-primary bg-primary/5 border-l-primary"
                             : "text-muted-foreground border-l-transparent hover:bg-accent"
@@ -135,24 +135,24 @@ export function AppSidebar({ onUpload, onEditInstructor }: AppSidebarProps) {
                           <div
                             key={c.id}
                             onClick={() => dispatch({ type: "SELECT_COHORT", id: c.id })}
-                            className={`py-1 px-2 rounded text-[12px] cursor-pointer mb-0.5 border-l-[2.5px] ${
+                            className={`py-2.5 px-3 rounded-lg text-[14px] cursor-pointer border-l-[3px] min-h-[44px] flex flex-col justify-center ${
                               isSelCo
-                                ? "bg-primary/5 border-l-primary"
+                                ? "bg-primary/5 border-l-primary font-bold text-primary"
                                 : "border-l-transparent hover:bg-accent"
                             }`}
                           >
-                            <div className="flex justify-between">
-                              <span className={isSelCo ? "font-bold text-primary" : ""}>
+                            <div className="flex justify-between items-center gap-1">
+                              <span className={isSelCo ? "font-bold text-primary" : "font-medium"}>
                                 {c.label}
                               </span>
                               <span
-                                className={`text-[10px] px-1.5 py-0.5 rounded border font-bold ${statusBg(status)}`}
+                                className={`text-[11px] px-1.5 py-0.5 rounded border font-bold shrink-0 ${statusBg(status)}`}
                               >
                                 {status}
                               </span>
                             </div>
                             {c.pm && (
-                              <div className="text-[10px] text-muted-foreground">담당PM {c.pm}</div>
+                              <div className="text-[11px] text-muted-foreground mt-0.5">담당PM {c.pm}</div>
                             )}
                           </div>
                         );

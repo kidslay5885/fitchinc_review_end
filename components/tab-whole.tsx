@@ -72,8 +72,7 @@ export function TabWhole({ instructor }: TabWholeProps) {
   const scrollTo = (id: string) => {
     const el = document.getElementById(id);
     if (!el) return;
-    const y = el.getBoundingClientRect().top + window.scrollY - 88;
-    window.scrollTo({ top: Math.max(0, y), behavior: "smooth" });
+    el.scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
   };
 
   return (
@@ -184,7 +183,7 @@ export function TabWhole({ instructor }: TabWholeProps) {
                         const sectionId = `pre-${slug(cohort.label)}-${field}`;
                         if (items.length === 0) return null;
                         return (
-                          <div key={field} id={sectionId} className="scroll-mt-24 pt-1">
+                          <div key={field} id={sectionId} className="scroll-mt-[7rem] pt-1">
                             <div className="py-2.5 px-3 mb-2 rounded-lg bg-blue-100/80 border-l-4 border-blue-500 text-[15px] font-bold text-blue-900">
                               {label}
                             </div>
@@ -225,7 +224,7 @@ export function TabWhole({ instructor }: TabWholeProps) {
                         const sectionId = `post-${slug(cohort.label)}-${field}`;
                         if (items.length === 0) return null;
                         return (
-                          <div key={field} id={sectionId} className="scroll-mt-24 pt-1">
+                          <div key={field} id={sectionId} className="scroll-mt-[7rem] pt-1">
                             <div className="py-2.5 px-3 mb-2 rounded-lg bg-emerald-100/80 border-l-4 border-emerald-500 text-[15px] font-bold text-emerald-900">
                               {label}
                             </div>
