@@ -79,20 +79,44 @@ export function TabWhole({ instructor }: TabWholeProps) {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="text-[18px] font-extrabold">전체 설문 결과</h2>
         {cohorts.length > 1 && (
-          <div className="flex items-center gap-2">
-            <span className="text-[13px] text-muted-foreground">기수</span>
-            <select
-              value={cohortFilter}
-              onChange={(e) => setCohortFilter(e.target.value)}
-              className="py-1.5 px-3 rounded-lg border text-[14px] bg-card"
-            >
-              <option value="all">전체 기수</option>
-              {cohorts.map((c) => (
-                <option key={c.id} value={c.label}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-[13px] text-muted-foreground">기수</span>
+              <select
+                value={cohortFilter}
+                onChange={(e) => setCohortFilter(e.target.value)}
+                className="py-1.5 px-3 rounded-lg border text-[14px] bg-card"
+              >
+                <option value="all">전체 기수</option>
+                {cohorts.map((c) => (
+                  <option key={c.id} value={c.label}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {cohortFilter === "all" && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[12px] text-muted-foreground">기수별 보기:</span>
+                <button
+                  type="button"
+                  onClick={() => setCohortFilter("all")}
+                  className="py-1 px-2.5 rounded-md text-[13px] font-medium bg-primary text-primary-foreground"
+                >
+                  전체
+                </button>
+                {cohorts.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setCohortFilter(c.label)}
+                    className="py-1 px-2.5 rounded-md text-[13px] font-medium bg-muted hover:bg-muted/80 text-foreground"
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -151,8 +175,8 @@ export function TabWhole({ instructor }: TabWholeProps) {
                         const sectionId = `pre-${slug(cohort.label)}-${field}`;
                         if (items.length === 0) return null;
                         return (
-                          <div key={field} id={sectionId} className="scroll-mt-24">
-                            <div className="sticky top-20 z-[1] py-2 -mx-1 px-3 -mt-1 mb-2 rounded-lg bg-primary/10 border-l-4 border-primary text-[15px] font-bold text-foreground">
+                          <div key={field} id={sectionId} className="scroll-mt-24 pt-1">
+                            <div className="py-2.5 px-3 mb-2 rounded-lg bg-primary/10 border-l-4 border-primary text-[15px] font-bold text-foreground">
                               {label}
                             </div>
                             <ul className="space-y-2 pl-1">
@@ -192,8 +216,8 @@ export function TabWhole({ instructor }: TabWholeProps) {
                         const sectionId = `post-${slug(cohort.label)}-${field}`;
                         if (items.length === 0) return null;
                         return (
-                          <div key={field} id={sectionId} className="scroll-mt-24">
-                            <div className="sticky top-20 z-[1] py-2 -mx-1 px-3 -mt-1 mb-2 rounded-lg bg-primary/10 border-l-4 border-primary text-[15px] font-bold text-foreground">
+                          <div key={field} id={sectionId} className="scroll-mt-24 pt-1">
+                            <div className="py-2.5 px-3 mb-2 rounded-lg bg-primary/10 border-l-4 border-primary text-[15px] font-bold text-foreground">
                               {label}
                             </div>
                             <ul className="space-y-2 pl-1">

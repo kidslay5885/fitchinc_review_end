@@ -14,12 +14,16 @@ export function TabQualityOverview({ instructor, platformName }: TabQualityOverv
     const scores = computeScores(c.postResponses);
     const preN = c.preResponses.length;
     const postN = c.postResponses.length;
-    const responseRate = preN > 0 ? Math.round((postN / preN) * 100) : 0;
+    const totalStudents = c.totalStudents || 0;
+    const postPreRate = preN > 0 ? Math.round((postN / preN) * 100) : 0;
+    const overallRate = totalStudents > 0 ? Math.round((postN / totalStudents) * 100) : null;
     return {
       label: c.label,
       preN,
       postN,
-      responseRate,
+      totalStudents,
+      postPreRate,
+      overallRate,
       ps1: scores.ps1Avg,
       ps2: scores.ps2Avg,
       recRate: scores.recRate,
@@ -45,7 +49,7 @@ export function TabQualityOverview({ instructor, platformName }: TabQualityOverv
                 <th className="text-left py-2.5 px-3 font-semibold">기수</th>
                 <th className="text-right py-2.5 px-3 font-semibold">사전</th>
                 <th className="text-right py-2.5 px-3 font-semibold">후기</th>
-                <th className="text-right py-2.5 px-3 font-semibold">응답률</th>
+                <th className="text-right py-2.5 px-3 font-semibold" title="수강생 수 기준">전체 응답률</th>
                 <th className="text-right py-2.5 px-3 font-semibold">커리큘럼</th>
                 <th className="text-right py-2.5 px-3 font-semibold">피드백</th>
                 <th className="text-right py-2.5 px-3 font-semibold">추천률</th>
@@ -57,7 +61,9 @@ export function TabQualityOverview({ instructor, platformName }: TabQualityOverv
                   <td className="py-2 px-3 font-medium">{r.label}</td>
                   <td className="text-right py-2 px-3 text-muted-foreground">{r.preN}명</td>
                   <td className="text-right py-2 px-3 text-muted-foreground">{r.postN}명</td>
-                  <td className="text-right py-2 px-3">{r.responseRate}%</td>
+                  <td className="text-right py-2 px-3" title={r.totalStudents > 0 ? `후기 ${r.postN}명 / 수강생 ${r.totalStudents}명` : "수강생 수 입력 시 표시"}>
+                    {r.overallRate != null ? `${r.overallRate}%` : (r.postPreRate > 0 ? `${r.postPreRate}%(후기/사전)` : "—")}
+                  </td>
                   <td className="text-right py-2 px-3">{r.ps1 > 0 ? r.ps1.toFixed(1) : "—"}</td>
                   <td className="text-right py-2 px-3">{r.ps2 > 0 ? r.ps2.toFixed(1) : "—"}</td>
                   <td className="text-right py-2 px-3">{r.recRate > 0 ? `${r.recRate}%` : "—"}</td>

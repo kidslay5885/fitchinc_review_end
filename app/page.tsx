@@ -86,7 +86,17 @@ function MainContent() {
       {editInst && (
         <EditInstructorDialog
           instructor={editInst}
-          onSave={(updated) => dispatch({ type: "UPDATE_INSTRUCTOR", instructor: updated })}
+          onSave={(updated) => {
+            if (plat) {
+              try {
+                localStorage.setItem(
+                  `instructor-photo-${plat.name}-${updated.name}`,
+                  JSON.stringify({ photo: updated.photo || "", photoPosition: updated.photoPosition || "center center" })
+                );
+              } catch {}
+            }
+            dispatch({ type: "UPDATE_INSTRUCTOR", instructor: updated });
+          }}
           onDelete={(id) => dispatch({ type: "DELETE_INSTRUCTOR", id })}
           onClose={() => setEditInst(null)}
         />

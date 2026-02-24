@@ -334,6 +334,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       }
 
+      // localStorage에 저장된 강사 사진 복원 (새로고침 후에도 유지)
+      if (typeof window !== "undefined") {
+        for (const p of platforms) {
+          for (const inst of p.instructors) {
+            try {
+              const raw = localStorage.getItem(`instructor-photo-${p.name}-${inst.name}`);
+              if (raw) {
+                const { photo, photoPosition } = JSON.parse(raw);
+                inst.photo = photo || "";
+                inst.photoPosition = photoPosition || "center center";
+              }
+            } catch {
+              // ignore
+            }
+          }
+        }
+      }
+
       dispatch({ type: "HYDRATE", platforms });
     } catch (err) {
       console.error("Hierarchy load error:", err);

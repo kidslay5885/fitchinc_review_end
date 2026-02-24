@@ -44,6 +44,9 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
   const [tagging, setTagging] = useState(false);
   const [aiSuggestLoading, setAiSuggestLoading] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<Record<string, { tag: TagValue; sentiment: "positive" | "negative" | "neutral" }>>({});
+  // 미분류 일괄 등록 시 선택 옵션 (전달대상 + 감정 둘 다 선택 후 등록)
+  const [bulkTag, setBulkTag] = useState<TagValue>("platform_pm");
+  const [bulkSentiment, setBulkSentiment] = useState<"positive" | "negative" | "neutral">("positive");
   const cohortLabel = cohort?.label || null;
   const memoKey = `memo-feedback-${platformName}-${instructor.name}-${cohortLabel ?? "all"}`;
   const [memo, setMemo] = useState("");
@@ -233,8 +236,8 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
     }
   };
 
-  // 일괄 태깅
-  const handleBulkTag = async (tag: TagValue) => {
+  // 일괄 태깅 (전달대상 + 감정 함께)
+  const handleBulkTagWithSentiment = async (tag: TagValue, sentiment: "positive" | "negative" | "neutral") => {
     if (selected.size === 0) return;
     setTagging(true);
     try {
@@ -244,17 +247,17 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
           fetch("/api/classify", {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ commentId, tag }),
+            body: JSON.stringify({ commentId, tag, sentiment }),
           })
         )
       );
       setComments((prev) =>
-        prev.map((c) => (selected.has(c.id) ? { ...c, tag } : c))
+        prev.map((c) => (selected.has(c.id) ? { ...c, tag, sentiment } : c))
       );
-      toast.success(`${ids.length}건 일괄 태깅 완료`);
+      toast.success(`${ids.length}건 등록 완료`);
       setSelected(new Set());
     } catch {
-      toast.error("일괄 태깅 실패");
+      toast.error("등록 실패");
     } finally {
       setTagging(false);
     }
@@ -682,60 +685,74 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
         </div>
       )}
 
-      {/* 미분류 뷰: 일괄 태깅 액션 바 (AI 제안 없을 때) */}
+      {/* 미분류 뷰: 일괄 등록 액션 바 (전달대상 + 감정 선택 후 등록하기) */}
       {hubView === "untagged" && Object.keys(aiSuggestions).length === 0 && selected.size > 0 && (
-        <div className="sticky bottom-0 flex items-center gap-3 py-3 px-4 bg-card rounded-xl border shadow-lg">
-          <span className="text-[14px] font-bold">{selected.size}건 선택</span>
-          <button
-            onClick={toggleSelectAll}
-            className="text-[13px] text-primary font-semibold hover:underline"
-          >
-            {selected.size === filtered.length ? "선택 해제" : "전체 선택"}
-          </button>
-          <div className="flex-1" />
-          {tagging && <Loader2 className="w-4 h-4 animate-spin text-primary" />}
-          <button
-            onClick={() => handleBulkTag("platform_pm")}
-            disabled={tagging}
-            className="py-1.5 px-3 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-[13px] font-bold hover:bg-blue-100 transition-colors disabled:opacity-50"
-          >
-            PM
-          </button>
-          <button
-            onClick={() => handleBulkTag("platform_pd")}
-            disabled={tagging}
-            className="py-1.5 px-3 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 text-[13px] font-bold hover:bg-indigo-100 transition-colors disabled:opacity-50"
-          >
-            PD
-          </button>
-          <button
-            onClick={() => handleBulkTag("platform_cs")}
-            disabled={tagging}
-            className="py-1.5 px-3 rounded-lg bg-cyan-50 text-cyan-700 border border-cyan-200 text-[13px] font-bold hover:bg-cyan-100 transition-colors disabled:opacity-50"
-          >
-            CS
-          </button>
-          <button
-            onClick={() => handleBulkTag("platform_etc")}
-            disabled={tagging}
-            className="py-1.5 px-3 rounded-lg bg-slate-50 text-slate-600 border border-slate-200 text-[13px] font-bold hover:bg-slate-100 transition-colors disabled:opacity-50"
-          >
-            기타
-          </button>
-          <button
-            onClick={() => handleBulkTag("instructor")}
-            disabled={tagging}
-            className="py-1.5 px-3 rounded-lg bg-orange-50 text-orange-700 border border-orange-200 text-[13px] font-bold hover:bg-orange-100 transition-colors disabled:opacity-50"
-          >
-            강사
-          </button>
-          <button
-            onClick={() => setSelected(new Set())}
-            className="py-1.5 px-3 rounded-lg border text-[13px] text-muted-foreground hover:bg-accent transition-colors flex items-center gap-1"
-          >
-            <X className="w-3 h-3" />
-            해제
-          </button>
+        <div className="sticky bottom-0 flex flex-col gap-3 py-3 px-4 bg-card rounded-xl border shadow-lg">
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-[14px] font-bold">{selected.size}건 선택</span>
+            <button
+              onClick={toggleSelectAll}
+              className="text-[13px] text-primary font-semibold hover:underline"
+            >
+              {selected.size === filtered.length ? "선택 해제" : "전체 선택"}
+            </button>
+          </div>
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[12px] text-muted-foreground shrink-0">전달 대상:</span>
+              {(
+                [
+                  { id: "platform_pm" as TagValue, label: "PM", cn: "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100" },
+                  { id: "platform_pd" as TagValue, label: "PD", cn: "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100" },
+                  { id: "platform_cs" as TagValue, label: "CS", cn: "bg-cyan-50 text-cyan-700 border-cyan-200 hover:bg-cyan-100" },
+                  { id: "platform_etc" as TagValue, label: "기타", cn: "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100" },
+                  { id: "instructor" as TagValue, label: "강사", cn: "bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100" },
+                ] as const
+              ).map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setBulkTag(opt.id)}
+                  disabled={tagging}
+                  className={`py-1.5 px-3 rounded-lg border text-[13px] font-bold transition-colors disabled:opacity-50 ${bulkTag === opt.id ? opt.cn : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted"}`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[12px] text-muted-foreground shrink-0">감정:</span>
+              {(
+                [
+                  { id: "positive" as const, label: "긍정" },
+                  { id: "negative" as const, label: "부정" },
+                  { id: "neutral" as const, label: "미분류" },
+                ] as const
+              ).map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setBulkSentiment(opt.id)}
+                  disabled={tagging}
+                  className={`py-1.5 px-3 rounded-lg border text-[13px] font-bold transition-colors disabled:opacity-50 ${
+                    bulkSentiment === opt.id ? "bg-primary/15 text-primary border-primary/50" : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {tagging && <Loader2 className="w-4 h-4 animate-spin text-primary" />}
+            <button
+              onClick={() => handleBulkTagWithSentiment(bulkTag, bulkSentiment)}
+              disabled={tagging}
+              className="py-1.5 px-4 rounded-lg bg-primary text-primary-foreground text-[13px] font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              등록하기
+            </button>
+          </div>
         </div>
       )}
 
