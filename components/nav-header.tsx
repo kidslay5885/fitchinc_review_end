@@ -12,7 +12,7 @@ export function NavHeader() {
         <div className="w-[26px] h-[26px] rounded-md bg-primary flex items-center justify-center text-[12px] font-black text-primary-foreground mr-2.5">
           F
         </div>
-        <span className="text-[15px] font-extrabold">클래스 인사이트</span>
+        <span className="text-[16px] font-extrabold">클래스 인사이트</span>
       </div>
 
       <button

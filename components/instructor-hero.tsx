@@ -29,7 +29,7 @@ export function InstructorHero({ platformName, instructor, cohort }: InstructorH
     <div className="bg-card rounded-xl border p-4 px-5 mb-4">
       <div className="flex justify-between items-start">
         <div>
-          <div className="text-[11px] font-extrabold text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+          <div className="text-[12px] font-extrabold text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
             {platformName} · {instructor.category}
           </div>
           <div className="flex items-center gap-2.5">
@@ -47,7 +47,7 @@ export function InstructorHero({ platformName, instructor, cohort }: InstructorH
               </span>
             </div>
           </div>
-          <div className="text-[12px] text-muted-foreground mt-1.5">
+          <div className="text-[13px] text-muted-foreground mt-1.5">
             담당PM {currentPM}
             {cohort && cohort.date ? ` · ${cohort.date} ~ ${cohort.endDate}` : ""}
           </div>
@@ -61,7 +61,7 @@ export function InstructorHero({ platformName, instructor, cohort }: InstructorH
                   <RingScore score={scores.ps1Avg} label="커리큘럼" />
                   <RingScore score={scores.ps2Avg} label="피드백" />
                 </div>
-                <div className="border-l pl-4 text-[13px] text-muted-foreground leading-relaxed">
+                <div className="border-l pl-4 text-[14px] text-muted-foreground leading-relaxed">
                   <div>
                     사전 설문 <strong className="text-foreground">{preResponses.length}</strong>명
                   </div>

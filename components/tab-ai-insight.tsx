@@ -182,7 +182,7 @@ export function TabAIInsight({ instructor, cohort, platformName }: TabAIInsightP
         <button
           onClick={runAnalysis}
           disabled={loading}
-          className="py-1.5 px-4 rounded-lg bg-primary text-primary-foreground text-[12px] font-bold flex items-center gap-1.5 hover:opacity-90 transition-opacity disabled:opacity-50"
+          className="py-1.5 px-4 rounded-lg bg-primary text-primary-foreground text-[13px] font-bold flex items-center gap-1.5 hover:opacity-90 transition-opacity disabled:opacity-50"
         >
           {loading ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -201,7 +201,7 @@ export function TabAIInsight({ instructor, cohort, platformName }: TabAIInsightP
               <RingScore score={scores.ps1Avg} label="커리큘럼" />
               <RingScore score={scores.ps2Avg} label="피드백" />
             </div>
-            <div className="border-l pl-5 grid gap-1 text-[13px]">
+            <div className="border-l pl-5 grid gap-1 text-[14px]">
               {scores.recRate > 0 && (
                 <div>
                   추천률{" "}
@@ -227,11 +227,11 @@ export function TabAIInsight({ instructor, cohort, platformName }: TabAIInsightP
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
           <div className="flex items-center gap-1.5 mb-2.5">
             <AlertTriangle className="w-4 h-4 text-amber-600" />
-            <span className="text-[13px] font-bold text-amber-800">리스크 시그널</span>
+            <span className="text-[14px] font-bold text-amber-800">리스크 시그널</span>
           </div>
           <ul className="grid gap-1.5">
             {risks.map((r, i) => (
-              <li key={i} className="flex items-start gap-2 text-[13px]">
+              <li key={i} className="flex items-start gap-2 text-[14px]">
                 <span
                   className={`mt-0.5 w-1.5 h-1.5 rounded-full shrink-0 ${
                     r.severity === "high" ? "bg-red-500" : "bg-amber-500"
@@ -274,20 +274,20 @@ export function TabAIInsight({ instructor, cohort, platformName }: TabAIInsightP
             <div className="bg-card rounded-xl border p-4">
               <div className="flex items-center gap-1.5 mb-3">
                 <Flame className="w-4 h-4 text-red-500" />
-                <span className="text-[14px] font-bold">핵심 테마 (불만/개선)</span>
+                <span className="text-[15px] font-bold">핵심 테마 (불만/개선)</span>
               </div>
               <div className="grid gap-3">
                 {analysis.complaints.map((c, i) => (
                   <div key={i} className="border-l-2 border-red-200 pl-3">
                     <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-[13px] font-bold">{c.theme}</span>
-                      <span className="text-[11px] text-red-600 font-semibold bg-red-50 px-1.5 py-0.5 rounded">
+                      <span className="text-[14px] font-bold">{c.theme}</span>
+                      <span className="text-[12px] text-red-600 font-semibold bg-red-50 px-1.5 py-0.5 rounded">
                         {c.count}건
                       </span>
                     </div>
-                    <p className="text-[12px] text-muted-foreground">{c.detail}</p>
+                    <p className="text-[13px] text-muted-foreground">{c.detail}</p>
                     {c.who.length > 0 && (
-                      <p className="text-[11px] text-muted-foreground/70 mt-0.5">
+                      <p className="text-[12px] text-muted-foreground/70 mt-0.5">
                         {c.who.join(", ")}
                       </p>
                     )}
@@ -302,20 +302,20 @@ export function TabAIInsight({ instructor, cohort, platformName }: TabAIInsightP
             <div className="bg-card rounded-xl border p-4">
               <div className="flex items-center gap-1.5 mb-3">
                 <ThumbsUp className="w-4 h-4 text-emerald-500" />
-                <span className="text-[14px] font-bold">강점</span>
+                <span className="text-[15px] font-bold">강점</span>
               </div>
               <div className="grid gap-3">
                 {analysis.strengths.map((s, i) => (
                   <div key={i} className="border-l-2 border-emerald-200 pl-3">
-                    <div className="text-[13px] font-bold mb-1">{s.title}</div>
+                    <div className="text-[14px] font-bold mb-1">{s.title}</div>
                     {s.responses.slice(0, 2).map((r, j) => (
-                      <div key={j} className="text-[12px] text-muted-foreground">
+                      <div key={j} className="text-[13px] text-muted-foreground">
                         &quot;{r.text}&quot;{" "}
                         <span className="text-muted-foreground/60">— {r.name}</span>
                       </div>
                     ))}
                     {s.responses.length > 2 && (
-                      <div className="text-[11px] text-muted-foreground/50">
+                      <div className="text-[12px] text-muted-foreground/50">
                         외 {s.responses.length - 2}건
                       </div>
                     )}
@@ -330,11 +330,11 @@ export function TabAIInsight({ instructor, cohort, platformName }: TabAIInsightP
             <div className="bg-card rounded-xl border p-4">
               <div className="flex items-center gap-1.5 mb-3">
                 <Lightbulb className="w-4 h-4 text-amber-500" />
-                <span className="text-[14px] font-bold">개선 제안</span>
+                <span className="text-[15px] font-bold">개선 제안</span>
               </div>
               <div className="grid gap-2">
                 {analysis.suggestions.map((s, i) => (
-                  <div key={i} className="flex items-start gap-2 text-[13px]">
+                  <div key={i} className="flex items-start gap-2 text-[14px]">
                     <span className="mt-1 w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
                     <div>
                       <span className="font-semibold text-foreground/70">{s.from}:</span>{" "}

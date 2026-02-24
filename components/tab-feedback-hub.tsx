@@ -7,17 +7,19 @@ import {
   FIELD_ORDER,
   TAG_OPTIONS,
   getTagColor,
+  getTagLabel,
   isPlatformTag,
   isUsefulComment,
   effectiveTag,
   groupByField,
   type CommentWithCohort,
   type TagValue,
-  type ViewMode,
   type PlatformSub,
 } from "@/lib/feedback-utils";
-import { Loader2, Search } from "lucide-react";
+import { Loader2, Search, Copy, Check, X } from "lucide-react";
 import { toast } from "sonner";
+
+type HubView = "untagged" | "instructor" | "platform" | "all";
 
 interface TabFeedbackHubProps {
   instructor: Instructor;
@@ -30,17 +32,26 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  const [viewMode, setViewMode] = useState<ViewMode>("all");
+  const [hubView, setHubView] = useState<HubView>("untagged");
   const [platformSub, setPlatformSub] = useState<PlatformSub>("all");
   const [cohortFilter, setCohortFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
+
+  // 체크박스 선택 (미분류 뷰 일괄 태깅 + 강사 뷰 복사)
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [copied, setCopied] = useState(false);
+  const [tagging, setTagging] = useState(false);
 
   const cohortLabel = cohort?.label || null;
 
   useEffect(() => {
     loadComments();
   }, [platformName, instructor.name, cohortLabel]);
+
+  // 뷰 변경 시 선택 초기화
+  useEffect(() => {
+    setSelected(new Set());
+  }, [hubView]);
 
   const loadComments = async () => {
     setLoading(true);
@@ -82,33 +93,25 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
     return Array.from(labels).sort();
   }, [comments]);
 
-  // 카테고리별 개수
-  const categoryCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const c of comments) {
-      const key = c.source_field;
-      counts[key] = (counts[key] || 0) + 1;
-    }
-    return counts;
-  }, [comments]);
+  // 태그별 카운트
+  const untaggedCount = comments.filter((c) => effectiveTag(c) === null).length;
+  const instructorCount = comments.filter((c) => effectiveTag(c) === "instructor").length;
+  const platformCount = comments.filter((c) => isPlatformTag(effectiveTag(c))).length;
 
   // 필터링
   const filtered = useMemo(() => {
     return comments.filter((c) => {
-      // 카테고리 필터
-      if (categoryFilter !== "all" && c.source_field !== categoryFilter) return false;
-
       const et = effectiveTag(c);
 
-      if (viewMode === "platform") {
+      if (hubView === "untagged" && et !== null) return false;
+      if (hubView === "instructor" && et !== "instructor") return false;
+      if (hubView === "platform") {
         if (!isPlatformTag(et)) return false;
         if (platformSub === "pm" && et !== "platform_pm") return false;
         if (platformSub === "pd" && et !== "platform_pd") return false;
         if (platformSub === "cs" && et !== "platform_cs") return false;
         if (platformSub === "etc" && et !== "platform_etc") return false;
       }
-      if (viewMode === "instructor" && et !== "instructor") return false;
-      if (viewMode === "untagged" && et !== null) return false;
 
       if (cohortFilter !== "all" && c.cohortLabel !== cohortFilter) return false;
       if (search) {
@@ -118,16 +121,17 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
       }
       return true;
     });
-  }, [comments, categoryFilter, viewMode, platformSub, cohortFilter, search]);
+  }, [comments, hubView, platformSub, cohortFilter, search]);
 
-  // 항목별 그룹핑
-  const grouped = useMemo(() => groupByField(filtered), [filtered]);
+  // 그룹핑: 강사/플랫폼 뷰에서는 source_field별 그룹, 미분류/전체는 플랫 리스트
+  const grouped = useMemo(() => {
+    if (hubView === "instructor" || hubView === "platform") {
+      return groupByField(filtered);
+    }
+    return null; // 플랫 리스트
+  }, [filtered, hubView]);
 
-  // 태그 카운트
-  const platformCount = comments.filter((c) => isPlatformTag(effectiveTag(c))).length;
-  const instructorCount = comments.filter((c) => effectiveTag(c) === "instructor").length;
-  const untaggedCount = comments.filter((c) => effectiveTag(c) === null).length;
-
+  // 개별 태그 변경
   const handleTagChange = async (commentId: string, tag: TagValue) => {
     try {
       await fetch("/api/classify", {
@@ -141,11 +145,67 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
     }
   };
 
+  // 일괄 태깅
+  const handleBulkTag = async (tag: TagValue) => {
+    if (selected.size === 0) return;
+    setTagging(true);
+    try {
+      const ids = Array.from(selected);
+      await Promise.all(
+        ids.map((commentId) =>
+          fetch("/api/classify", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ commentId, tag }),
+          })
+        )
+      );
+      setComments((prev) =>
+        prev.map((c) => (selected.has(c.id) ? { ...c, tag } : c))
+      );
+      toast.success(`${ids.length}건 일괄 태깅 완료`);
+      setSelected(new Set());
+    } catch {
+      toast.error("일괄 태깅 실패");
+    } finally {
+      setTagging(false);
+    }
+  };
+
+  // 복사 (강사 뷰)
+  const copySelected = () => {
+    const items = filtered.filter((c) => selected.has(c.id));
+    const text = items
+      .map((c) => `"${c.original_text}" — ${c.respondent}${c.cohortLabel ? `, ${c.cohortLabel}` : ""}`)
+      .join("\n\n");
+    navigator.clipboard?.writeText(text);
+    setCopied(true);
+    toast.success(`${items.length}건 복사됨`);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selected.size === filtered.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(filtered.map((c) => c.id)));
+    }
+  };
+
   if (loading && !loaded) {
     return (
       <div className="text-center py-12">
         <Loader2 className="w-6 h-6 animate-spin text-primary mx-auto mb-2" />
-        <div className="text-[13px] text-muted-foreground">피드백 로딩 중...</div>
+        <div className="text-[14px] text-muted-foreground">피드백 로딩 중...</div>
       </div>
     );
   }
@@ -160,63 +220,114 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
     );
   }
 
+  // 카드 렌더링 함수
+  const renderCard = (comment: CommentWithCohort) => {
+    const et = effectiveTag(comment);
+    const isAutoTag = comment.tag === null && et !== null;
+    const isSelected = selected.has(comment.id);
+    const showCheckbox = hubView === "untagged" || hubView === "instructor";
+
+    return (
+      <div
+        key={comment.id}
+        className={`py-3 px-4 rounded-lg border bg-card transition-colors ${
+          isSelected ? "ring-2 ring-primary/30 bg-primary/3" : ""
+        }`}
+      >
+        <div className="flex items-start gap-2.5">
+          {showCheckbox && (
+            <label className="mt-0.5 cursor-pointer shrink-0">
+              <input
+                type="checkbox"
+                checked={isSelected}
+                onChange={() => toggleSelect(comment.id)}
+                className="w-3.5 h-3.5 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+              />
+            </label>
+          )}
+
+          <div className="flex-1 min-w-0">
+            <p className="text-[14px] leading-relaxed">{comment.original_text}</p>
+            <div className="flex items-center gap-1.5 mt-1 text-[12px] text-muted-foreground">
+              <span className="font-semibold text-foreground/60">
+                {comment.respondent}
+              </span>
+              {comment.cohortLabel && <span>{comment.cohortLabel}</span>}
+              {/* 미분류/전체 뷰에서 출처 뱃지 */}
+              {(hubView === "untagged" || hubView === "all") && (
+                <span className="text-[11px] bg-muted px-1.5 py-0.5 rounded">
+                  {FIELD_LABELS[comment.source_field] || comment.source_field}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* 전체 뷰: 태그 드롭다운 */}
+          {hubView === "all" && (
+            <select
+              value={comment.tag || ""}
+              onChange={(e) =>
+                handleTagChange(comment.id, (e.target.value || null) as TagValue)
+              }
+              className={`shrink-0 text-[11px] py-0.5 px-1.5 rounded border font-semibold cursor-pointer ${
+                isAutoTag ? "opacity-50 " : ""
+              }${getTagColor(et)}`}
+            >
+              <option value="">미분류</option>
+              <optgroup label="플랫폼">
+                <option value="platform_pm">PM</option>
+                <option value="platform_pd">PD</option>
+                <option value="platform_cs">CS</option>
+                <option value="platform_etc">기타</option>
+              </optgroup>
+              <option value="instructor">강사</option>
+            </select>
+          )}
+
+          {/* 강사/플랫폼 뷰: 읽기 전용 태그 뱃지 */}
+          {(hubView === "instructor" || hubView === "platform") && (
+            <span
+              className={`shrink-0 text-[11px] py-0.5 px-1.5 rounded border font-semibold ${getTagColor(et)}`}
+            >
+              {getTagLabel(et)}
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="grid gap-3">
-      {/* 카테고리 필 (목차) */}
-      <div className="flex gap-1.5 flex-wrap">
-        <button
-          onClick={() => setCategoryFilter("all")}
-          className={`py-1.5 px-3 rounded-full text-[12px] border transition-colors ${
-            categoryFilter === "all"
-              ? "bg-primary text-primary-foreground border-primary font-bold"
-              : "bg-card text-muted-foreground border-border hover:border-primary/30"
-          }`}
-        >
-          전체 {comments.length}
-        </button>
-        {FIELD_ORDER.filter((f) => categoryCounts[f]).map((field) => (
+      {/* 뷰 전환 */}
+      <div className="flex gap-0.5 bg-muted rounded-lg p-0.5 border w-fit">
+        {([
+          { id: "untagged" as HubView, label: `미분류 ${untaggedCount}` },
+          { id: "instructor" as HubView, label: `강사 ${instructorCount}` },
+          { id: "platform" as HubView, label: `플랫폼 ${platformCount}` },
+          { id: "all" as HubView, label: `전체 ${comments.length}` },
+        ]).map((v) => (
           <button
-            key={field}
-            onClick={() => setCategoryFilter(field)}
-            className={`py-1.5 px-3 rounded-full text-[12px] border transition-colors ${
-              categoryFilter === field
-                ? "bg-primary text-primary-foreground border-primary font-bold"
-                : "bg-card text-muted-foreground border-border hover:border-primary/30"
+            key={v.id}
+            onClick={() => {
+              setHubView(v.id);
+              setPlatformSub("all");
+            }}
+            className={`py-1.5 px-3.5 rounded-md text-[13px] transition-colors ${
+              hubView === v.id
+                ? "bg-card font-bold text-primary shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            {FIELD_LABELS[field]} {categoryCounts[field]}
+            {v.label}
           </button>
         ))}
       </div>
 
-      {/* 필터 바 */}
+      {/* 보조 필터 */}
       <div className="flex gap-2 items-center flex-wrap">
-        <div className="flex gap-0.5 bg-muted rounded-lg p-0.5 border">
-          {([
-            { id: "all" as const, label: `전체 (${comments.length})` },
-            { id: "platform" as const, label: `플랫폼 (${platformCount})` },
-            { id: "instructor" as const, label: `강사 (${instructorCount})` },
-            { id: "untagged" as const, label: `미분류 (${untaggedCount})` },
-          ]).map((f) => (
-            <button
-              key={f.id}
-              onClick={() => {
-                setViewMode(f.id);
-                setPlatformSub("all");
-              }}
-              className={`py-1.5 px-3.5 rounded-md text-[12px] transition-colors ${
-                viewMode === f.id
-                  ? "bg-card font-bold text-primary shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Platform sub-filter */}
-        {viewMode === "platform" && (
+        {/* 플랫폼 뷰 서브필터 */}
+        {hubView === "platform" && (
           <div className="flex gap-0.5 bg-blue-50 rounded-lg p-0.5 border border-blue-200">
             {([
               { id: "all" as const, label: "전체" },
@@ -228,7 +339,7 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
               <button
                 key={f.id}
                 onClick={() => setPlatformSub(f.id)}
-                className={`py-1 px-2.5 rounded-md text-[11px] transition-colors ${
+                className={`py-1 px-2.5 rounded-md text-[12px] transition-colors ${
                   platformSub === f.id
                     ? "bg-white font-bold text-blue-700 shadow-sm"
                     : "text-blue-600/70 hover:text-blue-700"
@@ -240,12 +351,12 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
           </div>
         )}
 
-        {/* Cohort filter */}
+        {/* 기수 필터 */}
         {!cohort && cohortLabels.length > 1 && (
           <select
             value={cohortFilter}
             onChange={(e) => setCohortFilter(e.target.value)}
-            className="py-1.5 px-2.5 rounded-lg border text-[12px] bg-card"
+            className="py-1.5 px-2.5 rounded-lg border text-[14px] bg-card"
           >
             <option value="all">전체 기수</option>
             {cohortLabels.map((l) => (
@@ -256,88 +367,136 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
           </select>
         )}
 
-        {/* Search */}
+        {/* 검색 */}
         <div className="relative flex-1 min-w-[120px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="검색..."
-            className="w-full py-1.5 pl-8 pr-3 rounded-lg border text-[13px] bg-card"
+            className="w-full py-1.5 pl-8 pr-3 rounded-lg border text-[14px] bg-card"
           />
         </div>
 
-        <span className="text-[12px] text-muted-foreground">{filtered.length}건</span>
+        <span className="text-[13px] text-muted-foreground">{filtered.length}건</span>
       </div>
 
-      {/* Grouped feedback cards */}
+      {/* 카드 리스트 */}
       <div className="grid gap-4 max-h-[calc(100vh-360px)] overflow-y-auto">
-        {grouped.map(([sourceField, items]) => (
-          <div key={sourceField}>
-            {/* Group header */}
-            <div className="flex items-center gap-2 mb-2 sticky top-0 bg-background py-1 z-10">
-              <span className="text-[13px] font-bold">
-                {FIELD_LABELS[sourceField] || sourceField}
-              </span>
-              <span className="text-[11px] text-muted-foreground">{items.length}건</span>
-              <div className="flex-1 border-b" />
+        {grouped ? (
+          // 강사/플랫폼 뷰: 그룹핑
+          grouped.map(([sourceField, items]) => (
+            <div key={sourceField}>
+              <div className="flex items-center gap-2 mb-2 sticky top-0 bg-background py-1 z-10">
+                <span className="text-[14px] font-bold">
+                  {FIELD_LABELS[sourceField] || sourceField}
+                </span>
+                <span className="text-[12px] text-muted-foreground">{items.length}건</span>
+                <div className="flex-1 border-b" />
+              </div>
+              <div className="grid gap-1.5">
+                {items.map(renderCard)}
+              </div>
             </div>
-
-            {/* Cards */}
-            <div className="grid gap-1.5">
-              {items.map((comment) => {
-                const et = effectiveTag(comment);
-                const isAutoTag = comment.tag === null && et !== null;
-
-                return (
-                  <div
-                    key={comment.id}
-                    className="py-2.5 px-3.5 rounded-lg border bg-card transition-colors"
-                  >
-                    <div className="flex items-start gap-2.5">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[13px] leading-relaxed">{comment.original_text}</p>
-                        <div className="flex items-center gap-1.5 mt-1 text-[11px] text-muted-foreground">
-                          <span className="font-semibold text-foreground/60">
-                            {comment.respondent}
-                          </span>
-                          {comment.cohortLabel && <span>{comment.cohortLabel}</span>}
-                        </div>
-                      </div>
-
-                      {/* Tag dropdown */}
-                      <select
-                        value={comment.tag || ""}
-                        onChange={(e) =>
-                          handleTagChange(comment.id, (e.target.value || null) as TagValue)
-                        }
-                        className={`shrink-0 text-[10px] py-0.5 px-1.5 rounded border font-semibold cursor-pointer ${
-                          isAutoTag ? "opacity-50 " : ""
-                        }${getTagColor(et)}`}
-                      >
-                        <option value="">미분류</option>
-                        <optgroup label="플랫폼">
-                          <option value="platform_pm">PM</option>
-                          <option value="platform_pd">PD</option>
-                          <option value="platform_cs">CS</option>
-                          <option value="platform_etc">기타</option>
-                        </optgroup>
-                        <option value="instructor">강사</option>
-                      </select>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+          ))
+        ) : (
+          // 미분류/전체 뷰: 플랫 리스트
+          <div className="grid gap-1.5">
+            {filtered.map(renderCard)}
           </div>
-        ))}
+        )}
 
         {filtered.length === 0 && (
-          <div className="text-center py-8 text-muted-foreground text-[13px]">
+          <div className="text-center py-8 text-muted-foreground text-[14px]">
             해당 조건의 피드백이 없습니다
           </div>
         )}
       </div>
+
+      {/* 미분류 뷰: 일괄 태깅 액션 바 */}
+      {hubView === "untagged" && selected.size > 0 && (
+        <div className="sticky bottom-0 flex items-center gap-3 py-3 px-4 bg-card rounded-xl border shadow-lg">
+          <span className="text-[14px] font-bold">{selected.size}건 선택</span>
+          <button
+            onClick={toggleSelectAll}
+            className="text-[13px] text-primary font-semibold hover:underline"
+          >
+            {selected.size === filtered.length ? "선택 해제" : "전체 선택"}
+          </button>
+          <div className="flex-1" />
+          {tagging && <Loader2 className="w-4 h-4 animate-spin text-primary" />}
+          <button
+            onClick={() => handleBulkTag("platform_pm")}
+            disabled={tagging}
+            className="py-1.5 px-3 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-[13px] font-bold hover:bg-blue-100 transition-colors disabled:opacity-50"
+          >
+            PM
+          </button>
+          <button
+            onClick={() => handleBulkTag("platform_pd")}
+            disabled={tagging}
+            className="py-1.5 px-3 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 text-[13px] font-bold hover:bg-indigo-100 transition-colors disabled:opacity-50"
+          >
+            PD
+          </button>
+          <button
+            onClick={() => handleBulkTag("platform_cs")}
+            disabled={tagging}
+            className="py-1.5 px-3 rounded-lg bg-cyan-50 text-cyan-700 border border-cyan-200 text-[13px] font-bold hover:bg-cyan-100 transition-colors disabled:opacity-50"
+          >
+            CS
+          </button>
+          <button
+            onClick={() => handleBulkTag("platform_etc")}
+            disabled={tagging}
+            className="py-1.5 px-3 rounded-lg bg-slate-50 text-slate-600 border border-slate-200 text-[13px] font-bold hover:bg-slate-100 transition-colors disabled:opacity-50"
+          >
+            기타
+          </button>
+          <button
+            onClick={() => handleBulkTag("instructor")}
+            disabled={tagging}
+            className="py-1.5 px-3 rounded-lg bg-orange-50 text-orange-700 border border-orange-200 text-[13px] font-bold hover:bg-orange-100 transition-colors disabled:opacity-50"
+          >
+            강사
+          </button>
+          <button
+            onClick={() => setSelected(new Set())}
+            className="py-1.5 px-3 rounded-lg border text-[13px] text-muted-foreground hover:bg-accent transition-colors flex items-center gap-1"
+          >
+            <X className="w-3 h-3" />
+            해제
+          </button>
+        </div>
+      )}
+
+      {/* 강사 뷰: 복사 액션 바 */}
+      {hubView === "instructor" && selected.size > 0 && (
+        <div className="sticky bottom-0 flex items-center gap-3 py-3 px-4 bg-card rounded-xl border shadow-lg">
+          <span className="text-[14px] font-bold">{selected.size}건 선택됨</span>
+          <button
+            onClick={toggleSelectAll}
+            className="text-[13px] text-primary font-semibold hover:underline"
+          >
+            {selected.size === filtered.length ? "선택 해제" : "전체 선택"}
+          </button>
+          <div className="flex-1" />
+          <button
+            onClick={() => setSelected(new Set())}
+            className="py-1.5 px-3 rounded-lg border text-[13px] text-muted-foreground hover:bg-accent transition-colors flex items-center gap-1"
+          >
+            <X className="w-3 h-3" />
+            해제
+          </button>
+          <button
+            onClick={copySelected}
+            className="py-1.5 px-4 rounded-lg bg-primary text-primary-foreground text-[13px] font-bold flex items-center gap-1.5 hover:opacity-90 transition-opacity"
+          >
+            {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+            {copied ? "복사됨" : "원문 복사"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

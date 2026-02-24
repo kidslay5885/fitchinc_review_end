@@ -13,7 +13,6 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { PlatformDashboard } from "@/components/platform-dashboard";
 import { InstructorHero } from "@/components/instructor-hero";
 import { TabFeedbackHub } from "@/components/tab-feedback-hub";
-import { TabAnalysis } from "@/components/tab-analysis";
 import { TabAIInsight } from "@/components/tab-ai-insight";
 import { UploadDialog } from "@/components/upload-dialog";
 import { EditInstructorDialog } from "@/components/edit-instructor-dialog";
@@ -22,7 +21,6 @@ import { BarChart3, Loader2 } from "lucide-react";
 
 const TABS = [
   { id: "feedback", icon: "💬", label: "피드백" },
-  { id: "analysis", icon: "📋", label: "분석" },
   { id: "insight", icon: "💡", label: "AI 인사이트" },
 ];
 
@@ -100,70 +98,69 @@ function MainContent() {
           onEditInstructor={(inst) => setEditInst(inst)}
         />
 
-        <main className="flex-1 overflow-y-auto p-5 px-6">
-          {!state.selectedPlatformId && (
-            <div className="flex flex-col items-center justify-center h-full">
-              <BarChart3 className="w-9 h-9 opacity-20 mb-3" />
-              <div className="text-[15px] font-bold text-muted-foreground">
-                플랫폼을 선택하세요
-              </div>
-              <div className="text-[13px] text-muted-foreground mt-1">
-                좌측 사이드바에서 플랫폼을 선택하거나 파일을 업로드하세요
-              </div>
-            </div>
-          )}
-
-          {showPlatDash && (
-            <PlatformDashboard
-              platform={plat}
-              onSelectInstructor={(id) => dispatch({ type: "SELECT_INSTRUCTOR", id })}
-            />
-          )}
-
-          {inst && (
-            <div>
-              <InstructorHero
-                platformName={platformName}
-                instructor={inst}
-                cohort={cohort}
-              />
-
-              <div className="flex gap-0 border-b-2 border-border mb-5">
-                {TABS.map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => dispatch({ type: "SET_TAB", tab: t.id })}
-                    className={`py-2.5 px-4 text-[13px] transition-colors -mb-[2px] ${
-                      state.activeTab === t.id
-                        ? "font-bold text-primary border-b-[2.5px] border-b-primary"
-                        : "text-muted-foreground border-b-[2.5px] border-b-transparent hover:text-foreground"
-                    }`}
-                  >
-                    {t.icon} {t.label}
-                  </button>
-                ))}
-              </div>
-
-              {dataLoading ? (
-                <div className="text-center py-12">
-                  <Loader2 className="w-6 h-6 animate-spin text-primary mx-auto mb-2" />
-                  <div className="text-[13px] text-muted-foreground">데이터 로딩 중...</div>
+        <main className="flex-1 overflow-y-auto p-6 px-8">
+          <div className="max-w-[960px]">
+            {!state.selectedPlatformId && (
+              <div className="flex flex-col items-center justify-center h-full">
+                <BarChart3 className="w-9 h-9 opacity-20 mb-3" />
+                <div className="text-[15px] font-bold text-muted-foreground">
+                  플랫폼을 선택하세요
                 </div>
-              ) : (
-                <>
-                  {state.activeTab === "feedback" && (
-                    <TabFeedbackHub instructor={inst} cohort={cohort} platformName={platformName} />
-                  )}
-                  {state.activeTab === "analysis" && (
-                    <TabAnalysis instructor={inst} cohort={cohort} platformName={platformName} />
-                  )}
-                  {state.activeTab === "insight" && (
-                    <TabAIInsight instructor={inst} cohort={cohort} platformName={platformName} />
-                  )}
-                </>
-              )}
-            </div>
-          )}
+                <div className="text-[13px] text-muted-foreground mt-1">
+                  좌측 사이드바에서 플랫폼을 선택하거나 파일을 업로드하세요
+                </div>
+              </div>
+            )}
+
+            {showPlatDash && (
+              <PlatformDashboard
+                platform={plat}
+                onSelectInstructor={(id) => dispatch({ type: "SELECT_INSTRUCTOR", id })}
+              />
+            )}
+
+            {inst && (
+              <div>
+                <InstructorHero
+                  platformName={platformName}
+                  instructor={inst}
+                  cohort={cohort}
+                />
+
+                <div className="flex gap-0 border-b-2 border-border mb-5">
+                  {TABS.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => dispatch({ type: "SET_TAB", tab: t.id })}
+                      className={`py-2.5 px-4 text-[14px] transition-colors -mb-[2px] ${
+                        state.activeTab === t.id
+                          ? "font-bold text-primary border-b-[2.5px] border-b-primary"
+                          : "text-muted-foreground border-b-[2.5px] border-b-transparent hover:text-foreground"
+                      }`}
+                    >
+                      {t.icon} {t.label}
+                    </button>
+                  ))}
+                </div>
+
+                {dataLoading ? (
+                  <div className="text-center py-12">
+                    <Loader2 className="w-6 h-6 animate-spin text-primary mx-auto mb-2" />
+                    <div className="text-[13px] text-muted-foreground">데이터 로딩 중...</div>
+                  </div>
+                ) : (
+                  <>
+                    {state.activeTab === "feedback" && (
+                      <TabFeedbackHub instructor={inst} cohort={cohort} platformName={platformName} />
+                    )}
+                    {state.activeTab === "insight" && (
+                      <TabAIInsight instructor={inst} cohort={cohort} platformName={platformName} />
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </main>
       </div>
     </div>

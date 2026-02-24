@@ -76,8 +76,8 @@ export function PlatformDashboard({ platform, onSelectInstructor }: PlatformDash
                     )}
                   </div>
                   <div className="flex-1">
-                    <div className="text-[15px] font-bold">{inst.name}</div>
-                    <div className="text-[12px] text-muted-foreground">{inst.category}</div>
+                    <div className="text-[16px] font-bold">{inst.name}</div>
+                    <div className="text-[13px] text-muted-foreground">{inst.category}</div>
                   </div>
                   {ia !== "-" && (
                     <div className="text-center">
@@ -95,22 +95,22 @@ export function PlatformDashboard({ platform, onSelectInstructor }: PlatformDash
                 <div className="flex gap-5 mb-3 pb-3 border-b">
                   <div>
                     <span className="text-[16px] font-bold">{inst.cohorts.length}</span>
-                    <span className="text-[12px] text-muted-foreground">기</span>
+                    <span className="text-[13px] text-muted-foreground">기</span>
                   </div>
                   <div>
                     <span className="text-[16px] font-bold">{totalPre}</span>
-                    <span className="text-[12px] text-muted-foreground">명 참여</span>
+                    <span className="text-[13px] text-muted-foreground">명 참여</span>
                   </div>
                 </div>
                 {last && (
                   <div className="flex items-center justify-between">
                     <span
-                      className={`text-[10px] px-1.5 py-0.5 rounded border font-bold ${statusBg(lastStatus)}`}
+                      className={`text-[11px] px-1.5 py-0.5 rounded border font-bold ${statusBg(lastStatus)}`}
                     >
                       {last.label} {lastStatus}
                     </span>
                     {last.pm && (
-                      <span className="text-[11px] text-muted-foreground">담당PM {last.pm}</span>
+                      <span className="text-[12px] text-muted-foreground">담당PM {last.pm}</span>
                     )}
                   </div>
                 )}
