@@ -36,6 +36,7 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
   const [platformSub, setPlatformSub] = useState<PlatformSub>("all");
   const [cohortFilter, setCohortFilter] = useState<string>("all");
   const [sourceFieldFilter, setSourceFieldFilter] = useState<string>("all");
+  const [sentimentFilter, setSentimentFilter] = useState<"all" | "positive" | "negative" | "neutral">("all");
   const [search, setSearch] = useState("");
 
   // 체크박스 선택 (미분류 뷰 일괄 태깅 + 강사 뷰 복사)
@@ -143,6 +144,12 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
 
       if (cohortFilter !== "all" && c.cohortLabel !== cohortFilter) return false;
       if (sourceFieldFilter !== "all" && c.source_field !== sourceFieldFilter) return false;
+      if (sentimentFilter !== "all") {
+        const s = c.sentiment;
+        if (sentimentFilter === "positive" && s !== "positive") return false;
+        if (sentimentFilter === "negative" && s !== "negative") return false;
+        if (sentimentFilter === "neutral" && s !== null && s !== "neutral") return false;
+      }
       if (search) {
         const s = search.toLowerCase();
         if (!c.original_text.toLowerCase().includes(s) && !c.respondent.toLowerCase().includes(s))
@@ -150,7 +157,7 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
       }
       return true;
     });
-  }, [comments, hubView, platformSub, cohortFilter, sourceFieldFilter, search]);
+  }, [comments, hubView, platformSub, cohortFilter, sourceFieldFilter, sentimentFilter, search]);
 
   // 그룹핑: 강사/플랫폼 뷰에서는 source_field별 그룹, 미분류/전체는 플랫 리스트
   const grouped = useMemo(() => {
@@ -423,6 +430,34 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
                 }`}
               >
                 {f.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* 평가 구분 필터: 긍정/부정 따로 보기 (전체·긍정·부정·미구분 동일 비중, 시선상 중립) */}
+        {(hubView === "instructor" || hubView === "platform" || hubView === "all") && (
+          <div className="flex items-center gap-1 rounded-lg border bg-muted/30 px-1 py-0.5" title="내부 검수·전달용">
+            <span className="text-[11px] text-muted-foreground mr-0.5 shrink-0">평가:</span>
+            {(
+              [
+                { id: "all" as const, label: "전체" },
+                { id: "positive" as const, label: "긍정" },
+                { id: "negative" as const, label: "부정" },
+                { id: "neutral" as const, label: "미구분" },
+              ] as const
+            ).map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setSentimentFilter(opt.id)}
+                className={`shrink-0 py-1 px-2 rounded-md text-[12px] transition-colors ${
+                  sentimentFilter === opt.id
+                    ? "bg-card font-semibold text-foreground shadow-sm border border-border"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                }`}
+              >
+                {opt.label}
               </button>
             ))}
           </div>
