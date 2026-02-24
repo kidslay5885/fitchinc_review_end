@@ -12,6 +12,7 @@ import { NavHeader } from "@/components/nav-header";
 import { AppSidebar } from "@/components/app-sidebar";
 import { PlatformDashboard } from "@/components/platform-dashboard";
 import { InstructorHero } from "@/components/instructor-hero";
+import { TabWhole } from "@/components/tab-whole";
 import { TabFeedbackHub } from "@/components/tab-feedback-hub";
 import { TabAIInsight } from "@/components/tab-ai-insight";
 import { TabQualityOverview } from "@/components/tab-quality-overview";
@@ -21,7 +22,8 @@ import type { Instructor } from "@/lib/types";
 import { BarChart3, Loader2 } from "lucide-react";
 
 const TABS = [
-  { id: "feedback", icon: "💬", label: "피드백" },
+  { id: "whole", icon: "📋", label: "전체" },
+  { id: "feedback", icon: "🏷️", label: "세부 분류" },
   { id: "insight", icon: "💡", label: "AI 인사이트" },
   { id: "quality", icon: "📊", label: "강의 품질", onlyWhenAllCohorts: true },
 ];
@@ -153,6 +155,9 @@ function MainContent() {
                   </div>
                 ) : (
                   <>
+                    {state.activeTab === "whole" && (
+                      <TabWhole instructor={inst} platformName={platformName} selectedCohort={cohort} />
+                    )}
                     {(state.activeTab === "feedback" || (state.activeTab === "quality" && cohort)) && (
                       <TabFeedbackHub instructor={inst} cohort={cohort} platformName={platformName} />
                     )}
