@@ -46,15 +46,19 @@ export function TabWhole({ instructor, platformName, selectedCohort, onGoToQuali
     () => getOrderedCohorts(platformName, instructor.name, cohortsWithData),
     [platformName, instructor.name, cohortsWithData]
   );
-  // 전체 보기 탭 내에서만 쓰는 로컬 필터. 사이드바에서 기수 선택 시 해당 기수로 맞춤(전체 vs 기수 분리)
-  const [viewCohortLabel, setViewCohortLabel] = useState<string | null>(null);
+  // 전체 보기 탭 내 로컬 필터. 다중 선택 가능(1기+2기 등). 빈 Set = 전체, 전부 선택 시에도 전체로 간주.
+  const [viewCohortLabels, setViewCohortLabels] = useState<Set<string>>(new Set());
   useEffect(() => {
-    setViewCohortLabel(selectedCohort?.label ?? null);
+    setViewCohortLabels(selectedCohort?.label ? new Set([selectedCohort.label]) : new Set());
   }, [selectedCohort?.label]);
-  const currentCohorts = viewCohortLabel
-    ? orderedCohorts.filter((c) => c.label === viewCohortLabel)
-    : orderedCohorts;
-  const showAll = viewCohortLabel === null;
+  const isEffectivelyAll =
+    viewCohortLabels.size === 0 || viewCohortLabels.size === orderedCohorts.length;
+  const currentCohorts =
+    isEffectivelyAll
+      ? orderedCohorts
+      : orderedCohorts.filter((c) => viewCohortLabels.has(c.label));
+  const showAll = isEffectivelyAll;
+  const safeCohorts = currentCohorts.length > 0 ? currentCohorts : orderedCohorts;
 
   const tocEntries = useMemo((): TocEntry[] => {
     if (showAll && orderedCohorts.length > 1) {
@@ -64,7 +68,7 @@ export function TabWhole({ instructor, platformName, selectedCohort, onGoToQuali
       }));
     }
     const out: TocEntry[] = [];
-    for (const cohort of currentCohorts) {
+    for (const cohort of safeCohorts) {
       for (const field of PRE_FIELDS) {
         const items = cohort.preResponses
           .map((r) => getResponseText(r, field))
@@ -83,7 +87,7 @@ export function TabWhole({ instructor, platformName, selectedCohort, onGoToQuali
       }
     }
     return out;
-  }, [showAll, currentCohorts, orderedCohorts]);
+  }, [showAll, safeCohorts, orderedCohorts]);
 
   const scrollTo = (id: string) => {
     const el = document.getElementById(id);
@@ -131,27 +135,46 @@ export function TabWhole({ instructor, platformName, selectedCohort, onGoToQuali
         );
       })()}
 
-      {/* 보기 선택: 전체 보기 탭에서 "전체"일 때만 표시. 기수 선택 후 들어오면 이전처럼 보기 버튼 없이 표시 */}
-      {orderedCohorts.length > 1 && showAll && (
+      {/* 보기 선택: 기수 다중 선택 가능. 전체 보기 = 빈 선택, 전부 선택 시 자동으로 전체와 동일 */}
+      {orderedCohorts.length > 1 && (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[13px] font-semibold text-muted-foreground mr-1">보기:</span>
           <button
             type="button"
-            onClick={() => setViewCohortLabel(null)}
-            className="py-2 px-4 rounded-lg text-[14px] font-semibold transition-colors bg-primary text-primary-foreground"
+            onClick={() => setViewCohortLabels(new Set())}
+            className={`py-2 px-4 rounded-lg text-[14px] font-semibold transition-colors ${
+              showAll ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
+            }`}
           >
             전체 보기
           </button>
-          {orderedCohorts.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              onClick={() => setViewCohortLabel(c.label)}
-              className="py-2 px-4 rounded-lg text-[14px] font-semibold transition-colors bg-muted text-muted-foreground hover:bg-muted/80"
-            >
-              {c.label}
-            </button>
-          ))}
+          {orderedCohorts.map((c) => {
+            const isSelected = viewCohortLabels.has(c.label);
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => {
+                  const next = new Set(viewCohortLabels);
+                  if (next.has(c.label)) {
+                    next.delete(c.label);
+                  } else {
+                    next.add(c.label);
+                    if (next.size === orderedCohorts.length) {
+                      setViewCohortLabels(new Set());
+                      return;
+                    }
+                  }
+                  setViewCohortLabels(next);
+                }}
+                className={`py-2 px-4 rounded-lg text-[14px] font-semibold transition-colors ${
+                  isSelected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                }`}
+              >
+                {c.label}
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -163,7 +186,7 @@ export function TabWhole({ instructor, platformName, selectedCohort, onGoToQuali
         </div>
       </div>
 
-      {currentCohorts.length === 0 ? (
+      {safeCohorts.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground text-[14px]">
           설문 데이터가 없습니다. 사전·후기 설문 파일을 업로드하면 여기에 목차별로 표시됩니다.
         </div>
@@ -205,7 +228,7 @@ export function TabWhole({ instructor, platformName, selectedCohort, onGoToQuali
             <section id="section-pre" className="rounded-xl border border-blue-200/60 bg-blue-50/30 p-4 sm:p-5 scroll-mt-24">
               <h3 className="text-[17px] font-bold border-b-2 border-blue-400/50 pb-2 mb-5 text-blue-700">사전 설문</h3>
               <div className="grid gap-8">
-                {currentCohorts.map((cohort) => (
+                {safeCohorts.map((cohort) => (
                   <div
                     key={cohort.id}
                     id={showAll && orderedCohorts.length > 1 ? `cohort-${slug(cohort.label)}` : undefined}
@@ -250,7 +273,7 @@ export function TabWhole({ instructor, platformName, selectedCohort, onGoToQuali
             <section id="section-post" className="rounded-xl border border-emerald-200/60 bg-emerald-50/30 p-4 sm:p-5 scroll-mt-24">
               <h3 className="text-[17px] font-bold border-b-2 border-emerald-400/50 pb-2 mb-5 text-emerald-700">후기 설문</h3>
               <div className="grid gap-8">
-                {currentCohorts.map((cohort) => (
+                {safeCohorts.map((cohort) => (
                   <div key={cohort.id} className="rounded-xl border bg-card overflow-hidden border-emerald-100">
                     {showAll && orderedCohorts.length > 1 && (
                       <div className="px-4 py-2.5 bg-emerald-100/60 text-[14px] font-bold text-foreground border-b border-emerald-100">
