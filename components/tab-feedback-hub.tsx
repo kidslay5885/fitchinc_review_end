@@ -32,7 +32,7 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
-  const [hubView, setHubView] = useState<HubView>("untagged");
+  const [hubView, setHubView] = useState<HubView>("all");
   const [platformSub, setPlatformSub] = useState<PlatformSub>("all");
   const [cohortFilter, setCohortFilter] = useState<string>("all");
   const [sourceFieldFilter, setSourceFieldFilter] = useState<string>("all");
