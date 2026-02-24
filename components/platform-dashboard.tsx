@@ -85,7 +85,10 @@ export function PlatformDashboard({ platform, onSelectInstructor }: PlatformDash
                     <div className="text-[13px] text-muted-foreground mt-0.5">{inst.category}</div>
                   </div>
                   {ia !== "-" && (
-                    <div className="text-center">
+                    <div
+                      className="text-center"
+                      title="후기 설문의 커리큘럼(ps1)·피드백(ps2) 문항 평균을 10점 만점으로 환산한 뒤, 기수별 (커리큘럼+피드백)/2 평균을 다시 평균낸 값입니다."
+                    >
                       <div
                         className={`text-[20px] font-extrabold ${
                           Number(ia) >= 9 ? "text-emerald-600" : "text-primary"

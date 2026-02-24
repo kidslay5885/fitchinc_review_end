@@ -179,12 +179,7 @@ function MainContent() {
                 ) : (
                   <>
                     {state.activeTab === "whole" && (
-                      <TabWhole
-                        instructor={inst}
-                        platformName={platformName}
-                        selectedCohort={cohort}
-                        onSelectCohort={(id) => dispatch({ type: "SELECT_COHORT", id })}
-                      />
+                      <TabWhole instructor={inst} platformName={platformName} selectedCohort={cohort} />
                     )}
                     {(state.activeTab === "feedback" || (state.activeTab === "quality" && cohort)) && (
                       <TabFeedbackHub instructor={inst} cohort={cohort} platformName={platformName} />

@@ -52,8 +52,8 @@ export function TabQualityOverview({ instructor, platformName }: TabQualityOverv
                 <th className="text-right py-2.5 px-3 font-semibold">사전</th>
                 <th className="text-right py-2.5 px-3 font-semibold">후기</th>
                 <th className="text-right py-2.5 px-3 font-semibold" title="수강생 수 기준">전체 응답률</th>
-                <th className="text-right py-2.5 px-3 font-semibold">커리큘럼</th>
-                <th className="text-right py-2.5 px-3 font-semibold">피드백</th>
+                <th className="text-right py-2.5 px-3 font-semibold" title="후기 설문의 커리큘럼(ps1) 문항 평균, 10점 만점">커리큘럼</th>
+                <th className="text-right py-2.5 px-3 font-semibold" title="후기 설문의 피드백(ps2) 문항 평균, 10점 만점">피드백</th>
                 <th className="text-right py-2.5 px-3 font-semibold">추천률</th>
               </tr>
             </thead>
@@ -66,8 +66,8 @@ export function TabQualityOverview({ instructor, platformName }: TabQualityOverv
                   <td className="text-right py-2 px-3" title={r.totalStudents > 0 ? `후기 ${r.postN}명 / 수강생 ${r.totalStudents}명` : "수강생 수 입력 시 표시"}>
                     {r.overallRate != null ? `${r.overallRate}%` : (r.postPreRate > 0 ? `${r.postPreRate}%(후기/사전)` : "—")}
                   </td>
-                  <td className="text-right py-2 px-3">{r.ps1 > 0 ? r.ps1.toFixed(1) : "—"}</td>
-                  <td className="text-right py-2 px-3">{r.ps2 > 0 ? r.ps2.toFixed(1) : "—"}</td>
+                  <td className="text-right py-2 px-3" title="후기 설문의 커리큘럼(ps1) 문항 평균, 10점 만점">{r.ps1 > 0 ? r.ps1.toFixed(1) : "—"}</td>
+                  <td className="text-right py-2 px-3" title="후기 설문의 피드백(ps2) 문항 평균, 10점 만점">{r.ps2 > 0 ? r.ps2.toFixed(1) : "—"}</td>
                   <td className="text-right py-2 px-3">{r.recRate > 0 ? `${r.recRate}%` : "—"}</td>
                 </tr>
               ))}

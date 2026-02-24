@@ -86,8 +86,8 @@ export function InstructorHero({ platformName, instructor, cohort, onUpdateCohor
             {postResponses.length > 0 && (
               <>
                 <div className="flex gap-2 items-center">
-                  <RingScore score={scores.ps1Avg} label="커리큘럼" max={10} excluded={scores.ps1Excluded} />
-                  <RingScore score={scores.ps2Avg} label="피드백" max={10} excluded={scores.ps2Excluded} />
+                  <RingScore score={scores.ps1Avg} label="커리큘럼" max={10} excluded={scores.ps1Excluded} title="후기 설문의 커리큘럼(ps1) 문항 평균을 10점 만점으로 수치화한 결과입니다." />
+                  <RingScore score={scores.ps2Avg} label="피드백" max={10} excluded={scores.ps2Excluded} title="후기 설문의 피드백(ps2) 문항 평균을 10점 만점으로 수치화한 결과입니다." />
                 </div>
                 <div className="border-l pl-4 text-[14px] text-muted-foreground leading-relaxed space-y-0.5">
                   <div className="flex items-center gap-2 mb-1.5">
