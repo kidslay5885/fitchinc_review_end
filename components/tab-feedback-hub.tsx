@@ -16,7 +16,7 @@ import {
   type TagValue,
   type PlatformSub,
 } from "@/lib/feedback-utils";
-import { Loader2, Search, Copy, Check, X } from "lucide-react";
+import { Loader2, Search, Copy, Check, X, Send, FileCheck } from "lucide-react";
 import { toast } from "sonner";
 
 type HubView = "untagged" | "instructor" | "platform" | "all";
@@ -35,6 +35,7 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
   const [hubView, setHubView] = useState<HubView>("untagged");
   const [platformSub, setPlatformSub] = useState<PlatformSub>("all");
   const [cohortFilter, setCohortFilter] = useState<string>("all");
+  const [sourceFieldFilter, setSourceFieldFilter] = useState<string>("all");
   const [search, setSearch] = useState("");
 
   // 체크박스 선택 (미분류 뷰 일괄 태깅 + 강사 뷰 복사)
@@ -93,6 +94,12 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
     return Array.from(labels).sort();
   }, [comments]);
 
+  // 네이버 폼 출처 항목 (현재 데이터에 있는 source_field만, FIELD_ORDER 순)
+  const sourceFieldsInData = useMemo(() => {
+    const set = new Set(comments.map((c) => c.source_field));
+    return FIELD_ORDER.filter((f) => set.has(f));
+  }, [comments]);
+
   // 태그별 카운트
   const untaggedCount = comments.filter((c) => effectiveTag(c) === null).length;
   const instructorCount = comments.filter((c) => effectiveTag(c) === "instructor").length;
@@ -114,6 +121,7 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
       }
 
       if (cohortFilter !== "all" && c.cohortLabel !== cohortFilter) return false;
+      if (sourceFieldFilter !== "all" && c.source_field !== sourceFieldFilter) return false;
       if (search) {
         const s = search.toLowerCase();
         if (!c.original_text.toLowerCase().includes(s) && !c.respondent.toLowerCase().includes(s))
@@ -121,7 +129,7 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
       }
       return true;
     });
-  }, [comments, hubView, platformSub, cohortFilter, search]);
+  }, [comments, hubView, platformSub, cohortFilter, sourceFieldFilter, search]);
 
   // 그룹핑: 강사/플랫폼 뷰에서는 source_field별 그룹, 미분류/전체는 플랫 리스트
   const grouped = useMemo(() => {
@@ -297,8 +305,28 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
     );
   };
 
+  const platformPmCount = comments.filter((c) => effectiveTag(c) === "platform_pm").length;
+  const platformPdCount = comments.filter((c) => effectiveTag(c) === "platform_pd").length;
+  const platformCsCount = comments.filter((c) => effectiveTag(c) === "platform_cs").length;
+  const platformEtcCount = comments.filter((c) => effectiveTag(c) === "platform_etc").length;
+  const isReviewComplete = untaggedCount === 0;
+
   return (
     <div className="grid gap-3">
+      {/* 플로우 안내: 후기 데이터 → 검수 → 전달 */}
+      <div className="flex items-center gap-2 py-2 px-3 rounded-lg bg-muted/50 border border-border text-[13px] text-muted-foreground">
+        <FileCheck className="w-4 h-4 shrink-0 text-primary/70" />
+        <span>
+          <strong className="text-foreground">후기 데이터</strong>
+          <span className="mx-1.5">→</span>
+          <strong className="text-foreground">콘텐츠 개발팀 검수</strong>
+          <span className="mx-1.5">→</span>
+          <strong className="text-foreground">플랫폼 · 강사 전달</strong>
+        </span>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-6">
+        <div className="grid gap-3 min-w-0">
       {/* 뷰 전환 */}
       <div className="flex gap-0.5 bg-muted rounded-lg p-0.5 border w-fit">
         {([
@@ -349,6 +377,23 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
               </button>
             ))}
           </div>
+        )}
+
+        {/* 네이버 폼 출처 항목 필터 */}
+        {sourceFieldsInData.length > 1 && (
+          <select
+            value={sourceFieldFilter}
+            onChange={(e) => setSourceFieldFilter(e.target.value)}
+            className="py-1.5 px-2.5 rounded-lg border text-[14px] bg-card shrink-0"
+            title="네이버 폼 항목별로 보기"
+          >
+            <option value="all">전체 출처</option>
+            {sourceFieldsInData.map((f) => (
+              <option key={f} value={f}>
+                {FIELD_LABELS[f] || f}
+              </option>
+            ))}
+          </select>
         )}
 
         {/* 기수 필터 */}
@@ -497,6 +542,49 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
           </button>
         </div>
       )}
+        </div>
+
+        {/* 오른쪽(데스크톱) / 상단(모바일): 전달 요약 (PM 한눈에 보기) */}
+        <div className="order-first lg:order-2">
+          <div className="sticky top-4 rounded-xl border bg-card p-4 shadow-sm">
+            <div className="flex items-center gap-1.5 mb-3">
+              <Send className="w-4 h-4 text-primary" />
+              <span className="text-[14px] font-bold">전달 요약</span>
+            </div>
+            <div className="grid gap-2 text-[13px]">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">강사</span>
+                <span className="font-semibold">{instructorCount}건</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">플랫폼 PM</span>
+                <span className="font-semibold">{platformPmCount}건</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">플랫폼 PD</span>
+                <span className="font-semibold">{platformPdCount}건</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">플랫폼 CS</span>
+                <span className="font-semibold">{platformCsCount}건</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">플랫폼 기타</span>
+                <span className="font-semibold">{platformEtcCount}건</span>
+              </div>
+              <div className="border-t pt-2 mt-1 flex justify-between">
+                <span className="text-muted-foreground">미분류</span>
+                <span className={`font-semibold ${untaggedCount > 0 ? "text-amber-600" : "text-emerald-600"}`}>
+                  {untaggedCount}건
+                </span>
+              </div>
+            </div>
+            <div className={`mt-3 py-2 px-3 rounded-lg text-center text-[13px] font-semibold ${isReviewComplete ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-amber-50 text-amber-700 border border-amber-200"}`}>
+              {isReviewComplete ? "검수 완료 · 전달 가능" : "미분류 처리 후 전달"}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -98,8 +98,8 @@ function MainContent() {
           onEditInstructor={(inst) => setEditInst(inst)}
         />
 
-        <main className="flex-1 overflow-y-auto p-6 px-8">
-          <div className="max-w-[960px]">
+        <main className="flex-1 overflow-y-auto p-6 px-8 min-w-0">
+          <div className="w-full max-w-[1400px]">
             {!state.selectedPlatformId && (
               <div className="flex flex-col items-center justify-center h-full">
                 <BarChart3 className="w-9 h-9 opacity-20 mb-3" />

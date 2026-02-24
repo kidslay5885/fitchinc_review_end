@@ -2,6 +2,7 @@ import type { Comment } from "./types";
 
 export type TagValue = Comment["tag"];
 
+/** 네이버 폼(설문) 항목별 표시 라벨 — 검수·전달 시 PM이 구분하기 쉬운 이름 */
 export const FIELD_LABELS: Record<string, string> = {
   hopePlatform: "플랫폼에 바라는 점",
   hopeInstructor: "강사에게 바라는 점",
