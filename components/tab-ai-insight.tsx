@@ -203,11 +203,12 @@ export function TabAIInsight({ instructor, cohort, platformName }: TabAIInsightP
             </div>
             <div className="border-l pl-5 grid gap-1 text-[14px]">
               {scores.recRate > 0 && (
-                <div>
+                <div title="후기 설문의 추천 의향 문항(pRec) 응답 기준">
                   추천률{" "}
                   <strong className={scores.recRate >= 80 ? "text-emerald-600" : "text-amber-600"}>
                     {scores.recRate}%
                   </strong>
+                  <span className="text-[11px] text-muted-foreground ml-1">(후기 설문 추천 의향 문항 기준)</span>
                 </div>
               )}
               <div className="text-muted-foreground">

@@ -125,6 +125,7 @@ function MainContent() {
                   platformName={platformName}
                   instructor={inst}
                   cohort={cohort}
+                  onUpdateCohort={cohort ? (c) => dispatch({ type: "UPDATE_COHORT", instructorId: inst.id, cohort: c }) : undefined}
                 />
 
                 <div className="flex gap-0 border-b-2 border-border mb-5">

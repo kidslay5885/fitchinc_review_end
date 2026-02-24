@@ -43,8 +43,22 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [copied, setCopied] = useState(false);
   const [tagging, setTagging] = useState(false);
+  const [lastLoadedAt, setLastLoadedAt] = useState<Date | null>(null);
 
   const cohortLabel = cohort?.label || null;
+  const deliveryDoneKey = `delivery-done-${platformName}-${instructor.name}-${cohortLabel ?? "all"}`;
+  const [deliveryDone, setDeliveryDoneState] = useState(false);
+  const setDeliveryDone = (v: boolean) => {
+    setDeliveryDoneState(v);
+    if (typeof window !== "undefined") {
+      if (v) localStorage.setItem(deliveryDoneKey, "1");
+      else localStorage.removeItem(deliveryDoneKey);
+    }
+  };
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setDeliveryDoneState(localStorage.getItem(deliveryDoneKey) === "1");
+  }, [deliveryDoneKey]);
 
   useEffect(() => {
     loadComments();
@@ -82,6 +96,7 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
         setComments(useful.map((c) => ({ ...c, cohortLabel })));
       }
       setLoaded(true);
+      setLastLoadedAt(new Date());
     } catch {
       toast.error("피드백 로드 실패");
     } finally {
@@ -386,10 +401,10 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
       {/* 뷰 전환 */}
       <div className="flex gap-0.5 bg-muted rounded-lg p-0.5 border w-fit">
         {([
-          { id: "untagged" as HubView, label: `미분류 ${untaggedCount}` },
-          { id: "instructor" as HubView, label: `강사 ${instructorCount}` },
-          { id: "platform" as HubView, label: `플랫폼 ${platformCount}` },
           { id: "all" as HubView, label: `전체 ${comments.length}` },
+          { id: "platform" as HubView, label: `플랫폼 ${platformCount}` },
+          { id: "instructor" as HubView, label: `강사 ${instructorCount}` },
+          { id: "untagged" as HubView, label: `미분류 ${untaggedCount}` },
         ]).map((v) => (
           <button
             key={v.id}
@@ -510,8 +525,8 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
         <span className="text-[13px] text-muted-foreground">{filtered.length}건</span>
       </div>
 
-      {/* 카드 리스트 */}
-      <div className="grid gap-4 max-h-[calc(100vh-360px)] overflow-y-auto">
+      {/* 카드 리스트: 결과 없을 때도 높이 유지해 레이아웃 넓어짐 방지 */}
+      <div className="grid gap-4 min-h-[280px] max-h-[calc(100vh-360px)] overflow-y-auto">
         {grouped ? (
           // 강사/플랫폼 뷰: 그룹핑
           grouped.map(([sourceField, items]) => (
@@ -628,8 +643,8 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
       )}
         </div>
 
-        {/* 오른쪽(데스크톱) / 상단(모바일): 전달 요약 (PM 한눈에 보기) */}
-        <div className="order-first lg:order-2">
+        {/* 오른쪽(데스크톱) / 상단(모바일): 전달 요약 (PM 한눈에 보기) — 폭 고정으로 결과 없을 때 넓어짐 방지 */}
+        <div className="order-first lg:order-2 w-full lg:w-[260px] lg:min-w-[260px] lg:max-w-[260px] lg:shrink-0">
           <div className="sticky top-4 rounded-xl border bg-card p-4 shadow-sm">
             <div className="flex items-center gap-1.5 mb-3">
               <Send className="w-4 h-4 text-primary" />
@@ -671,6 +686,24 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
             <div className={`mt-3 py-2 px-3 rounded-lg text-center text-[13px] font-semibold ${isReviewComplete ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-amber-50 text-amber-700 border border-amber-200"}`}>
               {isReviewComplete ? "검수 완료 · 전달 가능" : "미분류 처리 후 전달"}
             </div>
+            <label className="mt-2.5 flex items-center gap-2 cursor-pointer text-[12px] text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={deliveryDone}
+                onChange={(e) => setDeliveryDone(e.target.checked)}
+                className="rounded border-gray-300 text-primary"
+              />
+              전달 완료 (기록)
+            </label>
+            <p className="mt-1 text-[11px] text-muted-foreground/80">
+              기준: {lastLoadedAt ? (() => {
+                const min = Math.floor((Date.now() - lastLoadedAt.getTime()) / 60000);
+                if (min < 1) return "방금 전";
+                if (min < 60) return `${min}분 전`;
+                const h = Math.floor(min / 60);
+                return `${h}시간 전`;
+              })() : "—"}
+            </p>
           </div>
         </div>
       </div>
