@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import type { Instructor, Cohort, AnalysisResult } from "@/lib/types";
 import { computeScores } from "@/lib/analysis-engine";
 import { RingScore } from "./ring-score";
-import { Loader2, RefreshCw, AlertTriangle, Flame, ThumbsUp, Lightbulb } from "lucide-react";
+import { Loader2, RefreshCw, AlertTriangle, Flame, ThumbsUp, Lightbulb, FileText, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 
 interface TabAIInsightProps {
@@ -25,6 +25,24 @@ export function TabAIInsight({ instructor, cohort, platformName }: TabAIInsightP
   const [loaded, setLoaded] = useState(false);
 
   const cohortLabel = cohort?.label || null;
+  const memoKey = `memo-insight-${platformName}-${instructor.name}-${cohortLabel ?? "all"}`;
+  const [memo, setMemo] = useState("");
+  const memoSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setMemo(localStorage.getItem(memoKey) || "");
+  }, [memoKey]);
+  const persistMemo = (value: string) => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(memoKey, value);
+  };
+  const handleMemoChange = (value: string) => {
+    setMemo(value);
+    if (memoSaveRef.current) clearTimeout(memoSaveRef.current);
+    memoSaveRef.current = setTimeout(() => persistMemo(value), 400);
+  };
+  const [expandedStrength, setExpandedStrength] = useState<number | null>(null);
+  const [expandedComplaint, setExpandedComplaint] = useState<number | null>(null);
 
   // 로컬 점수 계산
   const scores = useMemo(() => {
@@ -270,35 +288,7 @@ export function TabAIInsight({ instructor, cohort, platformName }: TabAIInsightP
 
       {analysis && (
         <div className="grid gap-4">
-          {/* 핵심 테마 (불만/개선) */}
-          {analysis.complaints.length > 0 && (
-            <div className="bg-card rounded-xl border p-4">
-              <div className="flex items-center gap-1.5 mb-3">
-                <Flame className="w-4 h-4 text-red-500" />
-                <span className="text-[15px] font-bold">핵심 테마 (불만/개선)</span>
-              </div>
-              <div className="grid gap-3">
-                {analysis.complaints.map((c, i) => (
-                  <div key={i} className="border-l-2 border-red-200 pl-3">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className="text-[14px] font-bold">{c.theme}</span>
-                      <span className="text-[12px] text-red-600 font-semibold bg-red-50 px-1.5 py-0.5 rounded">
-                        {c.count}건
-                      </span>
-                    </div>
-                    <p className="text-[13px] text-muted-foreground">{c.detail}</p>
-                    {c.who.length > 0 && (
-                      <p className="text-[12px] text-muted-foreground/70 mt-0.5">
-                        {c.who.join(", ")}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 강점 */}
+          {/* 1. 강점 (먼저) */}
           {analysis.strengths.length > 0 && (
             <div className="bg-card rounded-xl border p-4">
               <div className="flex items-center gap-1.5 mb-3">
@@ -316,9 +306,33 @@ export function TabAIInsight({ instructor, cohort, platformName }: TabAIInsightP
                       </div>
                     ))}
                     {s.responses.length > 2 && (
-                      <div className="text-[12px] text-muted-foreground/50">
-                        외 {s.responses.length - 2}건
-                      </div>
+                      <>
+                        {expandedStrength === i ? (
+                          <div className="mt-1.5 space-y-1">
+                            {s.responses.map((r, j) => (
+                              <div key={j} className="text-[13px] text-muted-foreground">
+                                &quot;{r.text}&quot;{" "}
+                                <span className="text-muted-foreground/60">— {r.name}</span>
+                              </div>
+                            ))}
+                            <button
+                              type="button"
+                              onClick={() => setExpandedStrength(null)}
+                              className="flex items-center gap-1 text-[12px] text-primary font-semibold mt-1"
+                            >
+                              <ChevronUp className="w-3.5 h-3.5" /> 접기
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setExpandedStrength(i)}
+                            className="flex items-center gap-1 text-[12px] text-muted-foreground hover:text-foreground mt-0.5"
+                          >
+                            <ChevronDown className="w-3.5 h-3.5" /> 원문 {s.responses.length}건 보기
+                          </button>
+                        )}
+                      </>
                     )}
                   </div>
                 ))}
@@ -326,7 +340,53 @@ export function TabAIInsight({ instructor, cohort, platformName }: TabAIInsightP
             </div>
           )}
 
-          {/* 개선 제안 */}
+          {/* 2. 핵심 테마 (불만/개선) */}
+          {analysis.complaints.length > 0 && (
+            <div className="bg-card rounded-xl border p-4">
+              <div className="flex items-center gap-1.5 mb-3">
+                <Flame className="w-4 h-4 text-red-500" />
+                <span className="text-[15px] font-bold">핵심 테마 (불만/개선)</span>
+              </div>
+              <div className="grid gap-3">
+                {analysis.complaints.map((c, i) => (
+                  <div key={i} className="border-l-2 border-red-200 pl-3">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="text-[14px] font-bold">{c.theme}</span>
+                      <span className="text-[12px] text-red-600 font-semibold bg-red-50 px-1.5 py-0.5 rounded">
+                        {c.count}건
+                      </span>
+                    </div>
+                    <p className="text-[13px] text-muted-foreground">{c.detail}</p>
+                    {c.who.length > 0 && (
+                      expandedComplaint === i ? (
+                        <div className="mt-1.5 p-2 rounded bg-muted/50 text-[12px]">
+                          <div className="font-semibold text-foreground/80 mb-1">응답자</div>
+                          <p className="text-muted-foreground">{c.who.join(", ")}</p>
+                          <button
+                            type="button"
+                            onClick={() => setExpandedComplaint(null)}
+                            className="flex items-center gap-1 text-primary font-semibold mt-1"
+                          >
+                            <ChevronUp className="w-3.5 h-3.5" /> 접기
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setExpandedComplaint(i)}
+                          className="flex items-center gap-1 text-[12px] text-muted-foreground hover:text-foreground mt-0.5"
+                        >
+                          <ChevronDown className="w-3.5 h-3.5" /> 응답자/근거 보기 ({c.who.length}명)
+                        </button>
+                      )
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 3. 개선 제안 */}
           {analysis.suggestions.length > 0 && (
             <div className="bg-card rounded-xl border p-4">
               <div className="flex items-center gap-1.5 mb-3">
@@ -347,7 +407,6 @@ export function TabAIInsight({ instructor, cohort, platformName }: TabAIInsightP
             </div>
           )}
 
-          {/* 분석 결과가 모두 비어있을 때 */}
           {analysis.complaints.length === 0 &&
             analysis.strengths.length === 0 &&
             analysis.suggestions.length === 0 && (
@@ -357,6 +416,22 @@ export function TabAIInsight({ instructor, cohort, platformName }: TabAIInsightP
             )}
         </div>
       )}
+
+      {/* 인사이트 메모 (자동 저장) */}
+      <div className="rounded-xl border bg-card p-3 mt-4">
+        <div className="flex items-center gap-1.5 mb-2">
+          <FileText className="w-4 h-4 text-muted-foreground" />
+          <span className="text-[13px] font-semibold">메모</span>
+          <span className="text-[11px] text-muted-foreground">(자동 저장)</span>
+        </div>
+        <textarea
+          value={memo}
+          onChange={(e) => handleMemoChange(e.target.value)}
+          placeholder="AI 인사이트·액션 관련 메모를 적어두세요"
+          className="w-full min-h-[72px] py-2 px-3 rounded-lg border text-[13px] bg-background resize-y"
+          rows={3}
+        />
+      </div>
     </div>
   );
 }

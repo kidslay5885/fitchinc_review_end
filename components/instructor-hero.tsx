@@ -13,11 +13,22 @@ interface InstructorHeroProps {
   onUpdateCohort?: (cohort: Cohort) => void;
 }
 
+const TOTAL_STUDENTS_KEY = (platform: string, instructor: string, cohortLabel: string | null) =>
+  `total-students-${platform}-${instructor}-${cohortLabel ?? "all"}`;
+
 export function InstructorHero({ platformName, instructor, cohort, onUpdateCohort }: InstructorHeroProps) {
   const [totalInput, setTotalInput] = useState("");
+  const storageKey = TOTAL_STUDENTS_KEY(platformName, instructor.name, cohort?.label ?? null);
+
   useEffect(() => {
-    if (cohort) setTotalInput(cohort.totalStudents ? String(cohort.totalStudents) : "");
-  }, [cohort?.id, cohort?.totalStudents]);
+    if (cohort) {
+      setTotalInput(cohort.totalStudents ? String(cohort.totalStudents) : "");
+      return;
+    }
+    if (typeof window === "undefined") return;
+    const v = localStorage.getItem(storageKey);
+    setTotalInput(v && /^\d+$/.test(v) ? v : "");
+  }, [cohort?.id, cohort?.totalStudents, cohort, storageKey]);
 
   // Aggregate responses
   const preResponses = cohort
@@ -68,30 +79,32 @@ export function InstructorHero({ platformName, instructor, cohort, onUpdateCohor
                   <RingScore score={scores.ps2Avg} label="피드백" />
                 </div>
                 <div className="border-l pl-4 text-[14px] text-muted-foreground leading-relaxed space-y-0.5">
-                  {cohort && onUpdateCohort && (
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <label className="text-muted-foreground shrink-0">전체 수강생</label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={totalInput}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setTotalInput(v);
-                          const n = parseInt(v, 10);
-                          if (!isNaN(n) && n >= 0)
-                            onUpdateCohort({ ...cohort, totalStudents: n });
-                        }}
-                        onBlur={() => {
-                          const n = parseInt(totalInput, 10);
-                          if (isNaN(n) || n < 0) setTotalInput(cohort.totalStudents ? String(cohort.totalStudents) : "");
-                        }}
-                        placeholder="명"
-                        className="w-16 py-0.5 px-1.5 rounded border text-[13px] bg-card text-foreground"
-                      />
-                      <span className="text-muted-foreground">명</span>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <label className="text-muted-foreground shrink-0">전체 수강생</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={totalInput}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setTotalInput(v);
+                        const n = parseInt(v, 10);
+                        if (cohort && onUpdateCohort && !isNaN(n) && n >= 0)
+                          onUpdateCohort({ ...cohort, totalStudents: n });
+                        if (!cohort && typeof window !== "undefined" && !isNaN(n) && n >= 0)
+                          localStorage.setItem(storageKey, String(n));
+                      }}
+                      onBlur={() => {
+                        const n = parseInt(totalInput, 10);
+                        if (cohort && (isNaN(n) || n < 0)) setTotalInput(cohort.totalStudents ? String(cohort.totalStudents) : "");
+                        if (!cohort && typeof window !== "undefined" && (isNaN(n) || n < 0))
+                          setTotalInput(localStorage.getItem(storageKey) || "");
+                      }}
+                      placeholder="명"
+                      className="w-16 py-0.5 px-1.5 rounded border text-[13px] bg-card text-foreground"
+                    />
+                    <span className="text-muted-foreground">명</span>
+                  </div>
                   <div>
                     사전 설문 <strong className="text-foreground">{preResponses.length}</strong>명
                   </div>

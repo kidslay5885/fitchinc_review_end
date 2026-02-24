@@ -14,6 +14,7 @@ import { PlatformDashboard } from "@/components/platform-dashboard";
 import { InstructorHero } from "@/components/instructor-hero";
 import { TabFeedbackHub } from "@/components/tab-feedback-hub";
 import { TabAIInsight } from "@/components/tab-ai-insight";
+import { TabQualityOverview } from "@/components/tab-quality-overview";
 import { UploadDialog } from "@/components/upload-dialog";
 import { EditInstructorDialog } from "@/components/edit-instructor-dialog";
 import type { Instructor } from "@/lib/types";
@@ -22,6 +23,7 @@ import { BarChart3, Loader2 } from "lucide-react";
 const TABS = [
   { id: "feedback", icon: "💬", label: "피드백" },
   { id: "insight", icon: "💡", label: "AI 인사이트" },
+  { id: "quality", icon: "📊", label: "강의 품질", onlyWhenAllCohorts: true },
 ];
 
 function MainContent() {
@@ -129,7 +131,7 @@ function MainContent() {
                 />
 
                 <div className="flex gap-0 border-b-2 border-border mb-5">
-                  {TABS.map((t) => (
+                  {TABS.filter((t) => !("onlyWhenAllCohorts" in t && t.onlyWhenAllCohorts) || !cohort).map((t) => (
                     <button
                       key={t.id}
                       onClick={() => dispatch({ type: "SET_TAB", tab: t.id })}
@@ -151,11 +153,14 @@ function MainContent() {
                   </div>
                 ) : (
                   <>
-                    {state.activeTab === "feedback" && (
+                    {(state.activeTab === "feedback" || (state.activeTab === "quality" && cohort)) && (
                       <TabFeedbackHub instructor={inst} cohort={cohort} platformName={platformName} />
                     )}
                     {state.activeTab === "insight" && (
                       <TabAIInsight instructor={inst} cohort={cohort} platformName={platformName} />
+                    )}
+                    {state.activeTab === "quality" && !cohort && (
+                      <TabQualityOverview instructor={inst} platformName={platformName} />
                     )}
                   </>
                 )}

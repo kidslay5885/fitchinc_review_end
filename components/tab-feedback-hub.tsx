@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import type { Instructor, Cohort, Comment, Survey } from "@/lib/types";
 import {
   FIELD_LABELS,
@@ -16,7 +16,7 @@ import {
   type TagValue,
   type PlatformSub,
 } from "@/lib/feedback-utils";
-import { Loader2, Search, Copy, Check, X, Send } from "lucide-react";
+import { Loader2, Search, Copy, Check, X, Send, FileText } from "lucide-react";
 import { toast } from "sonner";
 
 type HubView = "untagged" | "instructor" | "platform" | "all";
@@ -43,22 +43,23 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [copied, setCopied] = useState(false);
   const [tagging, setTagging] = useState(false);
-  const [lastLoadedAt, setLastLoadedAt] = useState<Date | null>(null);
-
   const cohortLabel = cohort?.label || null;
-  const deliveryDoneKey = `delivery-done-${platformName}-${instructor.name}-${cohortLabel ?? "all"}`;
-  const [deliveryDone, setDeliveryDoneState] = useState(false);
-  const setDeliveryDone = (v: boolean) => {
-    setDeliveryDoneState(v);
-    if (typeof window !== "undefined") {
-      if (v) localStorage.setItem(deliveryDoneKey, "1");
-      else localStorage.removeItem(deliveryDoneKey);
-    }
-  };
+  const memoKey = `memo-feedback-${platformName}-${instructor.name}-${cohortLabel ?? "all"}`;
+  const [memo, setMemo] = useState("");
+  const memoSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (typeof window === "undefined") return;
-    setDeliveryDoneState(localStorage.getItem(deliveryDoneKey) === "1");
-  }, [deliveryDoneKey]);
+    setMemo(localStorage.getItem(memoKey) || "");
+  }, [memoKey]);
+  const persistMemo = (value: string) => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(memoKey, value);
+  };
+  const handleMemoChange = (value: string) => {
+    setMemo(value);
+    if (memoSaveRef.current) clearTimeout(memoSaveRef.current);
+    memoSaveRef.current = setTimeout(() => persistMemo(value), 400);
+  };
 
   useEffect(() => {
     loadComments();
@@ -96,7 +97,6 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
         setComments(useful.map((c) => ({ ...c, cohortLabel })));
       }
       setLoaded(true);
-      setLastLoadedAt(new Date());
     } catch {
       toast.error("피드백 로드 실패");
     } finally {
@@ -398,29 +398,32 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
     <div className="grid gap-3">
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-6">
         <div className="grid gap-3 min-w-0">
-      {/* 뷰 전환 */}
-      <div className="flex gap-0.5 bg-muted rounded-lg p-0.5 border w-fit">
-        {([
-          { id: "all" as HubView, label: `전체 ${comments.length}` },
-          { id: "platform" as HubView, label: `플랫폼 ${platformCount}` },
-          { id: "instructor" as HubView, label: `강사 ${instructorCount}` },
-          { id: "untagged" as HubView, label: `미분류 ${untaggedCount}` },
-        ]).map((v) => (
-          <button
-            key={v.id}
-            onClick={() => {
-              setHubView(v.id);
-              setPlatformSub("all");
-            }}
-            className={`py-1.5 px-3.5 rounded-md text-[13px] transition-colors ${
-              hubView === v.id
-                ? "bg-card font-bold text-primary shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {v.label}
-          </button>
-        ))}
+      {/* 전달 대상: 이 피드백을 플랫폼/강사 중 누구에게 넘길지 분류한 결과 */}
+      <div className="flex flex-col gap-1.5">
+        <span className="text-[12px] font-semibold text-muted-foreground">전달 대상</span>
+        <div className="flex gap-0.5 bg-muted rounded-lg p-0.5 border w-fit">
+          {([
+            { id: "all" as HubView, label: `전체 ${comments.length}` },
+            { id: "platform" as HubView, label: `플랫폼 ${platformCount}` },
+            { id: "instructor" as HubView, label: `강사 ${instructorCount}` },
+            { id: "untagged" as HubView, label: `미분류 ${untaggedCount}` },
+          ]).map((v) => (
+            <button
+              key={v.id}
+              onClick={() => {
+                setHubView(v.id);
+                setPlatformSub("all");
+              }}
+              className={`py-1.5 px-3.5 rounded-md text-[13px] transition-colors ${
+                hubView === v.id
+                  ? "bg-card font-bold text-primary shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {v.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* 보조 필터 */}
@@ -478,21 +481,24 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
           </div>
         )}
 
-        {/* 네이버 폼 출처 항목 필터 */}
+        {/* 설문 문항: 네이버 폼의 어떤 질문에서 나온 응답인지 */}
         {sourceFieldsInData.length > 1 && (
-          <select
-            value={sourceFieldFilter}
-            onChange={(e) => setSourceFieldFilter(e.target.value)}
-            className="py-1.5 px-2.5 rounded-lg border text-[14px] bg-card shrink-0"
-            title="네이버 폼 항목별로 보기"
-          >
-            <option value="all">전체 출처</option>
-            {sourceFieldsInData.map((f) => (
-              <option key={f} value={f}>
-                {FIELD_LABELS[f] || f}
-              </option>
-            ))}
-          </select>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="text-[12px] font-semibold text-muted-foreground whitespace-nowrap">설문 문항</span>
+            <select
+              value={sourceFieldFilter}
+              onChange={(e) => setSourceFieldFilter(e.target.value)}
+              className="py-1.5 px-2.5 rounded-lg border text-[14px] bg-card"
+              title="설문의 어떤 질문에서 수집된 응답만 볼지 선택"
+            >
+              <option value="all">전체 문항</option>
+              {sourceFieldsInData.map((f) => (
+                <option key={f} value={f}>
+                  {FIELD_LABELS[f] || f}
+                </option>
+              ))}
+            </select>
+          </div>
         )}
 
         {/* 기수 필터 */}
@@ -641,6 +647,22 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
           </button>
         </div>
       )}
+
+      {/* 피드백 메모 (자동 저장) */}
+      <div className="rounded-xl border bg-card p-3">
+        <div className="flex items-center gap-1.5 mb-2">
+          <FileText className="w-4 h-4 text-muted-foreground" />
+          <span className="text-[13px] font-semibold">메모</span>
+          <span className="text-[11px] text-muted-foreground">(자동 저장)</span>
+        </div>
+        <textarea
+          value={memo}
+          onChange={(e) => handleMemoChange(e.target.value)}
+          placeholder="피드백 검수·전달 관련 메모를 적어두세요"
+          className="w-full min-h-[72px] py-2 px-3 rounded-lg border text-[13px] bg-background resize-y"
+          rows={3}
+        />
+      </div>
         </div>
 
         {/* 오른쪽(데스크톱) / 상단(모바일): 전달 요약 (PM 한눈에 보기) — 폭 고정으로 결과 없을 때 넓어짐 방지 */}
@@ -686,24 +708,6 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
             <div className={`mt-3 py-2 px-3 rounded-lg text-center text-[13px] font-semibold ${isReviewComplete ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-amber-50 text-amber-700 border border-amber-200"}`}>
               {isReviewComplete ? "검수 완료 · 전달 가능" : "미분류 처리 후 전달"}
             </div>
-            <label className="mt-2.5 flex items-center gap-2 cursor-pointer text-[12px] text-muted-foreground">
-              <input
-                type="checkbox"
-                checked={deliveryDone}
-                onChange={(e) => setDeliveryDone(e.target.checked)}
-                className="rounded border-gray-300 text-primary"
-              />
-              전달 완료 (기록)
-            </label>
-            <p className="mt-1 text-[11px] text-muted-foreground/80">
-              기준: {lastLoadedAt ? (() => {
-                const min = Math.floor((Date.now() - lastLoadedAt.getTime()) / 60000);
-                if (min < 1) return "방금 전";
-                if (min < 60) return `${min}분 전`;
-                const h = Math.floor(min / 60);
-                return `${h}시간 전`;
-              })() : "—"}
-            </p>
           </div>
         </div>
       </div>
