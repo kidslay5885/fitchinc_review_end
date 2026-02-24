@@ -65,8 +65,8 @@ export function AppSidebar({ onUpload, onEditInstructor }: AppSidebarProps) {
                         <img
                           src={instructor.photo}
                           alt={instructor.name}
-                          className="w-full h-full object-cover"
-                          style={{ objectPosition: instructor.photoPosition || "center center" }}
+                          className="w-full h-full object-contain"
+                          style={{ objectPosition: instructor.photoPosition || "center top" }}
                         />
                       ) : (
                         <User className="w-3.5 h-3.5 text-muted-foreground" />

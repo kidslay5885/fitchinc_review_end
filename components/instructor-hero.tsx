@@ -52,7 +52,7 @@ export function InstructorHero({ platformName, instructor, cohort, onUpdateCohor
           <div className="flex items-center gap-3.5">
             <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-muted flex items-center justify-center overflow-hidden shrink-0 ring-2 ring-border/50">
               {instructor.photo ? (
-                <img src={instructor.photo} alt={instructor.name} className="w-full h-full object-cover" style={{ objectPosition: instructor.photoPosition || "center center" }} />
+                <img src={instructor.photo} alt={instructor.name} className="w-full h-full object-contain" style={{ objectPosition: instructor.photoPosition || "center top" }} />
               ) : (
                 <User className="w-7 h-7 sm:w-8 sm:h-8 text-muted-foreground" />
               )}
