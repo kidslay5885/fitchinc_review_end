@@ -30,8 +30,8 @@ export async function POST(req: NextRequest) {
 - 톤: ${toneGuide}
 
 ## 설문 결과:
-- 커리큘럼 점수: ${scores?.ps1Avg || 0}/10
-- 피드백 점수: ${scores?.ps2Avg || 0}/10
+- 커리큘럼 점수: ${scores?.ps1Avg || 0}/5
+- 피드백 점수: ${scores?.ps2Avg || 0}/5
 - 추천률: ${scores?.recRate || 0}%
 - 사전 설문 응답: ${scores?.preCount || 0}명
 - 후기 설문 응답: ${scores?.postCount || 0}명

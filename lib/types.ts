@@ -112,13 +112,6 @@ export interface AnalysisResult {
   strengths: StrengthItem[];
 }
 
-export interface NoteData {
-  good: string;
-  bad: string;
-  action: string;
-  memo: string;
-}
-
 export interface ParsedFile {
   file: File;
   name: string;

@@ -7,7 +7,7 @@ interface RingScoreProps {
   label?: string;
 }
 
-export function RingScore({ score, max = 10, size = 50, label }: RingScoreProps) {
+export function RingScore({ score, max = 5, size = 50, label }: RingScoreProps) {
   const p = score / max;
   const r = (size - 7) / 2;
   const ci = Math.PI * 2 * r;

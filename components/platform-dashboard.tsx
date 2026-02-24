@@ -38,8 +38,8 @@ export function PlatformDashboard({ platform, onSelectInstructor }: PlatformDash
           <div className="text-center px-5 py-2.5 bg-card rounded-[10px] border">
             <div className="text-[11px] font-bold text-muted-foreground mb-0.5">강의 만족도 평균</div>
             <div className="text-[28px] font-extrabold leading-none">
-              <span className={Number(avg) >= 9 ? "text-emerald-600" : "text-primary"}>{avg}</span>
-              <span className="text-[13px] font-normal text-muted-foreground">/10</span>
+              <span className={Number(avg) >= 4.5 ? "text-emerald-600" : "text-primary"}>{avg}</span>
+              <span className="text-[13px] font-normal text-muted-foreground">/5</span>
             </div>
           </div>
         </div>
@@ -83,7 +83,7 @@ export function PlatformDashboard({ platform, onSelectInstructor }: PlatformDash
                     <div className="text-center">
                       <div
                         className={`text-[20px] font-extrabold ${
-                          Number(ia) >= 9 ? "text-emerald-600" : "text-primary"
+                          Number(ia) >= 4.5 ? "text-emerald-600" : "text-primary"
                         }`}
                       >
                         {ia}

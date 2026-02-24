@@ -13,8 +13,8 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { PlatformDashboard } from "@/components/platform-dashboard";
 import { InstructorHero } from "@/components/instructor-hero";
 import { TabFeedbackHub } from "@/components/tab-feedback-hub";
-import { TabPMNotes } from "@/components/tab-pm-notes";
-import { TabData } from "@/components/tab-data";
+import { TabAnalysis } from "@/components/tab-analysis";
+import { TabAIInsight } from "@/components/tab-ai-insight";
 import { UploadDialog } from "@/components/upload-dialog";
 import { EditInstructorDialog } from "@/components/edit-instructor-dialog";
 import type { Instructor } from "@/lib/types";
@@ -22,8 +22,8 @@ import { BarChart3, Loader2 } from "lucide-react";
 
 const TABS = [
   { id: "feedback", icon: "💬", label: "피드백" },
-  { id: "notes", icon: "📝", label: "PM 워크노트" },
-  { id: "data", icon: "📊", label: "데이터" },
+  { id: "analysis", icon: "📋", label: "분석" },
+  { id: "insight", icon: "💡", label: "AI 인사이트" },
 ];
 
 function MainContent() {
@@ -154,11 +154,11 @@ function MainContent() {
                   {state.activeTab === "feedback" && (
                     <TabFeedbackHub instructor={inst} cohort={cohort} platformName={platformName} />
                   )}
-                  {state.activeTab === "notes" && (
-                    <TabPMNotes instructor={inst} cohort={cohort} platformName={platformName} />
+                  {state.activeTab === "analysis" && (
+                    <TabAnalysis instructor={inst} cohort={cohort} platformName={platformName} />
                   )}
-                  {state.activeTab === "data" && (
-                    <TabData instructor={inst} cohort={cohort} />
+                  {state.activeTab === "insight" && (
+                    <TabAIInsight instructor={inst} cohort={cohort} platformName={platformName} />
                   )}
                 </>
               )}

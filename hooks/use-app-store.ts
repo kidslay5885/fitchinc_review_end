@@ -91,7 +91,7 @@ function reducer(state: AppState, action: Action): AppState {
       };
 
     case "SELECT_COHORT":
-      return { ...state, selectedCohortId: action.id, activeTab: "overview" };
+      return { ...state, selectedCohortId: action.id, activeTab: "feedback" };
 
     case "SET_TAB":
       return { ...state, activeTab: action.tab };
