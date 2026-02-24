@@ -179,13 +179,23 @@ function MainContent() {
                 ) : (
                   <>
                     {state.activeTab === "whole" && (
-                      <TabWhole instructor={inst} platformName={platformName} selectedCohort={cohort} />
+                      <TabWhole
+                        instructor={inst}
+                        platformName={platformName}
+                        selectedCohort={cohort}
+                        onGoToQuality={() => dispatch({ type: "SET_TAB", tab: "quality" })}
+                      />
                     )}
                     {(state.activeTab === "feedback" || (state.activeTab === "quality" && cohort)) && (
                       <TabFeedbackHub instructor={inst} cohort={cohort} platformName={platformName} />
                     )}
                     {state.activeTab === "insight" && (
-                      <TabAIInsight instructor={inst} cohort={cohort} platformName={platformName} />
+                      <TabAIInsight
+                        instructor={inst}
+                        cohort={cohort}
+                        platformName={platformName}
+                        isActive
+                      />
                     )}
                     {state.activeTab === "quality" && !cohort && (
                       <TabQualityOverview instructor={inst} platformName={platformName} />

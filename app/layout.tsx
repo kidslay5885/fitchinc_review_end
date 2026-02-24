@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Toaster } from "sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -29,8 +30,10 @@ export default function RootLayout({
         style={{ fontFamily: "'Pretendard', -apple-system, sans-serif" }}
         suppressHydrationWarning
       >
-        {children}
-        <Toaster position="bottom-right" richColors />
+        <TooltipProvider delayDuration={300}>
+          {children}
+          <Toaster position="bottom-right" richColors />
+        </TooltipProvider>
       </body>
     </html>
   );

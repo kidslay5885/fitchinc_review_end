@@ -11,14 +11,17 @@ interface TabAIInsightProps {
   instructor: Instructor;
   cohort: Cohort | null;
   platformName: string;
+  /** 탭이 보일 때 true. 포커스 시 캐시를 다시 불러와 이탈 후 생성 완료된 결과를 표시 */
+  isActive?: boolean;
 }
 
-export function TabAIInsight({ instructor, cohort, platformName }: TabAIInsightProps) {
+export function TabAIInsight({ instructor, cohort, platformName, isActive = true }: TabAIInsightProps) {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   const cohortLabel = cohort?.label || null;
+  const scopeLabel = cohortLabel ? cohortLabel : "전체";
   const [expandedStrength, setExpandedStrength] = useState<number | null>(null);
   const [expandedComplaint, setExpandedComplaint] = useState<number | null>(null);
 
@@ -42,10 +45,10 @@ export function TabAIInsight({ instructor, cohort, platformName }: TabAIInsightP
       : instructor.cohorts.reduce((a, c) => a + c.postResponses.length, 0);
   }, [instructor, cohort]);
 
-  // 캐시 확인
+  // 캐시 확인 (기수/전체별로 분리 저장됨). 탭 포커스 시에도 재조회해 이탈 후 생성 완료된 결과 표시
   useEffect(() => {
-    loadCache();
-  }, [platformName, instructor.name, cohortLabel]);
+    if (isActive) loadCache();
+  }, [platformName, instructor.name, cohortLabel, isActive]);
 
   const loadCache = async () => {
     try {
@@ -119,24 +122,37 @@ export function TabAIInsight({ instructor, cohort, platformName }: TabAIInsightP
 
   return (
     <div className="grid gap-5">
-      {/* 헤더 */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Lightbulb className="w-5 h-5 text-amber-500" />
-          <span className="text-[16px] font-extrabold">AI 인사이트</span>
+      {/* 헤더: 범위(전체 vs 기수) 명시 + 진행률 바 */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <Lightbulb className="w-5 h-5 text-amber-500" />
+            <span className="text-[16px] font-extrabold">AI 인사이트</span>
+            <span className="text-[13px] text-muted-foreground font-medium">
+              (현재: {scopeLabel})
+            </span>
+          </div>
+          <button
+            onClick={runAnalysis}
+            disabled={loading}
+            className="py-1.5 px-4 rounded-lg bg-primary text-primary-foreground text-[13px] font-bold flex items-center gap-1.5 hover:opacity-90 transition-opacity disabled:opacity-50"
+          >
+            {loading ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Sparkles className="w-3.5 h-3.5" />
+            )}
+            {loading ? "분석 중..." : loaded ? "다시 분석하기" : "AI 인사이트 얻기"}
+          </button>
         </div>
-        <button
-          onClick={runAnalysis}
-          disabled={loading}
-          className="py-1.5 px-4 rounded-lg bg-primary text-primary-foreground text-[13px] font-bold flex items-center gap-1.5 hover:opacity-90 transition-opacity disabled:opacity-50"
-        >
-          {loading ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          ) : (
-            <Sparkles className="w-3.5 h-3.5" />
-          )}
-          {loading ? "분석 중..." : loaded ? "다시 분석하기" : "AI 인사이트 얻기"}
-        </button>
+        {loading && (
+          <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full w-1/3 min-w-[80px] rounded-full bg-primary animate-[progress-slide_1.5s_ease-in-out_infinite]"
+              style={{ transformOrigin: "left" }}
+            />
+          </div>
+        )}
       </div>
 
       {/* 요약 통계 */}

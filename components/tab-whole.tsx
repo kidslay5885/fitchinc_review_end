@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import type { Instructor, Cohort, SurveyResponse } from "@/lib/types";
 import { FIELD_LABELS } from "@/lib/feedback-utils";
 import { getOrderedCohorts } from "@/lib/cohort-order";
-import { Info } from "lucide-react";
+import { computeScores } from "@/lib/analysis-engine";
+import { Info, BarChart3 } from "lucide-react";
 
 const PRE_FIELDS = ["hopePlatform", "hopeInstructor"] as const;
 const POST_FIELD_LABELS: Record<string, string> = {
@@ -32,19 +33,24 @@ interface TabWholeProps {
   instructor: Instructor;
   platformName: string;
   selectedCohort: Cohort | null;
+  /** 전체 보기에서 강의 품질 탭으로 이동할 때 호출 (선택) */
+  onGoToQuality?: () => void;
 }
 
 /** 목차 한 항목: id + 표시 라벨 */
 type TocEntry = { id: string; label: string };
 
-export function TabWhole({ instructor, platformName }: TabWholeProps) {
+export function TabWhole({ instructor, platformName, selectedCohort, onGoToQuality }: TabWholeProps) {
   const cohortsWithData = instructor.cohorts.filter((c) => c.preResponses.length > 0 || c.postResponses.length > 0);
   const orderedCohorts = useMemo(
     () => getOrderedCohorts(platformName, instructor.name, cohortsWithData),
     [platformName, instructor.name, cohortsWithData]
   );
-  // 전체 보기 탭 내에서만 쓰는 로컬 필터 (페이지/사이드바 이동 없음)
+  // 전체 보기 탭 내에서만 쓰는 로컬 필터. 사이드바에서 기수 선택 시 해당 기수로 맞춤(전체 vs 기수 분리)
   const [viewCohortLabel, setViewCohortLabel] = useState<string | null>(null);
+  useEffect(() => {
+    setViewCohortLabel(selectedCohort?.label ?? null);
+  }, [selectedCohort?.label]);
   const currentCohorts = viewCohortLabel
     ? orderedCohorts.filter((c) => c.label === viewCohortLabel)
     : orderedCohorts;
@@ -91,6 +97,40 @@ export function TabWhole({ instructor, platformName }: TabWholeProps) {
         <h2 className="text-[18px] font-extrabold">전체 설문 결과</h2>
       </div>
 
+      {/* 전체일 때: 강의 품질 요약 + 강의 품질 탭으로 이동 (아이디어: 전체 보기 = 전체 + 강의 품질만 강조) */}
+      {showAll && orderedCohorts.length > 0 && (() => {
+        const rows = orderedCohorts.map((c) => {
+          const s = computeScores(c.postResponses);
+          return { label: c.label, ps1: s.ps1Avg, ps2: s.ps2Avg, recRate: s.recRate };
+        });
+        const withData = rows.filter((r) => r.ps1 > 0 || r.ps2 > 0);
+        const avg = withData.length > 0
+          ? (withData.reduce((a, r) => a + (r.ps1 + r.ps2) / 2, 0) / withData.length).toFixed(1)
+          : null;
+        return (
+          <div className="rounded-xl border bg-card p-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-primary" />
+              <span className="text-[14px] font-bold">강의 품질 요약</span>
+              {avg != null && (
+                <span className="text-[13px] text-muted-foreground">
+                  기수 {orderedCohorts.length}개 · 만족도 평균 <strong className="text-foreground">{avg}</strong>/10
+                </span>
+              )}
+            </div>
+            {onGoToQuality && (
+              <button
+                type="button"
+                onClick={onGoToQuality}
+                className="py-1.5 px-3 rounded-lg text-[13px] font-semibold bg-muted hover:bg-muted/80 text-foreground"
+              >
+                📊 강의 품질 탭에서 자세히 보기
+              </button>
+            )}
+          </div>
+        );
+      })()}
+
       {/* 기수 선택: 탭 내 로컬 필터만 (페이지 이동 없음, 전체 보기 내에서 해당 데이터만 표시) */}
       {orderedCohorts.length > 1 && (
         <div className="flex flex-wrap items-center gap-2">
@@ -133,9 +173,27 @@ export function TabWhole({ instructor, platformName }: TabWholeProps) {
         </div>
       ) : (
         <>
-          {/* 목차: 전체 보기 시 기수만, 한 기수 선택 시 문항별 (클릭하면 해당 위치로 스크롤) */}
+          {/* 목차 + 사전/후기 바로가기: 한 기수 선택 시 상단에 사전·후기 이동 버튼 노출 */}
           {tocEntries.length > 0 && (
-            <nav className="sticky top-2 z-10 rounded-xl border bg-card/95 backdrop-blur p-3 shadow-sm">
+            <nav className="sticky top-2 z-10 rounded-xl border bg-card/95 backdrop-blur p-3 shadow-sm space-y-3">
+              {!showAll && currentCohorts.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => scrollTo("section-pre")}
+                    className="py-1.5 px-3 rounded-lg text-[12px] font-semibold bg-blue-100 text-blue-800 border border-blue-200 hover:bg-blue-200/90"
+                  >
+                    ↑ 사전 설문
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => scrollTo("section-post")}
+                    className="py-1.5 px-3 rounded-lg text-[12px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200 hover:bg-emerald-200/90"
+                  >
+                    ↓ 후기 설문
+                  </button>
+                </div>
+              )}
               <div className="text-[12px] font-semibold text-muted-foreground mb-2 px-1">
                 {showAll && orderedCohorts.length > 1 ? "기수별로 이동" : "목차 (클릭하면 해당 문항으로 이동)"}
               </div>
@@ -166,7 +224,7 @@ export function TabWhole({ instructor, platformName }: TabWholeProps) {
 
           <div className="grid gap-10">
             {/* 사전 설문 */}
-            <section className="rounded-xl border border-blue-200/60 bg-blue-50/30 p-4 sm:p-5">
+            <section id="section-pre" className="rounded-xl border border-blue-200/60 bg-blue-50/30 p-4 sm:p-5 scroll-mt-24">
               <h3 className="text-[17px] font-bold border-b-2 border-blue-400/50 pb-2 mb-5 text-blue-700">사전 설문</h3>
               <div className="grid gap-8">
                 {currentCohorts.map((cohort) => (
@@ -211,7 +269,7 @@ export function TabWhole({ instructor, platformName }: TabWholeProps) {
             </section>
 
             {/* 후기 설문 */}
-            <section className="rounded-xl border border-emerald-200/60 bg-emerald-50/30 p-4 sm:p-5">
+            <section id="section-post" className="rounded-xl border border-emerald-200/60 bg-emerald-50/30 p-4 sm:p-5 scroll-mt-24">
               <h3 className="text-[17px] font-bold border-b-2 border-emerald-400/50 pb-2 mb-5 text-emerald-700">후기 설문</h3>
               <div className="grid gap-8">
                 {currentCohorts.map((cohort) => (

@@ -43,3 +43,15 @@
     @apply bg-background text-foreground;
   }
 }
+
+@keyframes progress-slide {
+  0%,
+  100% {
+    transform: scaleX(0.6);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+}
