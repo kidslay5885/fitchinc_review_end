@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import type { Instructor, Cohort, AnalysisResult } from "@/lib/types";
 import { computeScores } from "@/lib/analysis-engine";
 import { RingScore } from "./ring-score";
-import { Loader2, RefreshCw, AlertTriangle, Flame, ThumbsUp, Lightbulb, FileText, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, RefreshCw, AlertTriangle, Flame, ThumbsUp, Lightbulb, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 
 interface TabAIInsightProps {
@@ -25,22 +25,6 @@ export function TabAIInsight({ instructor, cohort, platformName }: TabAIInsightP
   const [loaded, setLoaded] = useState(false);
 
   const cohortLabel = cohort?.label || null;
-  const memoKey = `memo-insight-${platformName}-${instructor.name}-${cohortLabel ?? "all"}`;
-  const [memo, setMemo] = useState("");
-  const memoSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    setMemo(localStorage.getItem(memoKey) || "");
-  }, [memoKey]);
-  const persistMemo = (value: string) => {
-    if (typeof window === "undefined") return;
-    localStorage.setItem(memoKey, value);
-  };
-  const handleMemoChange = (value: string) => {
-    setMemo(value);
-    if (memoSaveRef.current) clearTimeout(memoSaveRef.current);
-    memoSaveRef.current = setTimeout(() => persistMemo(value), 400);
-  };
   const [expandedStrength, setExpandedStrength] = useState<number | null>(null);
   const [expandedComplaint, setExpandedComplaint] = useState<number | null>(null);
 
@@ -416,22 +400,6 @@ export function TabAIInsight({ instructor, cohort, platformName }: TabAIInsightP
             )}
         </div>
       )}
-
-      {/* 인사이트 메모 (자동 저장) */}
-      <div className="rounded-xl border bg-card p-3 mt-4">
-        <div className="flex items-center gap-1.5 mb-2">
-          <FileText className="w-4 h-4 text-muted-foreground" />
-          <span className="text-[13px] font-semibold">메모</span>
-          <span className="text-[11px] text-muted-foreground">(자동 저장)</span>
-        </div>
-        <textarea
-          value={memo}
-          onChange={(e) => handleMemoChange(e.target.value)}
-          placeholder="AI 인사이트·액션 관련 메모를 적어두세요"
-          className="w-full min-h-[72px] py-2 px-3 rounded-lg border text-[13px] bg-background resize-y"
-          rows={3}
-        />
-      </div>
     </div>
   );
 }

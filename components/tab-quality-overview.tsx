@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
 import type { Instructor } from "@/lib/types";
 import { computeScores } from "@/lib/analysis-engine";
-import { FileText, BarChart3 } from "lucide-react";
+import { BarChart3 } from "lucide-react";
 
 interface TabQualityOverviewProps {
   instructor: Instructor;
@@ -11,21 +10,6 @@ interface TabQualityOverviewProps {
 }
 
 export function TabQualityOverview({ instructor, platformName }: TabQualityOverviewProps) {
-  const memoKey = `memo-quality-${platformName}-${instructor.name}`;
-  const [memo, setMemo] = useState("");
-  const memoSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    setMemo(localStorage.getItem(memoKey) || "");
-  }, [memoKey]);
-  const handleMemoChange = (value: string) => {
-    setMemo(value);
-    if (memoSaveRef.current) clearTimeout(memoSaveRef.current);
-    memoSaveRef.current = setTimeout(() => {
-      if (typeof window !== "undefined") localStorage.setItem(memoKey, value);
-    }, 400);
-  };
-
   const rows = instructor.cohorts.map((c) => {
     const scores = computeScores(c.postResponses);
     const preN = c.preResponses.length;
@@ -82,22 +66,6 @@ export function TabQualityOverview({ instructor, platformName }: TabQualityOverv
             </tbody>
           </table>
         </div>
-      </div>
-
-      {/* 메모: 다음 기수 개선 포인트 등 */}
-      <div className="rounded-xl border bg-card p-3">
-        <div className="flex items-center gap-1.5 mb-2">
-          <FileText className="w-4 h-4 text-muted-foreground" />
-          <span className="text-[13px] font-semibold">메모</span>
-          <span className="text-[11px] text-muted-foreground">(자동 저장)</span>
-        </div>
-        <textarea
-          value={memo}
-          onChange={(e) => handleMemoChange(e.target.value)}
-          placeholder="다음 기수 개선 포인트, 반복 불만 대응 계획, 강의 품질 관련 메모 등"
-          className="w-full min-h-[80px] py-2 px-3 rounded-lg border text-[13px] bg-background resize-y"
-          rows={4}
-        />
       </div>
     </div>
   );

@@ -11,12 +11,11 @@ import {
   isPlatformTag,
   isUsefulComment,
   effectiveTag,
-  groupByField,
   type CommentWithCohort,
   type TagValue,
   type PlatformSub,
 } from "@/lib/feedback-utils";
-import { Loader2, Search, Copy, Check, X, Send, FileText } from "lucide-react";
+import { Loader2, Search, Copy, Check, X, Send, FileText, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 type HubView = "untagged" | "instructor" | "platform" | "all";
@@ -43,6 +42,8 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [copied, setCopied] = useState(false);
   const [tagging, setTagging] = useState(false);
+  const [aiSuggestLoading, setAiSuggestLoading] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState<Record<string, { tag: TagValue; sentiment: "positive" | "negative" | "neutral" }>>({});
   const cohortLabel = cohort?.label || null;
   const memoKey = `memo-feedback-${platformName}-${instructor.name}-${cohortLabel ?? "all"}`;
   const [memo, setMemo] = useState("");
@@ -69,6 +70,44 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
   useEffect(() => {
     setSelected(new Set());
   }, [hubView]);
+
+  const clearSuggestion = (commentId: string) => {
+    setAiSuggestions((prev) => {
+      const next = { ...prev };
+      delete next[commentId];
+      return next;
+    });
+  };
+
+  const fetchAiSuggestions = async () => {
+    const untagged = comments.filter((c) => effectiveTag(c) === null);
+    if (untagged.length === 0) {
+      toast.info("미분류 항목이 없습니다");
+      return;
+    }
+    setAiSuggestLoading(true);
+    try {
+      const res = await fetch("/api/suggest-classify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: untagged.slice(0, 50).map((c) => ({ id: c.id, original_text: c.original_text, source_field: c.source_field })),
+        }),
+      });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      const map: Record<string, { tag: TagValue; sentiment: "positive" | "negative" | "neutral" }> = {};
+      for (const s of data.suggestions || []) {
+        map[s.commentId] = { tag: s.tag, sentiment: s.sentiment };
+      }
+      setAiSuggestions(map);
+      toast.success(`AI 제안 ${Object.keys(map).length}건 불러옴. 카드에서 적용·무시 후 더블체크하세요.`);
+    } catch {
+      toast.error("AI 제안 불러오기 실패");
+    } finally {
+      setAiSuggestLoading(false);
+    }
+  };
 
   const loadComments = async () => {
     setLoading(true);
@@ -174,17 +213,9 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
     });
   }, [comments, hubView, platformSub, cohortFilter, sourceFieldFilter, sentimentFilter, search]);
 
-  // 그룹핑: 강사/플랫폼 뷰에서는 source_field별 그룹, 미분류/전체는 플랫 리스트
-  const grouped = useMemo(() => {
-    if (hubView === "instructor" || hubView === "platform") {
-      return groupByField(filtered);
-    }
-    return null; // 플랫 리스트
-  }, [filtered, hubView]);
-
   type SentimentValue = "positive" | "negative" | "neutral";
 
-  // 개별 태그 변경
+  // 개별 태그 변경 (AI 제안 있으면 적용 후 제거)
   const handleTagChange = async (commentId: string, tag: TagValue) => {
     try {
       const res = await fetch("/api/classify", {
@@ -194,12 +225,13 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
       });
       if (!res.ok) throw new Error();
       setComments((prev) => prev.map((c) => (c.id === commentId ? { ...c, tag } : c)));
+      clearSuggestion(commentId);
     } catch {
       toast.error("태그 변경 실패");
     }
   };
 
-  // 개별 긍정/부정 설정 (전달 요약에 반영)
+  // 개별 긍정/부정 설정 (AI 제안 있으면 적용 후 제거)
   const handleSentimentChange = async (commentId: string, sentiment: SentimentValue) => {
     try {
       const res = await fetch("/api/classify", {
@@ -209,6 +241,7 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
       });
       if (!res.ok) throw new Error();
       setComments((prev) => prev.map((c) => (c.id === commentId ? { ...c, sentiment } : c)));
+      clearSuggestion(commentId);
     } catch {
       toast.error("평가 구분 저장 실패");
     }
@@ -295,12 +328,13 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
     const isAutoTag = comment.tag === null && et !== null;
     const isSelected = selected.has(comment.id);
     const showCheckbox = hubView === "untagged" || hubView === "instructor";
+    const aiSuggestion = hubView === "untagged" ? aiSuggestions[comment.id] : null;
 
     return (
       <div
         key={comment.id}
         className={`py-3 px-4 rounded-lg border bg-card transition-colors ${
-          isSelected ? "ring-2 ring-primary/30 bg-primary/3" : ""
+          aiSuggestion ? "ring-2 ring-amber-400 bg-amber-50/50" : isSelected ? "ring-2 ring-primary/30 bg-primary/3" : ""
         }`}
       >
         <div className="flex items-start gap-2.5">
@@ -322,13 +356,40 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
                 {comment.respondent}
               </span>
               {comment.cohortLabel && <span>{comment.cohortLabel}</span>}
-              {(hubView === "untagged" || hubView === "all") && (
+              {hubView === "untagged" && (
                 <span className="text-[11px] bg-muted px-1.5 py-0.5 rounded">
                   {FIELD_LABELS[comment.source_field] || comment.source_field}
                 </span>
               )}
             </div>
-            {/* 분류된 댓글만: 긍정/부정 구분 (전달 요약에 반영, 번잡하지 않게 한 줄) */}
+            {/* 미분류 + AI 제안 있음: 눈에 띄게 표시, 적용 시 더블체크 후 제거 */}
+            {aiSuggestion && (
+              <div className="mt-2 flex items-center gap-2 flex-wrap">
+                <span className="text-[11px] font-bold text-amber-800 bg-amber-200/80 px-1.5 py-0.5 rounded">
+                  AI 제안: {getTagLabel(aiSuggestion.tag)} · {aiSuggestion.sentiment === "positive" ? "긍정" : aiSuggestion.sentiment === "negative" ? "부정" : "중립"}
+                </span>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await handleTagChange(comment.id, aiSuggestion.tag);
+                    await handleSentimentChange(comment.id, aiSuggestion.sentiment);
+                    clearSuggestion(comment.id);
+                    toast.success("적용됨. 더블체크 완료 시 카드에서 사라집니다.");
+                  }}
+                  className="py-0.5 px-2 rounded text-[11px] font-semibold bg-primary text-primary-foreground hover:opacity-90"
+                >
+                  적용
+                </button>
+                <button
+                  type="button"
+                  onClick={() => clearSuggestion(comment.id)}
+                  className="py-0.5 px-2 rounded text-[11px] text-muted-foreground border hover:bg-muted"
+                >
+                  무시
+                </button>
+              </div>
+            )}
+            {/* 분류된 댓글만: 긍정/부정 구분 (후기 요약에 반영) */}
             {et && (
               <div className="flex items-center gap-1 mt-1.5">
                 <span className="text-[11px] text-muted-foreground mr-0.5">평가:</span>
@@ -398,9 +459,22 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
     <div className="grid gap-3">
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-6">
         <div className="grid gap-3 min-w-0">
-      {/* 전달 대상: 이 피드백을 플랫폼/강사 중 누구에게 넘길지 분류한 결과 */}
+      {/* 전달 대상 + 미분류일 때 AI 제안 불러오기 */}
       <div className="flex flex-col gap-1.5">
-        <span className="text-[12px] font-semibold text-muted-foreground">전달 대상</span>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[12px] font-semibold text-muted-foreground">전달 대상</span>
+          {hubView === "untagged" && untaggedCount > 0 && (
+            <button
+              type="button"
+              onClick={fetchAiSuggestions}
+              disabled={aiSuggestLoading}
+              className="flex items-center gap-1 py-1 px-2.5 rounded-md text-[12px] font-semibold bg-amber-100 text-amber-800 border border-amber-200 hover:bg-amber-200 disabled:opacity-50"
+            >
+              {aiSuggestLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+              AI 제안 불러오기
+            </button>
+          )}
+        </div>
         <div className="flex gap-0.5 bg-muted rounded-lg p-0.5 border w-fit">
           {([
             { id: "all" as HubView, label: `전체 ${comments.length}` },
@@ -531,30 +605,11 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
         <span className="text-[13px] text-muted-foreground">{filtered.length}건</span>
       </div>
 
-      {/* 카드 리스트: 결과 없을 때도 높이 유지해 레이아웃 넓어짐 방지 */}
+      {/* 카드 리스트: 전달 대상별 플랫 리스트 (설문 문항 그룹 없음) */}
       <div className="grid gap-4 min-h-[280px] max-h-[calc(100vh-360px)] overflow-y-auto">
-        {grouped ? (
-          // 강사/플랫폼 뷰: 그룹핑
-          grouped.map(([sourceField, items]) => (
-            <div key={sourceField}>
-              <div className="flex items-center gap-2 mb-2 sticky top-0 bg-background py-1 z-10">
-                <span className="text-[14px] font-bold">
-                  {FIELD_LABELS[sourceField] || sourceField}
-                </span>
-                <span className="text-[12px] text-muted-foreground">{items.length}건</span>
-                <div className="flex-1 border-b" />
-              </div>
-              <div className="grid gap-1.5">
-                {items.map(renderCard)}
-              </div>
-            </div>
-          ))
-        ) : (
-          // 미분류/전체 뷰: 플랫 리스트
-          <div className="grid gap-1.5">
-            {filtered.map(renderCard)}
-          </div>
-        )}
+        <div className="grid gap-1.5">
+          {filtered.map(renderCard)}
+        </div>
 
         {filtered.length === 0 && (
           <div className="text-center py-8 text-muted-foreground text-[14px]">
@@ -665,12 +720,15 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
       </div>
         </div>
 
-        {/* 오른쪽(데스크톱) / 상단(모바일): 전달 요약 (PM 한눈에 보기) — 폭 고정으로 결과 없을 때 넓어짐 방지 */}
+        {/* 오른쪽(데스크톱) / 상단(모바일): 후기 요약 — 폭 고정으로 결과 없을 때 넓어짐 방지 */}
         <div className="order-first lg:order-2 w-full lg:w-[260px] lg:min-w-[260px] lg:max-w-[260px] lg:shrink-0">
           <div className="sticky top-4 rounded-xl border bg-card p-4 shadow-sm">
-            <div className="flex items-center gap-1.5 mb-3">
-              <Send className="w-4 h-4 text-primary" />
-              <span className="text-[14px] font-bold">전달 요약</span>
+            <div className="mb-1">
+              <div className="flex items-center gap-1.5">
+                <Send className="w-4 h-4 text-primary" />
+                <span className="text-[14px] font-bold">후기 요약</span>
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-0.5">전달 대상별 건수 (후기·사전 설문 피드백 검수 기준)</p>
             </div>
             <div className="grid gap-2.5 text-[13px]">
               {([
@@ -706,7 +764,7 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
               </div>
             </div>
             <div className={`mt-3 py-2 px-3 rounded-lg text-center text-[13px] font-semibold ${isReviewComplete ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-amber-50 text-amber-700 border border-amber-200"}`}>
-              {isReviewComplete ? "검수 완료 · 전달 가능" : "미분류 처리 후 전달"}
+              {isReviewComplete ? "검수 완료 · 전달 가능" : `미분류 ${untaggedCount}건 남음 · 검수 후 전달 가능`}
             </div>
           </div>
         </div>
