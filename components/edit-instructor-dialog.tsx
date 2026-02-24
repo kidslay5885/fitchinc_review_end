@@ -53,10 +53,8 @@ export function EditInstructorDialog({
       canvas.width = w;
       canvas.height = h;
       const ctx = canvas.getContext("2d")!;
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, w, h);
       ctx.drawImage(img, 0, 0, w, h);
-      const compressed = canvas.toDataURL("image/jpeg", 0.85);
+      const compressed = canvas.toDataURL("image/png");
       setData((prev) => ({ ...prev, photo: compressed }));
       URL.revokeObjectURL(url);
     };
