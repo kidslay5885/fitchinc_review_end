@@ -30,7 +30,7 @@ const TABS = [
   { id: "whole", icon: "📋", label: "전체 데이터" },
   { id: "feedback", icon: "🏷️", label: "세부 분류" },
   { id: "insight", icon: "💡", label: "AI 인사이트" },
-  { id: "quality", icon: "📊", label: "강의 품질", onlyWhenAllCohorts: true },
+  { id: "quality", icon: "📊", label: "전체 요약", onlyWhenAllCohorts: true },
 ];
 
 function MainContent() {

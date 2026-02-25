@@ -40,7 +40,7 @@ export function TabQualityOverview({ instructor, course, platformName }: TabQual
     <div className="grid gap-5">
       <div className="flex items-center gap-2">
         <BarChart3 className="w-5 h-5 text-primary" />
-        <span className="text-[16px] font-extrabold">강의 품질 요약</span>
+        <span className="text-[16px] font-extrabold">전체 요약</span>
       </div>
       <p className="text-[13px] text-muted-foreground">
         기수별로 만족도·응답률을 한눈에 보고, 다음 기수 개선 포인트를 메모해두세요.

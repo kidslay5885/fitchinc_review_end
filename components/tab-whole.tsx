@@ -110,7 +110,7 @@ export function TabWhole({ instructor, course, platformName, selectedCohort, onG
           <div className="rounded-xl border bg-card p-4 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <BarChart3 className="w-5 h-5 text-primary" />
-              <span className="text-[14px] font-bold">강의 품질 요약</span>
+              <span className="text-[14px] font-bold">전체 요약</span>
               {avg != null && (
                 <span className="text-[13px] text-muted-foreground">
                   기수 {orderedCohorts.length}개 · 만족도 평균 <strong className="text-foreground">{avg}</strong>/10
@@ -123,7 +123,7 @@ export function TabWhole({ instructor, course, platformName, selectedCohort, onG
                 onClick={onGoToQuality}
                 className="py-1.5 px-3 rounded-lg text-[13px] font-semibold bg-muted hover:bg-muted/80 text-foreground"
               >
-                📊 강의 품질 탭에서 자세히 보기
+                📊 전체 요약 탭에서 자세히 보기
               </button>
             )}
           </div>
