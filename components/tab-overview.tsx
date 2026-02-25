@@ -26,7 +26,7 @@ const PIE_COLORS = ["#3451B2", "#E5484D", "#46A758", "#F76B15", "#6E56CF", "#30A
 const BAR_COLOR = "#3451B2";
 
 // ---- helpers ----
-function toChartData(record: Record<string, number>) {
+export function toChartData(record: Record<string, number>) {
   return Object.entries(record)
     .filter(([, v]) => v > 0)
     .sort((a, b) => b[1] - a[1])
@@ -40,7 +40,7 @@ function pctLabel(value: number, total: number) {
 
 // ---- sub-components ----
 
-function SummaryCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
+export function SummaryCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
     <div className="rounded-xl border bg-card p-4 text-center">
       <div className="text-[12px] text-muted-foreground mb-1">{label}</div>
@@ -50,7 +50,7 @@ function SummaryCard({ label, value, sub }: { label: string; value: string | num
   );
 }
 
-function ChartCard({ title, children, empty }: { title: string; children: React.ReactNode; empty?: boolean }) {
+export function ChartCard({ title, children, empty }: { title: string; children: React.ReactNode; empty?: boolean }) {
   return (
     <div className="rounded-xl border bg-card p-5">
       <div className="text-[13px] font-bold mb-3">{title}</div>
@@ -63,7 +63,7 @@ function ChartCard({ title, children, empty }: { title: string; children: React.
   );
 }
 
-function DonutChart({ data }: { data: { name: string; value: number }[] }) {
+export function DonutChart({ data }: { data: { name: string; value: number }[] }) {
   const total = data.reduce((s, d) => s + d.value, 0);
   return (
     <div className="flex items-center gap-4">
@@ -103,7 +103,7 @@ function DonutChart({ data }: { data: { name: string; value: number }[] }) {
   );
 }
 
-function HBarChart({ data }: { data: { name: string; value: number }[] }) {
+export function HBarChart({ data }: { data: { name: string; value: number }[] }) {
   const maxVal = Math.max(...data.map((d) => d.value), 1);
   return (
     <ResponsiveContainer width="100%" height={Math.max(data.length * 32 + 8, 80)}>
@@ -124,7 +124,7 @@ function HBarChart({ data }: { data: { name: string; value: number }[] }) {
   );
 }
 
-function RecDonut({ postResponses }: { postResponses: SurveyResponse[] }) {
+export function RecDonut({ postResponses }: { postResponses: SurveyResponse[] }) {
   if (postResponses.length === 0) return <div className="text-[12px] text-muted-foreground text-center py-8">데이터 없음</div>;
 
   let yesCount = 0;

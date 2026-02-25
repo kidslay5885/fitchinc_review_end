@@ -1,28 +1,67 @@
 "use client";
 
-import type { Platform } from "@/lib/types";
-import { autoStatus, statusBg, cohortAvgScore, allCohorts } from "@/lib/types";
-import { aggregateInstructor } from "@/lib/analysis-engine";
-import { getOrderedCohorts } from "@/lib/cohort-order";
-import { User } from "lucide-react";
+import { useMemo } from "react";
+import type { Platform, SurveyResponse } from "@/lib/types";
+import { allCohorts, cohortAvgScore } from "@/lib/types";
+import {
+  computeDemographics,
+  computeScores,
+  getSatisfactionItems,
+} from "@/lib/analysis-engine";
+import {
+  SummaryCard,
+  ChartCard,
+  DonutChart,
+  HBarChart,
+  RecDonut,
+  toChartData,
+} from "@/components/tab-overview";
+import { RingScore } from "@/components/ring-score";
+import { Loader2 } from "lucide-react";
 
 interface PlatformDashboardProps {
   platform: Platform;
-  onSelectInstructor: (id: string) => void;
+  dataLoading: boolean;
 }
 
-export function PlatformDashboard({ platform, onSelectInstructor }: PlatformDashboardProps) {
-  const totalSurvey = platform.instructors.reduce(
-    (a, i) => a + allCohorts(i).reduce((b, c) => b + c.preResponses.length, 0),
-    0
+export function PlatformDashboard({ platform, dataLoading }: PlatformDashboardProps) {
+  // 전체 기수 · 응답 수집
+  const allPlatCohorts = useMemo(
+    () => platform.instructors.flatMap((i) => allCohorts(i)),
+    [platform]
   );
 
-  const doneCohorts = platform.instructors
-    .flatMap((i) => allCohorts(i))
-    .filter((c) => c.postResponses.length > 0);
+  const { preResponses, postResponses } = useMemo(() => {
+    return {
+      preResponses: allPlatCohorts.flatMap((c) => c.preResponses),
+      postResponses: allPlatCohorts.flatMap((c) => c.postResponses),
+    };
+  }, [allPlatCohorts]);
 
+  const allResponses = useMemo(
+    () => [...preResponses, ...postResponses],
+    [preResponses, postResponses]
+  );
+
+  const demographics = useMemo(() => computeDemographics(allResponses), [allResponses]);
+  const scores = useMemo(() => computeScores(postResponses), [postResponses]);
+  const satItems = useMemo(() => getSatisfactionItems(postResponses), [postResponses]);
+
+  // 헤더 통계
+  const doneCohorts = allPlatCohorts.filter((c) => c.postResponses.length > 0);
   const allScores = doneCohorts.map((c) => cohortAvgScore(c)).filter((s) => s > 0);
-  const avg = allScores.length > 0 ? (allScores.reduce((a, b) => a + b, 0) / allScores.length).toFixed(1) : "-";
+  const avg =
+    allScores.length > 0
+      ? (allScores.reduce((a, b) => a + b, 0) / allScores.length).toFixed(1)
+      : "-";
+
+  // chart data
+  const genderData = toChartData(demographics.gender);
+  const ageData = toChartData(demographics.age);
+  const jobData = toChartData(demographics.job);
+  const hoursData = toChartData(demographics.hours);
+  const channelData = toChartData(demographics.channel);
+  const satData = satItems.map((s) => ({ name: s.label, value: s.count }));
 
   return (
     <div>
@@ -31,101 +70,128 @@ export function PlatformDashboard({ platform, onSelectInstructor }: PlatformDash
         <div className="flex justify-between items-center">
           <div>
             <div className="text-[22px] font-extrabold">{platform.name}</div>
-            <div className="text-[13px] text-muted-foreground mt-1" title="완료 = 해당 기수에서 후기 설문이 1건 이상 수집된 경우">
-              강사 {platform.instructors.length}명 · 설문 참여 {totalSurvey}명 · 설문 완료 {doneCohorts.length}기수
-              <span className="text-[11px] text-muted-foreground/80 ml-1">(후기 설문 수집 기준)</span>
+            <div
+              className="text-[13px] text-muted-foreground mt-1"
+              title="완료 = 해당 기수에서 후기 설문이 1건 이상 수집된 경우"
+            >
+              강사 {platform.instructors.length}명 · 설문 참여{" "}
+              {preResponses.length + postResponses.length}명 · 설문 완료{" "}
+              {doneCohorts.length}기수
+              <span className="text-[11px] text-muted-foreground/80 ml-1">
+                (후기 설문 수집 기준)
+              </span>
             </div>
           </div>
           <div
             className="text-center px-5 py-2.5 bg-card rounded-[10px] border"
-            title="후기 설문의 커리큘럼(ps1)·피드백(ps2) 문항 점수 평균을 10점 만점으로 환산한 값입니다. 기수별 (커리큘럼+피드백)/2 평균을 다시 평균낸 수치입니다."
+            title="후기 설문의 커리큘럼(ps1)·피드백(ps2) 문항 점수 평균을 10점 만점으로 환산한 값입니다."
           >
-            <div className="text-[11px] font-bold text-muted-foreground mb-0.5">강의 만족도 평균</div>
+            <div className="text-[11px] font-bold text-muted-foreground mb-0.5">
+              강의 만족도 평균
+            </div>
             <div className="text-[28px] font-extrabold leading-none">
-              <span className={Number(avg) >= 9 ? "text-emerald-600" : "text-primary"}>{avg}</span>
+              <span className={Number(avg) >= 9 ? "text-emerald-600" : "text-primary"}>
+                {avg}
+              </span>
               <span className="text-[13px] font-normal text-muted-foreground">/10</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Instructor grid */}
-      <div className="text-[13px] font-bold text-muted-foreground mb-3">강사 목록</div>
-      {platform.instructors.length === 0 ? (
-        <div className="text-center py-16 text-muted-foreground">
-          <div className="text-[30px] opacity-25 mb-2">📭</div>
-          <div className="text-[14px] font-bold">아직 강사가 없습니다</div>
-          <div className="text-[13px] mt-1">파일을 업로드하면 자동으로 추가됩니다</div>
+      {/* Loading spinner */}
+      {dataLoading ? (
+        <div className="text-center py-16">
+          <Loader2 className="w-6 h-6 animate-spin text-primary mx-auto mb-2" />
+          <div className="text-[13px] text-muted-foreground">
+            전체 데이터 로딩 중...
+          </div>
+        </div>
+      ) : preResponses.length === 0 && postResponses.length === 0 ? (
+        <div className="text-center py-16">
+          <div className="text-[14px] font-semibold text-muted-foreground">
+            데이터 없음
+          </div>
+          <div className="text-[12px] text-muted-foreground mt-1">
+            설문 파일을 업로드하면 차트가 표시됩니다.
+          </div>
         </div>
       ) : (
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-3.5">
-          {platform.instructors.map((inst) => {
-            const ordered = getOrderedCohorts(platform.name, inst.name, "", allCohorts(inst));
-            const { totalPre, avgScore } = aggregateInstructor(ordered);
-            const last = ordered[ordered.length - 1];
-            const lastStatus = last ? autoStatus(last) : "준비중";
-            const ia = avgScore > 0 ? avgScore.toFixed(1) : "-";
+        <div className="space-y-6">
+          {/* scope label */}
+          <div className="text-[12px] text-muted-foreground">
+            {platform.name} · 전체 강사 통합
+          </div>
 
-            return (
-              <div
-                key={inst.id}
-                onClick={() => onSelectInstructor(inst.id)}
-                className="bg-card rounded-xl border p-5 cursor-pointer hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-center gap-4 mb-3.5">
-                  <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-muted flex items-center justify-center overflow-hidden shrink-0 ring-2 ring-border/50">
-                    {inst.photo ? (
-                      <img src={inst.photo} alt={inst.name} className="w-full h-full object-contain" style={{ objectPosition: inst.photoPosition || "center 2%" }} />
-                    ) : (
-                      <User className="w-8 h-8 sm:w-10 sm:h-10 text-muted-foreground" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[18px] sm:text-[20px] font-bold leading-tight">{inst.name}</div>
-                    <div className="text-[13px] text-muted-foreground mt-0.5">{inst.category}</div>
-                  </div>
-                  {ia !== "-" && (
-                    <div
-                      className="text-center"
-                      title="후기 설문의 커리큘럼(ps1)·피드백(ps2) 문항 평균을 10점 만점으로 환산한 뒤, 기수별 (커리큘럼+피드백)/2 평균을 다시 평균낸 값입니다."
-                    >
-                      <div
-                        className={`text-[20px] font-extrabold ${
-                          Number(ia) >= 9 ? "text-emerald-600" : "text-primary"
-                        }`}
-                      >
-                        {ia}
-                      </div>
-                      <div className="text-[10px] text-muted-foreground">만족도</div>
-                    </div>
-                  )}
-                </div>
-                <div className="flex gap-5 mb-3 pb-3 border-b">
-                  <div>
-                    <span className="text-[16px] font-bold">{ordered.length}</span>
-                    <span className="text-[13px] text-muted-foreground">기</span>
-                  </div>
-                  <div>
-                    <span className="text-[16px] font-bold">{totalPre}</span>
-                    <span className="text-[13px] text-muted-foreground">명 참여</span>
-                  </div>
-                </div>
-                {last && (
-                  <div className="flex items-center justify-between">
-                    <span
-                      className={`text-[11px] px-1.5 py-0.5 rounded border font-bold ${statusBg(lastStatus)}`}
-                      title={lastStatus === "완료" ? "후기 설문 1건 이상 수집됨" : lastStatus === "진행중" ? "사전 설문만 수집됨" : "사전·후기 미수집"}
-                    >
-                      {last.label} {lastStatus}
-                    </span>
-                    {last.pm && (
-                      <span className="text-[12px] text-muted-foreground">담당PM {last.pm}</span>
-                    )}
-                  </div>
-                )}
+          {/* summary cards */}
+          <div className="grid grid-cols-4 gap-4">
+            <SummaryCard label="사전 응답 수" value={`${preResponses.length}명`} />
+            <SummaryCard label="후기 응답 수" value={`${postResponses.length}명`} />
+            <SummaryCard
+              label="만족도 점수"
+              value={
+                scores.ps1Avg > 0 || scores.ps2Avg > 0
+                  ? `${(
+                      (scores.ps1Avg + scores.ps2Avg) /
+                      (scores.ps1Avg > 0 && scores.ps2Avg > 0 ? 2 : 1)
+                    ).toFixed(1)}`
+                  : "-"
+              }
+              sub="10점 만점"
+            />
+            <SummaryCard
+              label="추천률"
+              value={postResponses.length > 0 ? `${scores.recRate}%` : "-"}
+            />
+          </div>
+
+          {/* charts */}
+          <div className="grid grid-cols-2 gap-5">
+            <ChartCard title="성별 분포" empty={genderData.length === 0}>
+              <DonutChart data={genderData} />
+            </ChartCard>
+
+            <ChartCard title="연령대 분포" empty={ageData.length === 0}>
+              <HBarChart data={ageData} />
+            </ChartCard>
+
+            <ChartCard title="현재 하고 있는 일" empty={jobData.length === 0}>
+              <HBarChart data={jobData} />
+            </ChartCard>
+
+            <ChartCard title="부업 투자 시간" empty={hoursData.length === 0}>
+              <HBarChart data={hoursData} />
+            </ChartCard>
+
+            <ChartCard title="알게 된 경로" empty={channelData.length === 0}>
+              <HBarChart data={channelData} />
+            </ChartCard>
+
+            <ChartCard title="좋았던 점" empty={satData.length === 0}>
+              <HBarChart data={satData} />
+            </ChartCard>
+
+            <ChartCard title="커리큘럼 만족도" empty={postResponses.length === 0}>
+              <div className="flex items-center justify-center gap-8 py-4">
+                <RingScore
+                  score={scores.ps1Avg}
+                  size={80}
+                  label="커리큘럼"
+                  excluded={scores.ps1Excluded}
+                />
+                <RingScore
+                  score={scores.ps2Avg}
+                  size={80}
+                  label="피드백"
+                  excluded={scores.ps2Excluded}
+                />
               </div>
-            );
-          })}
+            </ChartCard>
+
+            <ChartCard title="추천 의향" empty={postResponses.length === 0}>
+              <RecDonut postResponses={postResponses} />
+            </ChartCard>
+          </div>
         </div>
       )}
     </div>

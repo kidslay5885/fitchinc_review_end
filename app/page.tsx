@@ -49,6 +49,35 @@ function MainContent() {
   // 현재 보여줄 기수 목록
   const visibleCohorts = inst ? (course ? course.cohorts : allCohorts(inst)) : [];
 
+  const [platDataLoading, setPlatDataLoading] = useState(false);
+
+  // 플랫폼 선택 · 강사 미선택 시 전체 기수 데이터 병렬 로딩
+  useEffect(() => {
+    if (!showPlatDash || !plat) return;
+
+    const allPlatCohorts = plat.instructors.flatMap((i) =>
+      i.courses.flatMap((cr) => cr.cohorts.map((co) => ({ inst: i, course: cr, cohort: co })))
+    );
+
+    const needsLoad = allPlatCohorts.filter(
+      ({ cohort: c }) =>
+        (c.preResponses.length > 0 && c.preResponses[0]?.name === "") ||
+        (c.postResponses.length > 0 && c.postResponses[0]?.name === "")
+    );
+
+    if (needsLoad.length === 0) {
+      setPlatDataLoading(false);
+      return;
+    }
+
+    setPlatDataLoading(true);
+    Promise.all(
+      needsLoad.map(({ inst: i, course: cr, cohort: co }) =>
+        loadCohortData(plat.name, i.name, cr.name, co.label)
+      )
+    ).finally(() => setPlatDataLoading(false));
+  }, [showPlatDash, plat?.id, plat?.instructors]);
+
   // 강사/기수 선택 시 실제 데이터 지연 로딩
   useEffect(() => {
     if (!inst || !plat) return;
@@ -160,7 +189,7 @@ function MainContent() {
             {showPlatDash && (
               <PlatformDashboard
                 platform={plat}
-                onSelectInstructor={(id) => dispatch({ type: "SELECT_INSTRUCTOR", id, platforms: state.platforms })}
+                dataLoading={platDataLoading}
               />
             )}
 
