@@ -140,9 +140,18 @@ export function DonutChart({ data, colors }: { data: { name: string; value: numb
 
 export function HBarChart({ data }: { data: { name: string; value: number }[] }) {
   const maxVal = Math.max(...data.map((d) => d.value), 1);
+  const total = data.reduce((s, d) => s + d.value, 0);
+  const renderLabel = (props: { x: number; y: number; width: number; height: number; value: number }) => {
+    const pct = total > 0 ? Math.round((props.value / total) * 100) : 0;
+    return (
+      <text x={props.x + props.width + 4} y={props.y + props.height / 2} dominantBaseline="central" fontSize={11} fill="#666">
+        {props.value}<tspan fontSize={9} fill="#999">({pct}%)</tspan>
+      </text>
+    );
+  };
   return (
     <ResponsiveContainer width="100%" height={Math.max(data.length * 32 + 8, 80)}>
-      <BarChart data={data} layout="vertical" margin={{ left: 0, right: 30, top: 0, bottom: 0 }}>
+      <BarChart data={data} layout="vertical" margin={{ left: 0, right: 50, top: 0, bottom: 0 }}>
         <XAxis type="number" hide domain={[0, maxVal]} />
         <YAxis
           type="category"
@@ -152,8 +161,8 @@ export function HBarChart({ data }: { data: { name: string; value: number }[] })
           axisLine={false}
           tickLine={false}
         />
-        <Tooltip formatter={(v: number) => [`${v}명`]} />
-        <Bar dataKey="value" fill={BAR_COLOR} radius={[0, 4, 4, 0]} barSize={18} label={{ position: "right", fontSize: 11, fill: "#666" }} />
+        <Tooltip formatter={(v: number) => [`${v}명 (${total > 0 ? Math.round((v / total) * 100) : 0}%)`]} />
+        <Bar dataKey="value" fill={BAR_COLOR} radius={[0, 4, 4, 0]} barSize={18} label={renderLabel} />
       </BarChart>
     </ResponsiveContainer>
   );
