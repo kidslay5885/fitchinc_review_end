@@ -131,7 +131,7 @@ export function TabWhole({ instructor, course, platformName, selectedCohort, onG
       })()}
 
       {/* 보기 선택: 기수 다중 선택 가능. 전체 보기 = 빈 선택, 전부 선택 시 자동으로 전체와 동일 */}
-      {orderedCohorts.length > 1 && (
+      {!selectedCohort && orderedCohorts.length > 1 && (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[13px] font-semibold text-muted-foreground mr-1">보기:</span>
           <button
