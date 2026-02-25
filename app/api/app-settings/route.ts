@@ -7,8 +7,8 @@ function photoKey(platform: string, instructor: string) {
   return `instructor_photo:${platform}:${instructor}`;
 }
 
-function cohortOrderKey(platform: string, instructor: string) {
-  return `cohort_order:${platform}:${instructor}`;
+function cohortOrderKey(platform: string, instructor: string, course: string = "") {
+  return `cohort_order:${platform}:${instructor}${course ? `:${course}` : ""}`;
 }
 
 /** GET: 모든 앱 설정 조회 (강사 사진, 기수 순서) - 새 창/새로고침 시 복원용 */
@@ -72,11 +72,11 @@ export async function POST(req: NextRequest) {
     }
 
     if (body.type === "cohort_order") {
-      const { platform, instructor, labels } = body;
+      const { platform, instructor, course, labels } = body;
       if (!platform || !instructor || !Array.isArray(labels)) {
         return NextResponse.json({ error: "platform, instructor, labels 필요" }, { status: 400 });
       }
-      const key = cohortOrderKey(platform, instructor);
+      const key = cohortOrderKey(platform, instructor, course || "");
       const value = labels.filter((x: unknown) => typeof x === "string");
 
       const supabase = getSupabase();

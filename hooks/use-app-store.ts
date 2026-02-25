@@ -12,10 +12,11 @@ import React, {
 import type {
   Platform,
   Instructor,
+  Course,
   Cohort,
   SurveyResponse,
 } from "@/lib/types";
-import { generateId } from "@/lib/types";
+import { generateId, allCohorts } from "@/lib/types";
 import { DEFAULT_PLATFORMS } from "@/lib/constants";
 
 // ---- State ----
@@ -23,6 +24,7 @@ export interface AppState {
   platforms: Platform[];
   selectedPlatformId: string | null;
   selectedInstructorId: string | null;
+  selectedCourseId: string | null;
   selectedCohortId: string | null;
   activeTab: string;
   hydrated: boolean;
@@ -33,8 +35,9 @@ const initialState: AppState = {
   platforms: DEFAULT_PLATFORMS,
   selectedPlatformId: null,
   selectedInstructorId: null,
+  selectedCourseId: null,
   selectedCohortId: null,
-  activeTab: "whole",
+  activeTab: "overview",
   hydrated: false,
   loading: true,
 };
@@ -43,19 +46,21 @@ const initialState: AppState = {
 type Action =
   | { type: "HYDRATE"; platforms: Platform[] }
   | { type: "SELECT_PLATFORM"; id: string | null }
-  | { type: "SELECT_INSTRUCTOR"; id: string | null }
+  | { type: "SELECT_INSTRUCTOR"; id: string | null; platforms?: Platform[] }
+  | { type: "SELECT_COURSE"; id: string | null }
   | { type: "SELECT_COHORT"; id: string | null }
   | { type: "SET_TAB"; tab: string }
   | {
       type: "ADD_RESPONSES";
       platformName: string;
       instructorName: string;
+      courseName: string;
       cohortLabel: string;
       surveyType: "사전" | "후기";
       responses: SurveyResponse[];
       instructorCategory?: string;
     }
-  | { type: "LOAD_COHORT_DATA"; platformName: string; instructorName: string; cohortLabel: string; preResponses: SurveyResponse[]; postResponses: SurveyResponse[] }
+  | { type: "LOAD_COHORT_DATA"; platformName: string; instructorName: string; courseName: string; cohortLabel: string; preResponses: SurveyResponse[]; postResponses: SurveyResponse[] }
   | { type: "UPDATE_INSTRUCTOR"; instructor: Instructor }
   | { type: "DELETE_INSTRUCTOR"; id: string }
   | { type: "UPDATE_COHORT"; instructorId: string; cohort: Cohort }
@@ -78,20 +83,41 @@ function reducer(state: AppState, action: Action): AppState {
         ...state,
         selectedPlatformId: action.id,
         selectedInstructorId: null,
+        selectedCourseId: null,
         selectedCohortId: null,
         activeTab: "feedback",
       };
 
-    case "SELECT_INSTRUCTOR":
+    case "SELECT_INSTRUCTOR": {
+      if (!action.id) {
+        return {
+          ...state,
+          selectedInstructorId: null,
+          selectedCourseId: null,
+          selectedCohortId: null,
+          activeTab: "overview",
+        };
+      }
+      // 강의 1개면 자동 선택
+      const platforms = action.platforms || state.platforms;
+      const plat = platforms.find((p) => p.id === state.selectedPlatformId);
+      const inst = plat?.instructors.find((i) => i.id === action.id);
+      const autoSelectCourse = inst && inst.courses.length === 1 ? inst.courses[0].id : null;
+
       return {
         ...state,
         selectedInstructorId: action.id,
+        selectedCourseId: autoSelectCourse,
         selectedCohortId: null,
-        activeTab: "whole",
+        activeTab: "overview",
       };
+    }
+
+    case "SELECT_COURSE":
+      return { ...state, selectedCourseId: action.id, selectedCohortId: null, activeTab: "overview" };
 
     case "SELECT_COHORT":
-      return { ...state, selectedCohortId: action.id, activeTab: "whole" };
+      return { ...state, selectedCohortId: action.id, activeTab: "overview" };
 
     case "SET_TAB":
       return { ...state, activeTab: action.tab };
@@ -111,15 +137,27 @@ function reducer(state: AppState, action: Action): AppState {
           category: action.instructorCategory || "",
           photo: "",
           photoPosition: "center 2%",
-          cohorts: [],
+          courses: [],
         });
         instIdx = plat.instructors.length - 1;
       }
-      const inst = { ...plat.instructors[instIdx], cohorts: [...plat.instructors[instIdx].cohorts] };
+      const inst = { ...plat.instructors[instIdx], courses: [...plat.instructors[instIdx].courses] };
 
-      let coIdx = inst.cohorts.findIndex((c) => c.label === action.cohortLabel);
+      const courseName = action.courseName || "";
+      let courseIdx = inst.courses.findIndex((c) => c.name === courseName);
+      if (courseIdx < 0) {
+        inst.courses.push({
+          id: generateId(),
+          name: courseName,
+          cohorts: [],
+        });
+        courseIdx = inst.courses.length - 1;
+      }
+      const course = { ...inst.courses[courseIdx], cohorts: [...inst.courses[courseIdx].cohorts] };
+
+      let coIdx = course.cohorts.findIndex((c) => c.label === action.cohortLabel);
       if (coIdx < 0) {
-        inst.cohorts.push({
+        course.cohorts.push({
           id: generateId(),
           label: action.cohortLabel,
           pm: "",
@@ -129,9 +167,9 @@ function reducer(state: AppState, action: Action): AppState {
           preResponses: [],
           postResponses: [],
         });
-        coIdx = inst.cohorts.length - 1;
+        coIdx = course.cohorts.length - 1;
       }
-      const cohort = { ...inst.cohorts[coIdx] };
+      const cohort = { ...course.cohorts[coIdx] };
 
       if (action.surveyType === "사전") {
         cohort.preResponses = [...cohort.preResponses, ...action.responses];
@@ -139,7 +177,8 @@ function reducer(state: AppState, action: Action): AppState {
         cohort.postResponses = [...cohort.postResponses, ...action.responses];
       }
 
-      inst.cohorts[coIdx] = cohort;
+      course.cohorts[coIdx] = cohort;
+      inst.courses[courseIdx] = course;
       plat.instructors[instIdx] = inst;
       platforms[platIdx] = plat;
 
@@ -155,12 +194,18 @@ function reducer(state: AppState, action: Action): AppState {
             if (i.name !== action.instructorName) return i;
             return {
               ...i,
-              cohorts: i.cohorts.map((c) => {
-                if (c.label !== action.cohortLabel) return c;
+              courses: i.courses.map((course) => {
+                if (course.name !== action.courseName) return course;
                 return {
-                  ...c,
-                  preResponses: action.preResponses,
-                  postResponses: action.postResponses,
+                  ...course,
+                  cohorts: course.cohorts.map((c) => {
+                    if (c.label !== action.cohortLabel) return c;
+                    return {
+                      ...c,
+                      preResponses: action.preResponses,
+                      postResponses: action.postResponses,
+                    };
+                  }),
                 };
               }),
             };
@@ -190,6 +235,8 @@ function reducer(state: AppState, action: Action): AppState {
         platforms,
         selectedInstructorId:
           state.selectedInstructorId === action.id ? null : state.selectedInstructorId,
+        selectedCourseId:
+          state.selectedInstructorId === action.id ? null : state.selectedCourseId,
         selectedCohortId:
           state.selectedInstructorId === action.id ? null : state.selectedCohortId,
       };
@@ -202,9 +249,12 @@ function reducer(state: AppState, action: Action): AppState {
           i.id === action.instructorId
             ? {
                 ...i,
-                cohorts: i.cohorts.map((c) =>
-                  c.id === action.cohort.id ? action.cohort : c
-                ),
+                courses: i.courses.map((course) => ({
+                  ...course,
+                  cohorts: course.cohorts.map((c) =>
+                    c.id === action.cohort.id ? action.cohort : c
+                  ),
+                })),
               }
             : i
         ),
@@ -217,7 +267,13 @@ function reducer(state: AppState, action: Action): AppState {
         ...p,
         instructors: p.instructors.map((i) =>
           i.id === action.instructorId
-            ? { ...i, cohorts: i.cohorts.filter((c) => c.id !== action.cohortId) }
+            ? {
+                ...i,
+                courses: i.courses.map((course) => ({
+                  ...course,
+                  cohorts: course.cohorts.filter((c) => c.id !== action.cohortId),
+                })),
+              }
             : i
         ),
       }));
@@ -239,7 +295,7 @@ function reducer(state: AppState, action: Action): AppState {
 const AppContext = createContext<{
   state: AppState;
   dispatch: Dispatch<Action>;
-  loadCohortData: (platformName: string, instructorName: string, cohortLabel: string) => Promise<void>;
+  loadCohortData: (platformName: string, instructorName: string, courseName: string, cohortLabel: string) => Promise<void>;
   refreshHierarchy: () => Promise<void>;
 } | null>(null);
 
@@ -262,11 +318,60 @@ export function useSelectedInstructor() {
   return plat.instructors.find((i) => i.id === state.selectedInstructorId) || null;
 }
 
-export function useSelectedCohort() {
+export function useSelectedCourse() {
   const inst = useSelectedInstructor();
   const { state } = useAppStore();
+  if (!inst || !state.selectedCourseId) return null;
+  return inst.courses.find((c) => c.id === state.selectedCourseId) || null;
+}
+
+export function useSelectedCohort() {
+  const inst = useSelectedInstructor();
+  const course = useSelectedCourse();
+  const { state } = useAppStore();
   if (!inst || !state.selectedCohortId) return null;
-  return inst.cohorts.find((c) => c.id === state.selectedCohortId) || null;
+  // course가 선택되어 있으면 그 course 안에서, 아니면 전체 courses에서 찾기
+  const cohorts = course ? course.cohorts : allCohorts(inst);
+  return cohorts.find((c) => c.id === state.selectedCohortId) || null;
+}
+
+// ---- placeholder response 생성 ----
+function makePlaceholderResponses(count: number): SurveyResponse[] {
+  return Array(count).fill(null).map(() => ({
+    id: generateId(), name: "", gender: "", age: "", job: "", hours: "",
+    channel: "", computer: 0, goal: "", hopePlatform: "", hopeInstructor: "",
+    ps1: 0, ps2: 0, pSat: "", pFmt: "", pFree: "", pRec: "", rawData: {},
+  }));
+}
+
+// hierarchy API 응답 타입
+interface HierarchyCohort { label: string; pm: string; preCount: number; postCount: number; startDate: string; endDate: string; totalStudents: number }
+interface HierarchyCourse { name: string; cohorts: HierarchyCohort[] }
+interface HierarchyInstructor { name: string; courses: HierarchyCourse[] }
+interface HierarchyPlatform { name: string; instructors: HierarchyInstructor[] }
+
+function buildInstructor(ai: HierarchyInstructor): Instructor {
+  return {
+    id: generateId(),
+    name: ai.name,
+    category: "",
+    photo: "",
+    photoPosition: "center 2%",
+    courses: ai.courses.map((ac) => ({
+      id: generateId(),
+      name: ac.name,
+      cohorts: ac.cohorts.map((aco) => ({
+        id: generateId(),
+        label: aco.label,
+        pm: aco.pm || "",
+        date: aco.startDate || "",
+        endDate: aco.endDate || "",
+        totalStudents: aco.totalStudents || 0,
+        preResponses: makePlaceholderResponses(aco.preCount || 0),
+        postResponses: makePlaceholderResponses(aco.postCount || 0),
+      })),
+    })),
+  };
 }
 
 // ---- Provider component ----
@@ -278,32 +383,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const res = await fetch("/api/hierarchy");
       if (!res.ok) throw new Error("hierarchy fetch failed");
-      const data = await res.json();
+      const data: HierarchyPlatform[] = await res.json();
 
       // hierarchy API 데이터를 Platform[] 형태로 변환
       const platforms: Platform[] = DEFAULT_PLATFORMS.map((dp) => {
-        const apiPlat = data.find((p: { name: string }) => p.name === dp.name);
+        const apiPlat = data.find((p) => p.name === dp.name);
         if (!apiPlat) return { ...dp, instructors: [] };
 
         return {
           ...dp,
-          instructors: apiPlat.instructors.map((ai: { name: string; cohorts: { label: string; pm: string; preCount: number; postCount: number; startDate: string; endDate: string; totalStudents: number }[] }) => ({
-            id: generateId(),
-            name: ai.name,
-            category: "",
-            photo: "",
-            photoPosition: "center 2%",
-            cohorts: ai.cohorts.map((ac: { label: string; pm: string; preCount: number; postCount: number; startDate: string; endDate: string; totalStudents: number }) => ({
-              id: generateId(),
-              label: ac.label,
-              pm: ac.pm || "",
-              date: ac.startDate || "",
-              endDate: ac.endDate || "",
-              totalStudents: ac.totalStudents || 0,
-              preResponses: Array(ac.preCount || 0).fill(null).map(() => ({ id: generateId(), name: "", gender: "", age: "", job: "", hours: "", channel: "", computer: 0, goal: "", hopePlatform: "", hopeInstructor: "", ps1: 0, ps2: 0, pSat: "", pFmt: "", pFree: "", pRec: "", rawData: {} })),
-              postResponses: Array(ac.postCount || 0).fill(null).map(() => ({ id: generateId(), name: "", gender: "", age: "", job: "", hours: "", channel: "", computer: 0, goal: "", hopePlatform: "", hopeInstructor: "", ps1: 0, ps2: 0, pSat: "", pFmt: "", pFree: "", pRec: "", rawData: {} })),
-            })),
-          })),
+          instructors: apiPlat.instructors.map(buildInstructor),
         };
       });
 
@@ -313,23 +402,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           platforms.push({
             id: generateId(),
             name: apiPlat.name,
-            instructors: apiPlat.instructors.map((ai: { name: string; cohorts: { label: string; pm: string; preCount: number; postCount: number; startDate: string; endDate: string; totalStudents: number }[] }) => ({
-              id: generateId(),
-              name: ai.name,
-              category: "",
-              photo: "",
-              photoPosition: "center 2%",
-              cohorts: ai.cohorts.map((ac: { label: string; pm: string; preCount: number; postCount: number; startDate: string; endDate: string; totalStudents: number }) => ({
-                id: generateId(),
-                label: ac.label,
-                pm: ac.pm || "",
-                date: ac.startDate || "",
-                endDate: ac.endDate || "",
-                totalStudents: ac.totalStudents || 0,
-                preResponses: Array(ac.preCount || 0).fill(null).map(() => ({ id: generateId(), name: "", gender: "", age: "", job: "", hours: "", channel: "", computer: 0, goal: "", hopePlatform: "", hopeInstructor: "", ps1: 0, ps2: 0, pSat: "", pFmt: "", pFree: "", pRec: "", rawData: {} })),
-                postResponses: Array(ac.postCount || 0).fill(null).map(() => ({ id: generateId(), name: "", gender: "", age: "", job: "", hours: "", channel: "", computer: 0, goal: "", hopePlatform: "", hopeInstructor: "", ps1: 0, ps2: 0, pSat: "", pFmt: "", pFree: "", pRec: "", rawData: {} })),
-              })),
-            })),
+            instructors: apiPlat.instructors.map(buildInstructor),
           });
         }
       }
@@ -350,11 +423,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 }
               }
               for (const inst of p.instructors) {
-                const key = `cohort_order:${p.name}:${inst.name}`;
-                const labels = cohortOrders?.[key];
-                if (Array.isArray(labels) && labels.length > 0) {
+                // 기수 순서 복원: course별로
+                for (const course of inst.courses) {
+                  const keySuffix = course.name ? `:${course.name}` : "";
+                  const key = `cohort_order:${p.name}:${inst.name}${keySuffix}`;
+                  const labels = cohortOrders?.[key];
+                  if (Array.isArray(labels) && labels.length > 0) {
+                    try {
+                      const localKey = course.name
+                        ? `cohort-order-${p.name}-${inst.name}-${course.name}`
+                        : `cohort-order-${p.name}-${inst.name}`;
+                      localStorage.setItem(localKey, JSON.stringify(labels));
+                    } catch {
+                      // ignore
+                    }
+                  }
+                }
+                // 하위 호환: 기존 cohort_order 키도 복원 시도
+                const legacyKey = `cohort_order:${p.name}:${inst.name}`;
+                const legacyLabels = cohortOrders?.[legacyKey];
+                if (Array.isArray(legacyLabels) && legacyLabels.length > 0) {
                   try {
-                    localStorage.setItem(`cohort-order-${p.name}-${inst.name}`, JSON.stringify(labels));
+                    localStorage.setItem(`cohort-order-${p.name}-${inst.name}`, JSON.stringify(legacyLabels));
                   } catch {
                     // ignore
                   }
@@ -381,7 +471,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             } catch {
               // ignore
             }
-            for (const c of inst.cohorts) {
+            for (const c of allCohorts(inst)) {
               try {
                 const v = localStorage.getItem(`total-students-${p.name}-${inst.name}-${c.label}`);
                 if (v && /^\d+$/.test(v)) c.totalStudents = parseInt(v, 10);
@@ -400,9 +490,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const loadCohortData = useCallback(async (platformName: string, instructorName: string, cohortLabel: string) => {
+  const loadCohortData = useCallback(async (platformName: string, instructorName: string, courseName: string, cohortLabel: string) => {
     try {
-      const params = new URLSearchParams({ platform: platformName, instructor: instructorName, cohort: cohortLabel });
+      const params = new URLSearchParams({ platform: platformName, instructor: instructorName, course: courseName, cohort: cohortLabel });
       const res = await fetch(`/api/responses?${params}`);
       if (!res.ok) throw new Error("responses fetch failed");
       const data = await res.json();
@@ -411,6 +501,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         type: "LOAD_COHORT_DATA",
         platformName,
         instructorName,
+        courseName,
         cohortLabel,
         preResponses: data.preResponses || [],
         postResponses: data.postResponses || [],

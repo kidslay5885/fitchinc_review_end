@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import type { Instructor, Cohort, AnalysisResult } from "@/lib/types";
+import type { Instructor, Course, Cohort, AnalysisResult } from "@/lib/types";
+import { allCohorts } from "@/lib/types";
 import { computeScores } from "@/lib/analysis-engine";
 import { RingScore } from "./ring-score";
 import { Loader2, Sparkles, Flame, ThumbsUp, Lightbulb, ChevronDown, ChevronUp } from "lucide-react";
@@ -9,13 +10,14 @@ import { toast } from "sonner";
 
 interface TabAIInsightProps {
   instructor: Instructor;
+  course: Course | null;
   cohort: Cohort | null;
   platformName: string;
   /** 탭이 보일 때 true. 포커스 시 캐시를 다시 불러와 이탈 후 생성 완료된 결과를 표시 */
   isActive?: boolean;
 }
 
-export function TabAIInsight({ instructor, cohort, platformName, isActive = true }: TabAIInsightProps) {
+export function TabAIInsight({ instructor, course, cohort, platformName, isActive = true }: TabAIInsightProps) {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -25,25 +27,28 @@ export function TabAIInsight({ instructor, cohort, platformName, isActive = true
   const [expandedStrength, setExpandedStrength] = useState<number | null>(null);
   const [expandedComplaint, setExpandedComplaint] = useState<number | null>(null);
 
+  // 현재 보여줄 기수 목록
+  const visibleCohorts = course ? course.cohorts : allCohorts(instructor);
+
   // 로컬 점수 계산
   const scores = useMemo(() => {
     const postResponses = cohort
       ? cohort.postResponses
-      : instructor.cohorts.flatMap((c) => c.postResponses);
+      : visibleCohorts.flatMap((c) => c.postResponses);
     return computeScores(postResponses);
-  }, [instructor, cohort]);
+  }, [visibleCohorts, cohort]);
 
   const preCount = useMemo(() => {
     return cohort
       ? cohort.preResponses.length
-      : instructor.cohorts.reduce((a, c) => a + c.preResponses.length, 0);
-  }, [instructor, cohort]);
+      : visibleCohorts.reduce((a, c) => a + c.preResponses.length, 0);
+  }, [visibleCohorts, cohort]);
 
   const postCount = useMemo(() => {
     return cohort
       ? cohort.postResponses.length
-      : instructor.cohorts.reduce((a, c) => a + c.postResponses.length, 0);
-  }, [instructor, cohort]);
+      : visibleCohorts.reduce((a, c) => a + c.postResponses.length, 0);
+  }, [visibleCohorts, cohort]);
 
   // 캐시 확인 (기수/전체별로 분리 저장됨). 탭 포커스 시에도 재조회해 이탈 후 생성 완료된 결과 표시
   useEffect(() => {
@@ -75,10 +80,10 @@ export function TabAIInsight({ instructor, cohort, platformName, isActive = true
     try {
       const postResponses = cohort
         ? cohort.postResponses
-        : instructor.cohorts.flatMap((c) => c.postResponses);
+        : visibleCohorts.flatMap((c) => c.postResponses);
       const preResponses = cohort
         ? cohort.preResponses
-        : instructor.cohorts.flatMap((c) => c.preResponses);
+        : visibleCohorts.flatMap((c) => c.preResponses);
 
       const freeTexts = postResponses
         .filter((r) => r.pFree && r.pFree.trim().length > 4)

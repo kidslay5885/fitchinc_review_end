@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { Instructor, Cohort } from "@/lib/types";
+import type { Instructor, Cohort, Course } from "@/lib/types";
+import { allCohorts } from "@/lib/types";
 import { computeScores } from "@/lib/analysis-engine";
 import { RingScore } from "./ring-score";
 import { User, X } from "lucide-react";
@@ -9,6 +10,7 @@ import { User, X } from "lucide-react";
 interface InstructorHeroProps {
   platformName: string;
   instructor: Instructor;
+  course: Course | null;
   cohort: Cohort | null;
   onUpdateCohort?: (cohort: Cohort) => void;
 }
@@ -16,9 +18,12 @@ interface InstructorHeroProps {
 const TOTAL_STUDENTS_KEY = (platform: string, instructor: string, cohortLabel: string | null) =>
   `total-students-${platform}-${instructor}-${cohortLabel ?? "all"}`;
 
-export function InstructorHero({ platformName, instructor, cohort, onUpdateCohort }: InstructorHeroProps) {
+export function InstructorHero({ platformName, instructor, course, cohort, onUpdateCohort }: InstructorHeroProps) {
   const [totalInput, setTotalInput] = useState("");
   const storageKey = TOTAL_STUDENTS_KEY(platformName, instructor.name, cohort?.label ?? null);
+
+  // 현재 보여줄 기수 목록: course가 선택되면 해당 course의 기수, 아니면 전체
+  const visibleCohorts = course ? course.cohorts : allCohorts(instructor);
 
   useEffect(() => {
     if (cohort) {
@@ -26,7 +31,7 @@ export function InstructorHero({ platformName, instructor, cohort, onUpdateCohor
       return;
     }
     // 전체 보기: 기수별 수강생 합으로 자동 반영, 없으면 localStorage
-    const sum = instructor.cohorts.reduce((a, c) => a + (c.totalStudents || 0), 0);
+    const sum = visibleCohorts.reduce((a, c) => a + (c.totalStudents || 0), 0);
     if (sum > 0) {
       setTotalInput(String(sum));
       return;
@@ -34,20 +39,23 @@ export function InstructorHero({ platformName, instructor, cohort, onUpdateCohor
     if (typeof window === "undefined") return;
     const v = localStorage.getItem(storageKey);
     setTotalInput(v && /^\d+$/.test(v) ? v : "");
-  }, [cohort?.id, cohort?.totalStudents, cohort, storageKey, instructor.cohorts]);
+  }, [cohort?.id, cohort?.totalStudents, cohort, storageKey, visibleCohorts]);
 
   // Aggregate responses
   const preResponses = cohort
     ? cohort.preResponses
-    : instructor.cohorts.flatMap((c) => c.preResponses);
+    : visibleCohorts.flatMap((c) => c.preResponses);
   const postResponses = cohort
     ? cohort.postResponses
-    : instructor.cohorts.flatMap((c) => c.postResponses);
+    : visibleCohorts.flatMap((c) => c.postResponses);
 
   const scores = computeScores(postResponses);
-  const currentPM = cohort?.pm || instructor.cohorts[0]?.pm || "-";
+  const currentPM = cohort?.pm || visibleCohorts[0]?.pm || "-";
   const hasData = preResponses.length > 0 || postResponses.length > 0;
   const [photoOpen, setPhotoOpen] = useState(false);
+
+  // 브레드크럼: 강사 · 강의명(2개+ 시) · 기수
+  const showCourseName = course && instructor.courses.length > 1;
 
   return (
     <div className="bg-card rounded-xl border p-4 px-5 mb-4">
@@ -71,6 +79,7 @@ export function InstructorHero({ platformName, instructor, cohort, onUpdateCohor
             <div className="text-[22px] font-extrabold">
               {instructor.name}{" "}
               <span className="font-normal text-muted-foreground text-[16px]">
+                {showCourseName && <>· {course.name || "기본 과정"} </>}
                 · {!cohort ? "전체" : cohort.label}
               </span>
             </div>
@@ -109,7 +118,7 @@ export function InstructorHero({ platformName, instructor, cohort, onUpdateCohor
                         const n = parseInt(totalInput, 10);
                         if (cohort && (isNaN(n) || n < 0)) setTotalInput(cohort.totalStudents ? String(cohort.totalStudents) : "");
                         if (!cohort && (isNaN(n) || n < 0)) {
-                          const sum = instructor.cohorts.reduce((a, c) => a + (c.totalStudents || 0), 0);
+                          const sum = visibleCohorts.reduce((a, c) => a + (c.totalStudents || 0), 0);
                           setTotalInput(sum > 0 ? String(sum) : (typeof window !== "undefined" ? localStorage.getItem(storageKey) || "" : ""));
                         }
                       }}

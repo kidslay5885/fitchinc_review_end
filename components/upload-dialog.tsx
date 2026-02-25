@@ -15,6 +15,7 @@ interface UploadFileState {
   name: string;
   platform: string;
   inst: string;
+  course: string;
   cohort: string;
   type: "사전" | "후기";
   status: "pending" | "uploading" | "done" | "error";
@@ -36,6 +37,7 @@ export function UploadDialog({ onClose }: UploadDialogProps) {
         name: file.name,
         platform: parsed.platform || state.platforms[0]?.name || "핏크닉",
         inst: parsed.instructor,
+        course: parsed.course,
         cohort: parsed.cohort,
         type: parsed.type,
         status: "pending" as const,
@@ -99,6 +101,7 @@ export function UploadDialog({ onClose }: UploadDialogProps) {
         formData.append("survey_type", f.type);
         formData.append("platform", f.platform);
         formData.append("instructor", f.inst);
+        formData.append("course", f.course);
         formData.append("cohort", f.cohort);
 
         const res = await fetch("/api/upload", {
@@ -150,7 +153,7 @@ export function UploadDialog({ onClose }: UploadDialogProps) {
       <div
         onClick={(e) => e.stopPropagation()}
         className="bg-card rounded-[14px] p-7 shadow-xl border max-h-[80vh] overflow-y-auto"
-        style={{ width: step === "upload" ? 460 : 620 }}
+        style={{ width: step === "upload" ? 460 : 720 }}
       >
         <div className="flex justify-between items-center mb-1.5">
           <h3 className="text-[17px] font-extrabold">설문 데이터 업로드</h3>
@@ -219,7 +222,7 @@ export function UploadDialog({ onClose }: UploadDialogProps) {
                       <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-5 gap-2">
                     <div>
                       <label className="text-[10px] font-bold text-muted-foreground block mb-1">
                         플랫폼
@@ -254,6 +257,17 @@ export function UploadDialog({ onClose }: UploadDialogProps) {
                           <option key={name} value={name} />
                         ))}
                       </datalist>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-muted-foreground block mb-1">
+                        강의명
+                      </label>
+                      <input
+                        value={f.course}
+                        onChange={(e) => updateFile(i, "course", e.target.value)}
+                        placeholder="(선택)"
+                        className="w-full py-1.5 px-2 rounded-md border text-[12px] bg-card border-border"
+                      />
                     </div>
                     <div>
                       <label className="text-[10px] font-bold text-muted-foreground block mb-1">
@@ -328,7 +342,7 @@ export function UploadDialog({ onClose }: UploadDialogProps) {
                 )}
                 <span className="text-[13px] flex-1 truncate">{f.name}</span>
                 <span className="text-[11px] text-muted-foreground">
-                  {f.inst} · {f.cohort} · {f.type}
+                  {f.inst}{f.course ? ` · ${f.course}` : ""} · {f.cohort} · {f.type}
                 </span>
               </div>
             ))}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef } from "react";
-import type { Instructor, Cohort, Comment, Survey } from "@/lib/types";
+import type { Instructor, Course, Cohort, Comment, Survey } from "@/lib/types";
 import {
   FIELD_LABELS,
   FIELD_ORDER,
@@ -22,11 +22,12 @@ type HubView = "untagged" | "instructor" | "platform" | "all";
 
 interface TabFeedbackHubProps {
   instructor: Instructor;
+  course: Course | null;
   cohort: Cohort | null;
   platformName: string;
 }
 
-export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedbackHubProps) {
+export function TabFeedbackHub({ instructor, course, cohort, platformName }: TabFeedbackHubProps) {
   const [comments, setComments] = useState<CommentWithCohort[]>([]);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -65,9 +66,11 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
     memoSaveRef.current = setTimeout(() => persistMemo(value), 400);
   };
 
+  const courseName = course?.name ?? null;
+
   useEffect(() => {
     loadComments();
-  }, [platformName, instructor.name, cohortLabel]);
+  }, [platformName, instructor.name, courseName, cohortLabel]);
 
   // 뷰 변경 시 선택 초기화
   useEffect(() => {
@@ -126,6 +129,7 @@ export function TabFeedbackHub({ instructor, cohort, platformName }: TabFeedback
         platform: platformName,
         instructor: instructor.name,
       });
+      if (courseName != null) params.set("course", courseName);
       if (cohortLabel) params.set("cohort", cohortLabel);
 
       const res = await fetch(`/api/classify?${params}`);

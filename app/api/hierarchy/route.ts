@@ -7,7 +7,7 @@ export async function GET() {
 
     const { data: surveys, error } = await supabase
       .from("surveys")
-      .select("platform, instructor, cohort, survey_type, response_count, pm, start_date, end_date, total_students")
+      .select("platform, instructor, course, cohort, survey_type, response_count, pm, start_date, end_date, total_students")
       .not("platform", "is", null)
       .not("instructor", "is", null)
       .order("created_at");
@@ -16,12 +16,15 @@ export async function GET() {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // 계층 구조 빌드: platform → instructor → cohort
-    const platformMap = new Map<string, Map<string, Set<string>>>();
+    // 4단계 계층 빌드: platform → instructor → course → cohort
+    // Map<platform, Map<instructor, Map<course, Set<cohort>>>>
+    const platformMap = new Map<string, Map<string, Map<string, Set<string>>>>();
     const cohortMeta = new Map<string, { pm: string; startDate: string | null; endDate: string | null; totalStudents: number; preCount: number; postCount: number }>();
 
     for (const s of surveys || []) {
       if (!s.platform || !s.instructor) continue;
+
+      const courseName = s.course || "";
 
       if (!platformMap.has(s.platform)) {
         platformMap.set(s.platform, new Map());
@@ -29,13 +32,18 @@ export async function GET() {
       const instMap = platformMap.get(s.platform)!;
 
       if (!instMap.has(s.instructor)) {
-        instMap.set(s.instructor, new Set());
+        instMap.set(s.instructor, new Map());
+      }
+      const courseMap = instMap.get(s.instructor)!;
+
+      if (!courseMap.has(courseName)) {
+        courseMap.set(courseName, new Set());
       }
 
       if (s.cohort) {
-        instMap.get(s.instructor)!.add(s.cohort);
+        courseMap.get(courseName)!.add(s.cohort);
 
-        const key = `${s.platform}|${s.instructor}|${s.cohort}`;
+        const key = `${s.platform}|${s.instructor}|${courseName}|${s.cohort}`;
         const existing = cohortMeta.get(key) || { pm: "", startDate: null, endDate: null, totalStudents: 0, preCount: 0, postCount: 0 };
 
         if (s.pm) existing.pm = s.pm;
@@ -56,21 +64,24 @@ export async function GET() {
     // 출력 형태
     const result = Array.from(platformMap.entries()).map(([platformName, instMap]) => ({
       name: platformName,
-      instructors: Array.from(instMap.entries()).map(([instName, cohortSet]) => ({
+      instructors: Array.from(instMap.entries()).map(([instName, courseMap]) => ({
         name: instName,
-        cohorts: Array.from(cohortSet).map((cohortLabel) => {
-          const key = `${platformName}|${instName}|${cohortLabel}`;
-          const meta = cohortMeta.get(key);
-          return {
-            label: cohortLabel,
-            pm: meta?.pm || "",
-            startDate: meta?.startDate || "",
-            endDate: meta?.endDate || "",
-            totalStudents: meta?.totalStudents || 0,
-            preCount: meta?.preCount || 0,
-            postCount: meta?.postCount || 0,
-          };
-        }),
+        courses: Array.from(courseMap.entries()).map(([courseName, cohortSet]) => ({
+          name: courseName,
+          cohorts: Array.from(cohortSet).map((cohortLabel) => {
+            const key = `${platformName}|${instName}|${courseName}|${cohortLabel}`;
+            const meta = cohortMeta.get(key);
+            return {
+              label: cohortLabel,
+              pm: meta?.pm || "",
+              startDate: meta?.startDate || "",
+              endDate: meta?.endDate || "",
+              totalStudents: meta?.totalStudents || 0,
+              preCount: meta?.preCount || 0,
+              postCount: meta?.postCount || 0,
+            };
+          }),
+        })),
       })),
     }));
 

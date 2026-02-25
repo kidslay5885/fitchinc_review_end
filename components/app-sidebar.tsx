@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { useAppStore, useSelectedPlatform } from "@/hooks/use-app-store";
-import { autoStatus, statusBg } from "@/lib/types";
+import { autoStatus, statusBg, allCohorts } from "@/lib/types";
 import { getOrderedCohorts, setCohortOrder } from "@/lib/cohort-order";
-import { Settings, Upload, ChevronDown, ChevronUp, User, GripVertical } from "lucide-react";
-import type { Instructor } from "@/lib/types";
+import { Settings, Upload, ChevronDown, ChevronUp, User, GripVertical, BookOpen } from "lucide-react";
+import type { Instructor, Course } from "@/lib/types";
 
 interface AppSidebarProps {
   onUpload: () => void;
@@ -16,6 +16,8 @@ export function AppSidebar({ onUpload, onEditInstructor }: AppSidebarProps) {
   const { state, dispatch } = useAppStore();
   const plat = useSelectedPlatform();
   const [orderKey, setOrderKey] = useState(0);
+
+  const hasMultipleCourses = (inst: Instructor) => inst.courses.length > 1;
 
   return (
     <aside className="w-[260px] border-r bg-card overflow-y-auto flex-shrink-0 flex flex-col">
@@ -59,6 +61,9 @@ export function AppSidebar({ onUpload, onEditInstructor }: AppSidebarProps) {
             )}
             {plat.instructors.map((instructor) => {
               const isSel = state.selectedInstructorId === instructor.id;
+              const multiCourse = hasMultipleCourses(instructor);
+              const selectedCourse = instructor.courses.find((c) => c.id === state.selectedCourseId) || null;
+
               return (
                 <div key={instructor.id}>
                   <div className="flex items-center gap-1.5">
@@ -81,6 +86,7 @@ export function AppSidebar({ onUpload, onEditInstructor }: AppSidebarProps) {
                         dispatch({
                           type: "SELECT_INSTRUCTOR",
                           id: isSel ? null : instructor.id,
+                          platforms: state.platforms,
                         })
                       }
                       className={`flex-1 py-2 px-2 rounded-lg cursor-pointer transition-colors min-w-0 ${
@@ -114,6 +120,7 @@ export function AppSidebar({ onUpload, onEditInstructor }: AppSidebarProps) {
                         dispatch({
                           type: "SELECT_INSTRUCTOR",
                           id: isSel ? null : instructor.id,
+                          platforms: state.platforms,
                         });
                       }}
                       className="shrink-0 p-1 rounded text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
@@ -127,94 +134,73 @@ export function AppSidebar({ onUpload, onEditInstructor }: AppSidebarProps) {
                     </button>
                   </div>
 
-                  {/* Cohorts: 전체 보기 / 기수 (저장된 순서, 드래그로 순서 변경) */}
-                  {isSel && plat && (() => {
-                    const ordered = getOrderedCohorts(plat.name, instructor.name, instructor.cohorts);
-                    const handleDragStart = (e: React.DragEvent, index: number) => {
-                      e.dataTransfer.setData("text/plain", String(index));
-                      e.dataTransfer.effectAllowed = "move";
-                    };
-                    const handleDragOver = (e: React.DragEvent) => {
-                      e.preventDefault();
-                      e.dataTransfer.dropEffect = "move";
-                    };
-                    const handleDrop = (e: React.DragEvent, dropIndex: number) => {
-                      e.preventDefault();
-                      const from = parseInt(e.dataTransfer.getData("text/plain"), 10);
-                      if (isNaN(from) || from === dropIndex) return;
-                      const labels = [...ordered.map((c) => c.label)];
-                      const [removed] = labels.splice(from, 1);
-                      labels.splice(dropIndex, 0, removed);
-                      setCohortOrder(plat.name, instructor.name, labels);
-                      setOrderKey((k) => k + 1);
-                      fetch("/api/app-settings", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          type: "cohort_order",
-                          platform: plat.name,
-                          instructor: instructor.name,
-                          labels,
-                        }),
-                      }).catch(() => {});
-                    };
-                    return (
-                      <div className="pl-7 py-1.5 space-y-0.5">
-                        <div
-                          onClick={() => dispatch({ type: "SELECT_COHORT", id: null })}
-                          className={`py-1.5 px-2.5 rounded-md text-[12px] cursor-pointer border-l-2 min-h-[32px] flex items-center ${
-                            !state.selectedCohortId
-                              ? "font-semibold text-primary bg-primary/5 border-l-primary"
-                              : "text-muted-foreground border-l-transparent hover:bg-accent"
-                          }`}
-                        >
-                          전체 보기
-                        </div>
-                        {ordered.map((c, index) => {
-                          const status = autoStatus(c);
-                          const isSelCo = state.selectedCohortId === c.id;
-                          return (
+                  {/* 강의 2개+: 강의 목록 → 강의 선택 시 기수 목록 */}
+                  {isSel && plat && multiCourse && (
+                    <div className="pl-7 py-1.5 space-y-0.5">
+                      {/* 전체 보기 (모든 강의/기수) */}
+                      <div
+                        onClick={() => {
+                          dispatch({ type: "SELECT_COURSE", id: null });
+                          dispatch({ type: "SELECT_COHORT", id: null });
+                        }}
+                        className={`py-1.5 px-2.5 rounded-md text-[12px] cursor-pointer border-l-2 min-h-[32px] flex items-center ${
+                          !state.selectedCourseId && !state.selectedCohortId
+                            ? "font-semibold text-primary bg-primary/5 border-l-primary"
+                            : "text-muted-foreground border-l-transparent hover:bg-accent"
+                        }`}
+                      >
+                        전체 보기
+                      </div>
+                      {instructor.courses.map((course) => {
+                        const isCourseSelected = state.selectedCourseId === course.id;
+                        return (
+                          <div key={course.id}>
                             <div
-                              key={c.id}
-                              draggable
-                              onDragStart={(e) => handleDragStart(e, index)}
-                              onDragOver={handleDragOver}
-                              onDrop={(e) => handleDrop(e, index)}
-                              onClick={() => dispatch({ type: "SELECT_COHORT", id: c.id })}
-                              className={`group py-1.5 px-2.5 rounded-md text-[12px] cursor-pointer border-l-2 min-h-[32px] flex items-center gap-1 ${
-                                isSelCo
-                                  ? "bg-primary/5 border-l-primary font-semibold text-primary"
-                                  : "border-l-transparent hover:bg-accent"
+                              onClick={() => {
+                                dispatch({ type: "SELECT_COURSE", id: isCourseSelected ? null : course.id });
+                                dispatch({ type: "SELECT_COHORT", id: null });
+                              }}
+                              className={`py-1.5 px-2.5 rounded-md text-[12px] cursor-pointer border-l-2 min-h-[32px] flex items-center gap-1 ${
+                                isCourseSelected
+                                  ? "font-semibold text-primary bg-primary/5 border-l-primary"
+                                  : "text-muted-foreground border-l-transparent hover:bg-accent"
                               }`}
                             >
-                              <span
-                                className="shrink-0 opacity-0 group-hover:opacity-60 cursor-grab active:cursor-grabbing text-muted-foreground"
-                                onClick={(e) => e.stopPropagation()}
-                                title="드래그하여 순서 변경"
-                              >
-                                <GripVertical className="w-3.5 h-3.5" />
-                              </span>
-                              <div className="flex-1 min-w-0 flex flex-col justify-center">
-                                <div className="flex justify-between items-center gap-1">
-                                  <span className={isSelCo ? "font-semibold text-primary" : ""}>
-                                    {c.label}
-                                  </span>
-                                  <span
-                                    className={`text-[10px] px-1 py-0.5 rounded border font-bold shrink-0 ${statusBg(status)}`}
-                                  >
-                                    {status}
-                                  </span>
-                                </div>
-                                {c.pm && (
-                                  <div className="text-[10px] text-muted-foreground mt-0.5">담당PM {c.pm}</div>
-                                )}
-                              </div>
+                              <BookOpen className="w-3 h-3 shrink-0" />
+                              <span className="truncate">{course.name || "기본 과정"}</span>
                             </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })()}
+
+                            {/* 해당 강의의 기수 목록 */}
+                            {isCourseSelected && (
+                              <CohortList
+                                plat={plat}
+                                instructor={instructor}
+                                course={course}
+                                selectedCohortId={state.selectedCohortId}
+                                dispatch={dispatch}
+                                orderKey={orderKey}
+                                setOrderKey={setOrderKey}
+                                indent
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* 강의 1개: 기존과 동일 (Course 레이어 숨김, 바로 기수 표시) */}
+                  {isSel && plat && !multiCourse && instructor.courses.length === 1 && (
+                    <CohortList
+                      plat={plat}
+                      instructor={instructor}
+                      course={instructor.courses[0]}
+                      selectedCohortId={state.selectedCohortId}
+                      dispatch={dispatch}
+                      orderKey={orderKey}
+                      setOrderKey={setOrderKey}
+                    />
+                  )}
                 </div>
               );
             })}
@@ -233,5 +219,117 @@ export function AppSidebar({ onUpload, onEditInstructor }: AppSidebarProps) {
         </button>
       </div>
     </aside>
+  );
+}
+
+/** 기수 목록 (드래그 재정렬 지원) */
+function CohortList({
+  plat,
+  instructor,
+  course,
+  selectedCohortId,
+  dispatch,
+  orderKey,
+  setOrderKey,
+  indent = false,
+}: {
+  plat: { name: string };
+  instructor: Instructor;
+  course: Course;
+  selectedCohortId: string | null;
+  dispatch: ReturnType<typeof useAppStore>["dispatch"];
+  orderKey: number;
+  setOrderKey: (fn: (k: number) => number) => void;
+  indent?: boolean;
+}) {
+  const ordered = getOrderedCohorts(plat.name, instructor.name, course.name, course.cohorts);
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    e.dataTransfer.setData("text/plain", String(index));
+    e.dataTransfer.effectAllowed = "move";
+  };
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
+  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+    const from = parseInt(e.dataTransfer.getData("text/plain"), 10);
+    if (isNaN(from) || from === dropIndex) return;
+    const labels = [...ordered.map((c) => c.label)];
+    const [removed] = labels.splice(from, 1);
+    labels.splice(dropIndex, 0, removed);
+    setCohortOrder(plat.name, instructor.name, course.name, labels);
+    setOrderKey((k) => k + 1);
+    fetch("/api/app-settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "cohort_order",
+        platform: plat.name,
+        instructor: instructor.name,
+        course: course.name,
+        labels,
+      }),
+    }).catch(() => {});
+  };
+
+  return (
+    <div className={`${indent ? "pl-4" : "pl-7"} py-1.5 space-y-0.5`}>
+      {!indent && (
+        <div
+          onClick={() => dispatch({ type: "SELECT_COHORT", id: null })}
+          className={`py-1.5 px-2.5 rounded-md text-[12px] cursor-pointer border-l-2 min-h-[32px] flex items-center ${
+            !selectedCohortId
+              ? "font-semibold text-primary bg-primary/5 border-l-primary"
+              : "text-muted-foreground border-l-transparent hover:bg-accent"
+          }`}
+        >
+          전체 보기
+        </div>
+      )}
+      {ordered.map((c, index) => {
+        const status = autoStatus(c);
+        const isSelCo = selectedCohortId === c.id;
+        return (
+          <div
+            key={c.id}
+            draggable
+            onDragStart={(e) => handleDragStart(e, index)}
+            onDragOver={handleDragOver}
+            onDrop={(e) => handleDrop(e, index)}
+            onClick={() => dispatch({ type: "SELECT_COHORT", id: c.id })}
+            className={`group py-1.5 px-2.5 rounded-md text-[12px] cursor-pointer border-l-2 min-h-[32px] flex items-center gap-1 ${
+              isSelCo
+                ? "bg-primary/5 border-l-primary font-semibold text-primary"
+                : "border-l-transparent hover:bg-accent"
+            }`}
+          >
+            <span
+              className="shrink-0 opacity-0 group-hover:opacity-60 cursor-grab active:cursor-grabbing text-muted-foreground"
+              onClick={(e) => e.stopPropagation()}
+              title="드래그하여 순서 변경"
+            >
+              <GripVertical className="w-3.5 h-3.5" />
+            </span>
+            <div className="flex-1 min-w-0 flex flex-col justify-center">
+              <div className="flex justify-between items-center gap-1">
+                <span className={isSelCo ? "font-semibold text-primary" : ""}>
+                  {c.label}
+                </span>
+                <span
+                  className={`text-[10px] px-1 py-0.5 rounded border font-bold shrink-0 ${statusBg(status)}`}
+                >
+                  {status}
+                </span>
+              </div>
+              {c.pm && (
+                <div className="text-[10px] text-muted-foreground mt-0.5">담당PM {c.pm}</div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }

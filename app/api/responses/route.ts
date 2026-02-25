@@ -7,6 +7,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = req.nextUrl;
     const platform = searchParams.get("platform");
     const instructor = searchParams.get("instructor");
+    const course = searchParams.get("course");
     const cohort = searchParams.get("cohort");
 
     if (!platform || !instructor) {
@@ -21,6 +22,10 @@ export async function GET(req: NextRequest) {
       .select("id, survey_type")
       .eq("platform", platform)
       .eq("instructor", instructor);
+
+    if (course != null) {
+      surveyQuery = surveyQuery.eq("course", course);
+    }
 
     if (cohort) {
       surveyQuery = surveyQuery.eq("cohort", cohort);

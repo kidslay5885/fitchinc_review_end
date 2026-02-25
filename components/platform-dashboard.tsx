@@ -1,7 +1,7 @@
 "use client";
 
 import type { Platform } from "@/lib/types";
-import { autoStatus, statusBg, cohortAvgScore } from "@/lib/types";
+import { autoStatus, statusBg, cohortAvgScore, allCohorts } from "@/lib/types";
 import { aggregateInstructor } from "@/lib/analysis-engine";
 import { getOrderedCohorts } from "@/lib/cohort-order";
 import { User } from "lucide-react";
@@ -13,12 +13,12 @@ interface PlatformDashboardProps {
 
 export function PlatformDashboard({ platform, onSelectInstructor }: PlatformDashboardProps) {
   const totalSurvey = platform.instructors.reduce(
-    (a, i) => a + i.cohorts.reduce((b, c) => b + c.preResponses.length, 0),
+    (a, i) => a + allCohorts(i).reduce((b, c) => b + c.preResponses.length, 0),
     0
   );
 
   const doneCohorts = platform.instructors
-    .flatMap((i) => i.cohorts)
+    .flatMap((i) => allCohorts(i))
     .filter((c) => c.postResponses.length > 0);
 
   const allScores = doneCohorts.map((c) => cohortAvgScore(c)).filter((s) => s > 0);
@@ -60,7 +60,7 @@ export function PlatformDashboard({ platform, onSelectInstructor }: PlatformDash
       ) : (
         <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-3.5">
           {platform.instructors.map((inst) => {
-            const ordered = getOrderedCohorts(platform.name, inst.name, inst.cohorts);
+            const ordered = getOrderedCohorts(platform.name, inst.name, "", allCohorts(inst));
             const { totalPre, avgScore } = aggregateInstructor(ordered);
             const last = ordered[ordered.length - 1];
             const lastStatus = last ? autoStatus(last) : "준비중";

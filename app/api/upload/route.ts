@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { parseXLSXToComments, parseBufferToResponses, countRespondents } from "@/lib/csv-parser";
 import { parseFilename } from "@/lib/filename-parser";
+import { resolveCourse } from "@/lib/course-registry";
 
 export async function POST(req: NextRequest) {
   try {
@@ -10,6 +11,7 @@ export async function POST(req: NextRequest) {
     const surveyType = (formData.get("survey_type") as string) || "사전";
     const platformOverride = formData.get("platform") as string | null;
     const instructorOverride = formData.get("instructor") as string | null;
+    const courseOverride = formData.get("course") as string | null;
     const cohortOverride = formData.get("cohort") as string | null;
 
     if (!file) {
@@ -24,6 +26,13 @@ export async function POST(req: NextRequest) {
     const platform = platformOverride || parsed.platform || null;
     const instructor = instructorOverride || parsed.instructor || null;
     const cohort = cohortOverride || parsed.cohort || null;
+
+    // 강의명: 수동 입력 > 레지스트리 매칭 > 파일명 파싱 순
+    const course = courseOverride ?? (
+      (instructor && platform)
+        ? resolveCourse(instructor, platform, file.name) || parsed.course || ""
+        : parsed.course ?? ""
+    );
 
     const responseCount = countRespondents(buffer);
     const comments = parseXLSXToComments(buffer, isPre);
@@ -41,13 +50,13 @@ export async function POST(req: NextRequest) {
 
     const supabase = getSupabase();
 
-    // 중복 설문 체크: 같은 (platform, instructor, cohort, survey_type) 존재 시 기존 데이터 삭제
+    // 중복 설문 체크: 같은 (platform, instructor, course, cohort, survey_type) 존재 시 기존 데이터 삭제
     let replaced = false;
     if (platform && instructor && cohort) {
       const { data: existing } = await supabase
         .from("surveys")
         .select("id")
-        .match({ platform, instructor, cohort, survey_type: surveyType });
+        .match({ platform, instructor, course, cohort, survey_type: surveyType });
 
       if (existing && existing.length > 0) {
         const oldIds = existing.map((s) => s.id);
@@ -66,6 +75,7 @@ export async function POST(req: NextRequest) {
         filename: file.name,
         platform,
         instructor,
+        course,
         cohort,
         survey_type: surveyType,
         status: platform && instructor && cohort ? "classified" : "uploaded",

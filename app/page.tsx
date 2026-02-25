@@ -6,12 +6,15 @@ import {
   useAppStore,
   useSelectedPlatform,
   useSelectedInstructor,
+  useSelectedCourse,
   useSelectedCohort,
 } from "@/hooks/use-app-store";
+import { allCohorts } from "@/lib/types";
 import { NavHeader } from "@/components/nav-header";
 import { AppSidebar } from "@/components/app-sidebar";
 import { PlatformDashboard } from "@/components/platform-dashboard";
 import { InstructorHero } from "@/components/instructor-hero";
+import { TabOverview } from "@/components/tab-overview";
 import { TabWhole } from "@/components/tab-whole";
 import { TabFeedbackHub } from "@/components/tab-feedback-hub";
 import { TabAIInsight } from "@/components/tab-ai-insight";
@@ -22,16 +25,18 @@ import type { Instructor } from "@/lib/types";
 import { BarChart3, Loader2 } from "lucide-react";
 
 const TABS = [
-  { id: "whole", icon: "📋", label: "전체" },
+  { id: "overview", icon: "📈", label: "전체" },
+  { id: "whole", icon: "📋", label: "전체 데이터" },
   { id: "feedback", icon: "🏷️", label: "세부 분류" },
   { id: "insight", icon: "💡", label: "AI 인사이트" },
   { id: "quality", icon: "📊", label: "강의 품질", onlyWhenAllCohorts: true },
 ];
 
 function MainContent() {
-  const { state, dispatch, loadCohortData } = useAppStore();
+  const { state, dispatch, loadCohortData, refreshHierarchy } = useAppStore();
   const plat = useSelectedPlatform();
   const inst = useSelectedInstructor();
+  const course = useSelectedCourse();
   const cohort = useSelectedCohort();
 
   const [showUpload, setShowUpload] = useState(false);
@@ -40,6 +45,9 @@ function MainContent() {
 
   const showPlatDash = plat && !inst;
   const platformName = plat?.name || "";
+
+  // 현재 보여줄 기수 목록
+  const visibleCohorts = inst ? (course ? course.cohorts : allCohorts(inst)) : [];
 
   // 강사/기수 선택 시 실제 데이터 지연 로딩
   useEffect(() => {
@@ -52,15 +60,19 @@ function MainContent() {
           (cohort.preResponses.length > 0 && cohort.preResponses[0]?.name === "") ||
           (cohort.postResponses.length > 0 && cohort.postResponses[0]?.name === "");
         if (needsLoad) {
-          await loadCohortData(plat.name, inst.name, cohort.label);
+          // cohort가 속한 course 찾기
+          const ownerCourse = inst.courses.find((c) => c.cohorts.some((co) => co.id === cohort.id));
+          await loadCohortData(plat.name, inst.name, ownerCourse?.name || "", cohort.label);
         }
       } else {
-        for (const c of inst.cohorts) {
+        // 선택된 course의 기수만, 또는 전체 기수 로딩
+        for (const c of visibleCohorts) {
           const needsLoad =
             (c.preResponses.length > 0 && c.preResponses[0]?.name === "") ||
             (c.postResponses.length > 0 && c.postResponses[0]?.name === "");
           if (needsLoad) {
-            await loadCohortData(plat.name, inst.name, c.label);
+            const ownerCourse = inst.courses.find((cr) => cr.cohorts.some((co) => co.id === c.id));
+            await loadCohortData(plat.name, inst.name, ownerCourse?.name || "", c.label);
           }
         }
       }
@@ -68,7 +80,7 @@ function MainContent() {
     };
 
     loadData();
-  }, [inst?.id, cohort?.id, plat?.name]);
+  }, [inst?.id, course?.id, cohort?.id, plat?.name]);
 
   if (state.loading) {
     return (
@@ -86,6 +98,7 @@ function MainContent() {
       {editInst && (
         <EditInstructorDialog
           instructor={editInst}
+          platformName={platformName}
           onSave={(updated) => {
             if (plat) {
               const payload = { photo: updated.photo || "", photoPosition: updated.photoPosition || "center 2%" };
@@ -115,6 +128,7 @@ function MainContent() {
           }}
           onDelete={(id) => dispatch({ type: "DELETE_INSTRUCTOR", id })}
           onClose={() => setEditInst(null)}
+          onRefresh={refreshHierarchy}
         />
       )}
 
@@ -145,7 +159,7 @@ function MainContent() {
             {showPlatDash && (
               <PlatformDashboard
                 platform={plat}
-                onSelectInstructor={(id) => dispatch({ type: "SELECT_INSTRUCTOR", id })}
+                onSelectInstructor={(id) => dispatch({ type: "SELECT_INSTRUCTOR", id, platforms: state.platforms })}
               />
             )}
 
@@ -154,6 +168,7 @@ function MainContent() {
                 <InstructorHero
                   platformName={platformName}
                   instructor={inst}
+                  course={course}
                   cohort={cohort}
                   onUpdateCohort={
                     cohort
@@ -194,27 +209,37 @@ function MainContent() {
                   </div>
                 ) : (
                   <>
+                    {state.activeTab === "overview" && (
+                      <TabOverview
+                        instructor={inst}
+                        course={course}
+                        cohort={cohort}
+                        platformName={platformName}
+                      />
+                    )}
                     {state.activeTab === "whole" && (
                       <TabWhole
                         instructor={inst}
+                        course={course}
                         platformName={platformName}
                         selectedCohort={cohort}
                         onGoToQuality={() => dispatch({ type: "SET_TAB", tab: "quality" })}
                       />
                     )}
                     {(state.activeTab === "feedback" || (state.activeTab === "quality" && cohort)) && (
-                      <TabFeedbackHub instructor={inst} cohort={cohort} platformName={platformName} />
+                      <TabFeedbackHub instructor={inst} course={course} cohort={cohort} platformName={platformName} />
                     )}
                     {state.activeTab === "insight" && (
                       <TabAIInsight
                         instructor={inst}
+                        course={course}
                         cohort={cohort}
                         platformName={platformName}
                         isActive
                       />
                     )}
                     {state.activeTab === "quality" && !cohort && (
-                      <TabQualityOverview instructor={inst} platformName={platformName} />
+                      <TabQualityOverview instructor={inst} course={course} platformName={platformName} />
                     )}
                   </>
                 )}

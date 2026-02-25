@@ -4,6 +4,7 @@ export interface DemographicStats {
   gender: Record<string, number>;
   age: Record<string, number>;
   job: Record<string, number>;
+  hours: Record<string, number>;
   computer: { avg: number; distribution: Record<number, number> };
   goal: Record<string, number>;
   channel: Record<string, number>;
@@ -13,6 +14,7 @@ export function computeDemographics(responses: SurveyResponse[]): DemographicSta
   const gender: Record<string, number> = {};
   const age: Record<string, number> = {};
   const job: Record<string, number> = {};
+  const hours: Record<string, number> = {};
   const goal: Record<string, number> = {};
   const channel: Record<string, number> = {};
   const computerDist: Record<number, number> = {};
@@ -23,6 +25,7 @@ export function computeDemographics(responses: SurveyResponse[]): DemographicSta
     if (r.gender) gender[r.gender] = (gender[r.gender] || 0) + 1;
     if (r.age) age[r.age] = (age[r.age] || 0) + 1;
     if (r.job) job[r.job] = (job[r.job] || 0) + 1;
+    if (r.hours) hours[r.hours] = (hours[r.hours] || 0) + 1;
     if (r.goal) goal[r.goal] = (goal[r.goal] || 0) + 1;
     if (r.channel) channel[r.channel] = (channel[r.channel] || 0) + 1;
     if (r.computer > 0) {
@@ -36,6 +39,7 @@ export function computeDemographics(responses: SurveyResponse[]): DemographicSta
     gender,
     age,
     job,
+    hours,
     computer: {
       avg: computerCount > 0 ? Math.round((computerSum / computerCount) * 10) / 10 : 0,
       distribution: computerDist,

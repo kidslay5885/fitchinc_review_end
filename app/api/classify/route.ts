@@ -7,6 +7,7 @@ export async function GET(req: NextRequest) {
     const surveyId = req.nextUrl.searchParams.get("surveyId");
     const platform = req.nextUrl.searchParams.get("platform");
     const instructor = req.nextUrl.searchParams.get("instructor");
+    const course = req.nextUrl.searchParams.get("course");
     const cohort = req.nextUrl.searchParams.get("cohort");
 
     const supabase = getSupabase();
@@ -25,13 +26,17 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(data);
     }
 
-    // 새 방식: platform + instructor로 조회 (cohort 선택)
+    // 새 방식: platform + instructor로 조회 (course, cohort 선택)
     if (platform && instructor) {
       let surveyQuery = supabase
         .from("surveys")
         .select("id")
         .eq("platform", platform)
         .eq("instructor", instructor);
+
+      if (course != null) {
+        surveyQuery = surveyQuery.eq("course", course);
+      }
 
       if (cohort) {
         surveyQuery = surveyQuery.eq("cohort", cohort);

@@ -3,6 +3,7 @@ import type { Instructor } from "./types";
 export interface FilenameParsed {
   platform: string;
   instructor: string;
+  course: string;
   cohort: string;
   type: "사전" | "후기";
 }
@@ -125,5 +126,48 @@ export function parseFilename(
     instructor = INSTRUCTOR_ALIASES[instructor];
   }
 
-  return { platform, instructor, cohort, type };
+  // --- Course name ---
+  // 강사명과 기수 마커 사이의 텍스트를 강의명으로 추출
+  // 예: "핏크닉 셀링남 AI 브랜드 파이프 시크릿 로드맵(1기) 수강생 후기 설문지"
+  //   → course = "AI 브랜드 파이프 시크릿 로드맵"
+  let course = "";
+  if (instructor && rest) {
+    // rest에서 강사명 이후 부분 추출
+    const instNoSpace = instructor.replace(/\s/g, "");
+    const restNoSpaceForCourse = rest.replace(/\s/g, "");
+    const instEndIdx = restNoSpaceForCourse.indexOf(instNoSpace);
+
+    if (instEndIdx >= 0) {
+      // 원본 rest에서 강사명 이후 텍스트를 찾기
+      // 공백 포함 원본에서 강사명 뒤의 위치를 찾음
+      let charCount = 0;
+      let origIdx = 0;
+      const targetCount = instEndIdx + instNoSpace.length;
+      for (let j = 0; j < rest.length && charCount < targetCount; j++) {
+        if (rest[j] !== " " && rest[j] !== "\t") charCount++;
+        origIdx = j + 1;
+      }
+      const afterInst = rest.slice(origIdx).trim();
+
+      // "님" 접미사 제거
+      const afterInstClean = afterInst.replace(/^님\s*/, "");
+
+      // 기수 마커(N기) 또는 "(N기)" 앞까지의 텍스트를 강의명으로
+      // "AI 브랜드 파이프 시크릿 로드맵(1기) 수강생 후기 설문지"
+      // → "AI 브랜드 파이프 시크릿 로드맵"
+      const courseMatch = afterInstClean.match(/^(.+?)[\s(]*\d+\s*기/);
+      if (courseMatch) {
+        let courseName = courseMatch[1].trim();
+        // "수강생", "설문지" 등의 후기/사전 관련 단어 제거
+        courseName = courseName.replace(/\s*(수강생|설문지|사전|후기|만족도|피드백|post)\s*/gi, " ").trim();
+        // 끝에 남은 괄호/공백 제거
+        courseName = courseName.replace(/[(\s]+$/, "").trim();
+        if (courseName.length >= 2) {
+          course = courseName;
+        }
+      }
+    }
+  }
+
+  return { platform, instructor, course, cohort, type };
 }

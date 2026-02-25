@@ -5,6 +5,7 @@ export interface Survey {
   filename: string;
   platform: string | null;
   instructor: string | null;
+  course: string | null;
   cohort: string | null;
   survey_type: "사전" | "후기";
   status: "uploaded" | "analyzed" | "classified";
@@ -74,13 +75,24 @@ export interface Cohort {
   postResponses: SurveyResponse[];
 }
 
+export interface Course {
+  id: string;
+  name: string;
+  cohorts: Cohort[];
+}
+
 export interface Instructor {
   id: string;
   name: string;
   category: string;
   photo: string;
   photoPosition: string;
-  cohorts: Cohort[];
+  courses: Course[];
+}
+
+/** 강사의 모든 기수를 courses에서 flat하게 반환 */
+export function allCohorts(inst: Instructor): Cohort[] {
+  return inst.courses.flatMap((c) => c.cohorts);
 }
 
 export interface Platform {
@@ -117,6 +129,7 @@ export interface ParsedFile {
   name: string;
   platform: string;
   inst: string;
+  course: string;
   cohort: string;
   type: "사전" | "후기";
 }

@@ -1,12 +1,12 @@
 import type { Cohort } from "./types";
 
-const KEY = (platform: string, instructor: string) =>
-  `cohort-order-${platform}-${instructor}`;
+const KEY = (platform: string, instructor: string, courseName: string = "") =>
+  `cohort-order-${platform}-${instructor}${courseName ? `-${courseName}` : ""}`;
 
-export function getCohortOrder(platformName: string, instructorName: string): string[] {
+export function getCohortOrder(platformName: string, instructorName: string, courseName: string = ""): string[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(KEY(platformName, instructorName));
+    const raw = localStorage.getItem(KEY(platformName, instructorName, courseName));
     if (!raw) return [];
     const arr = JSON.parse(raw) as unknown;
     return Array.isArray(arr) && arr.every((x) => typeof x === "string") ? arr : [];
@@ -18,10 +18,11 @@ export function getCohortOrder(platformName: string, instructorName: string): st
 export function setCohortOrder(
   platformName: string,
   instructorName: string,
+  courseName: string = "",
   labels: string[]
 ): void {
   try {
-    localStorage.setItem(KEY(platformName, instructorName), JSON.stringify(labels));
+    localStorage.setItem(KEY(platformName, instructorName, courseName), JSON.stringify(labels));
   } catch {
     // ignore
   }
@@ -30,9 +31,10 @@ export function setCohortOrder(
 export function getOrderedCohorts(
   platformName: string,
   instructorName: string,
+  courseName: string = "",
   cohorts: Cohort[]
 ): Cohort[] {
-  const order = getCohortOrder(platformName, instructorName);
+  const order = getCohortOrder(platformName, instructorName, courseName);
   if (order.length === 0) return [...cohorts];
   const byLabel = new Map(cohorts.map((c) => [c.label, c]));
   const result: Cohort[] = [];

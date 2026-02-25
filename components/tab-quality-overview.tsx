@@ -1,6 +1,7 @@
 "use client";
 
-import type { Instructor } from "@/lib/types";
+import type { Instructor, Course } from "@/lib/types";
+import { allCohorts } from "@/lib/types";
 import { computeScores } from "@/lib/analysis-engine";
 import { getOrderedCohorts } from "@/lib/cohort-order";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -8,11 +9,13 @@ import { BarChart3 } from "lucide-react";
 
 interface TabQualityOverviewProps {
   instructor: Instructor;
+  course: Course | null;
   platformName: string;
 }
 
-export function TabQualityOverview({ instructor, platformName }: TabQualityOverviewProps) {
-  const ordered = getOrderedCohorts(platformName, instructor.name, instructor.cohorts);
+export function TabQualityOverview({ instructor, course, platformName }: TabQualityOverviewProps) {
+  const visibleCohorts = course ? course.cohorts : allCohorts(instructor);
+  const ordered = getOrderedCohorts(platformName, instructor.name, course?.name || "", visibleCohorts);
   const rows = ordered.map((c) => {
     const scores = computeScores(c.postResponses);
     const preN = c.preResponses.length;

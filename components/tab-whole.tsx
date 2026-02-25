@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import type { Instructor, Cohort, SurveyResponse } from "@/lib/types";
+import type { Instructor, Course, Cohort, SurveyResponse } from "@/lib/types";
+import { allCohorts } from "@/lib/types";
 import { FIELD_LABELS } from "@/lib/feedback-utils";
 import { getOrderedCohorts } from "@/lib/cohort-order";
 import { computeScores } from "@/lib/analysis-engine";
@@ -31,6 +32,7 @@ function slug(id: string): string {
 
 interface TabWholeProps {
   instructor: Instructor;
+  course: Course | null;
   platformName: string;
   selectedCohort: Cohort | null;
   /** 전체 보기에서 강의 품질 탭으로 이동할 때 호출 (선택) */
@@ -40,11 +42,12 @@ interface TabWholeProps {
 /** 목차 한 항목: id + 표시 라벨 */
 type TocEntry = { id: string; label: string };
 
-export function TabWhole({ instructor, platformName, selectedCohort, onGoToQuality }: TabWholeProps) {
-  const cohortsWithData = instructor.cohorts.filter((c) => c.preResponses.length > 0 || c.postResponses.length > 0);
+export function TabWhole({ instructor, course, platformName, selectedCohort, onGoToQuality }: TabWholeProps) {
+  const visibleCohorts = course ? course.cohorts : allCohorts(instructor);
+  const cohortsWithData = visibleCohorts.filter((c) => c.preResponses.length > 0 || c.postResponses.length > 0);
   const orderedCohorts = useMemo(
-    () => getOrderedCohorts(platformName, instructor.name, cohortsWithData),
-    [platformName, instructor.name, cohortsWithData]
+    () => getOrderedCohorts(platformName, instructor.name, course?.name || "", cohortsWithData),
+    [platformName, instructor.name, course?.name, cohortsWithData]
   );
   // 전체 보기 탭 내 로컬 필터. 다중 선택 가능(1기+2기 등). 빈 Set = 전체, 전부 선택 시에도 전체로 간주.
   const [viewCohortLabels, setViewCohortLabels] = useState<Set<string>>(new Set());
