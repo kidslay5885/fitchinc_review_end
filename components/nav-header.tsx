@@ -10,7 +10,7 @@ export function NavHeader() {
     <header className="py-2.5 px-5 border-b flex items-center justify-between bg-card">
       <div className="flex items-center">
         <img src="/fitchnic-logo.png" alt="핏크닉" className="h-[22px] w-auto mr-2.5" />
-        <span className="text-[16px] font-extrabold">핏크닉 클래스 인사이트</span>
+        <span className="text-[16px] font-extrabold">클래스 인사이트</span>
       </div>
 
       <button

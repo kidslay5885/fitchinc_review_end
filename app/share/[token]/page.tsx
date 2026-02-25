@@ -76,7 +76,7 @@ export default async function SharePage({ params }: SharePageProps) {
       <header className="py-4 px-6 border-b bg-card">
         <div className="max-w-3xl mx-auto flex items-center gap-2.5">
           <img src="/fitchnic-logo.png" alt="핏크닉" className="h-[22px] w-auto" />
-          <span className="text-sm font-extrabold">핏크닉 클래스 인사이트</span>
+          <span className="text-sm font-extrabold">클래스 인사이트</span>
         </div>
       </header>
 

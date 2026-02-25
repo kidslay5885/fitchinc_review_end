@@ -43,7 +43,7 @@ export default function LoginPage() {
           {/* Logo */}
           <div className="flex items-center justify-center gap-2.5 mb-6">
             <img src="/fitchnic-logo.png" alt="핏크닉" className="h-[28px] w-auto" />
-            <span className="text-lg font-extrabold">핏크닉 클래스 인사이트</span>
+            <span className="text-lg font-extrabold">클래스 인사이트</span>
           </div>
 
           <p className="text-center text-sm text-muted-foreground mb-6">
