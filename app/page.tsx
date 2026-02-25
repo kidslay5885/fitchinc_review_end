@@ -65,16 +65,17 @@ function MainContent() {
           await loadCohortData(plat.name, inst.name, ownerCourse?.name || "", cohort.label);
         }
       } else {
-        // 선택된 course의 기수만, 또는 전체 기수 로딩
-        for (const c of visibleCohorts) {
-          const needsLoad =
+        // 선택된 course의 기수만, 또는 전체 기수 병렬 로딩
+        const promises = visibleCohorts
+          .filter((c) =>
             (c.preResponses.length > 0 && c.preResponses[0]?.name === "") ||
-            (c.postResponses.length > 0 && c.postResponses[0]?.name === "");
-          if (needsLoad) {
+            (c.postResponses.length > 0 && c.postResponses[0]?.name === "")
+          )
+          .map((c) => {
             const ownerCourse = inst.courses.find((cr) => cr.cohorts.some((co) => co.id === c.id));
-            await loadCohortData(plat.name, inst.name, ownerCourse?.name || "", c.label);
-          }
-        }
+            return loadCohortData(plat.name, inst.name, ownerCourse?.name || "", c.label);
+          });
+        await Promise.all(promises);
       }
       setDataLoading(false);
     };
