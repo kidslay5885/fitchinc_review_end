@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 
-// GET: 댓글 목록 조회 (surveyId 또는 platform+instructor로 조회)
+// GET: 댓글 목록 조회 (surveyId 또는 platform+instructor 또는 tag 기반)
 export async function GET(req: NextRequest) {
   try {
     const surveyId = req.nextUrl.searchParams.get("surveyId");
@@ -9,6 +9,7 @@ export async function GET(req: NextRequest) {
     const instructor = req.nextUrl.searchParams.get("instructor");
     const course = req.nextUrl.searchParams.get("course");
     const cohort = req.nextUrl.searchParams.get("cohort");
+    const tag = req.nextUrl.searchParams.get("tag");
 
     const supabase = getSupabase();
 
@@ -24,6 +25,68 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
       return NextResponse.json(data);
+    }
+
+    // tag 기반 전체 조회: instructor 없이도 동작
+    if (tag) {
+      let surveyQuery = supabase
+        .from("surveys")
+        .select("id, platform, instructor, cohort");
+
+      if (platform) {
+        surveyQuery = surveyQuery.eq("platform", platform);
+      }
+
+      const { data: surveys, error: surveyError } = await surveyQuery;
+      if (surveyError) {
+        return NextResponse.json({ error: surveyError.message }, { status: 500 });
+      }
+
+      if (!surveys || surveys.length === 0) {
+        return NextResponse.json([]);
+      }
+
+      const surveyIds = surveys.map((s) => s.id);
+      const surveyMap = new Map(surveys.map((s) => [s.id, s]));
+
+      // tag에 맞는 comments 조회 (effectiveTag 로직 — tag 또는 source_field 기반)
+      // DB에서 tag가 직접 일치하는 것 조회
+      let commentsQuery = supabase
+        .from("comments")
+        .select("*")
+        .in("survey_id", surveyIds)
+        .order("created_at");
+
+      // tag가 직접 설정된 것 + source_field 기반 자동 태그도 포함
+      const { data: allComments, error: commentsError } = await commentsQuery;
+      if (commentsError) {
+        return NextResponse.json({ error: commentsError.message }, { status: 500 });
+      }
+
+      // effectiveTag 계산: tag ?? suggestTag(source_field)
+      const suggestTag = (sourceField: string) => {
+        if (sourceField === "hopePlatform") return "platform_etc";
+        if (sourceField === "hopeInstructor") return "instructor";
+        return null;
+      };
+
+      const filtered = (allComments || []).filter((c) => {
+        const et = c.tag ?? suggestTag(c.source_field);
+        return et === tag;
+      });
+
+      // survey 메타 정보 추가
+      const enriched = filtered.map((c) => {
+        const survey = surveyMap.get(c.survey_id);
+        return {
+          ...c,
+          _platform: survey?.platform || "",
+          _instructor: survey?.instructor || "",
+          _cohort: survey?.cohort || "",
+        };
+      });
+
+      return NextResponse.json(enriched);
     }
 
     // 새 방식: platform + instructor로 조회 (course, cohort 선택)
@@ -64,7 +127,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(data);
     }
 
-    return NextResponse.json({ error: "surveyId 또는 platform+instructor 필요" }, { status: 400 });
+    return NextResponse.json({ error: "surveyId 또는 platform+instructor 또는 tag 필요" }, { status: 400 });
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message || "조회 실패" },

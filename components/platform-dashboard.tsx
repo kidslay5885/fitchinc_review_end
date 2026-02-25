@@ -106,7 +106,7 @@ export function PlatformDashboard({ platform, dataLoading }: PlatformDashboardPr
         <div className="text-center py-16">
           <Loader2 className="w-6 h-6 animate-spin text-primary mx-auto mb-2" />
           <div className="text-[13px] text-muted-foreground">
-            전체 데이터 로딩 중...
+            설문 정보 로딩 중...
           </div>
         </div>
       ) : preResponses.length === 0 && postResponses.length === 0 ? (

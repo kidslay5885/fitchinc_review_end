@@ -21,19 +21,161 @@ import { TabAIInsight } from "@/components/tab-ai-insight";
 import { TabQualityOverview } from "@/components/tab-quality-overview";
 import { UploadDialog } from "@/components/upload-dialog";
 import { EditInstructorDialog } from "@/components/edit-instructor-dialog";
+import { RoleFeedbackView } from "@/components/role-feedback-view";
 import type { Instructor } from "@/lib/types";
-import { BarChart3, Loader2 } from "lucide-react";
+import { BarChart3, Loader2, Lock, MessageSquare, Tag } from "lucide-react";
 import { toast } from "sonner";
 
-const TABS = [
+type AppMode = "landing" | "data" | "role" | "classify";
+
+const TABS_DATA = [
   { id: "overview", icon: "📈", label: "전체" },
-  { id: "whole", icon: "📋", label: "전체 데이터" },
-  { id: "feedback", icon: "🏷️", label: "세부 분류" },
+  { id: "whole", icon: "📋", label: "전체 설문 정보" },
+  { id: "feedback", icon: "🏷️", label: "세부 설문 정보" },
   { id: "insight", icon: "💡", label: "AI 인사이트" },
   { id: "quality", icon: "📊", label: "전체 요약", onlyWhenAllCohorts: true },
 ];
 
-function MainContent() {
+const TABS_CLASSIFY = [
+  { id: "feedback", icon: "🏷️", label: "세부 분류" },
+];
+
+function LandingScreen({
+  onSelectMode,
+  classifyUnlocked,
+}: {
+  onSelectMode: (mode: AppMode) => void;
+  classifyUnlocked: boolean;
+}) {
+  const [showPw, setShowPw] = useState(false);
+  const [pwInput, setPwInput] = useState("");
+  const [pwError, setPwError] = useState(false);
+
+  const handleClassifyClick = () => {
+    if (classifyUnlocked) {
+      onSelectMode("classify");
+    } else {
+      setShowPw(true);
+    }
+  };
+
+  const handlePwSubmit = () => {
+    if (pwInput === "1235") {
+      onSelectMode("classify");
+      setShowPw(false);
+      setPwInput("");
+      setPwError(false);
+    } else {
+      setPwError(true);
+    }
+  };
+
+  const cards = [
+    {
+      mode: "data" as AppMode,
+      icon: <BarChart3 className="w-8 h-8" />,
+      title: "전체 설문 정보",
+      desc: "플랫폼·강사·기수별\n설문 분석",
+      color: "text-blue-600",
+      bg: "hover:border-blue-300 hover:bg-blue-50/50",
+    },
+    {
+      mode: "role" as AppMode,
+      icon: <MessageSquare className="w-8 h-8" />,
+      title: "직무별 피드백",
+      desc: "PM / PD / CS / 강사\n직무별 피드백 조회",
+      color: "text-violet-600",
+      bg: "hover:border-violet-300 hover:bg-violet-50/50",
+    },
+    {
+      mode: "classify" as AppMode,
+      icon: <Tag className="w-8 h-8" />,
+      title: "분류 작업",
+      desc: "피드백 분석 및 분류",
+      color: "text-amber-600",
+      bg: "hover:border-amber-300 hover:bg-amber-50/50",
+      locked: !classifyUnlocked,
+    },
+  ];
+
+  return (
+    <>
+      <div className="flex-1 flex items-center justify-center p-8">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 max-w-[720px] w-full">
+          {cards.map((card) => (
+            <button
+              key={card.mode}
+              onClick={() => (card.mode === "classify" ? handleClassifyClick() : onSelectMode(card.mode))}
+              className={`relative flex flex-col items-center gap-3 p-8 rounded-2xl border-2 border-border bg-card transition-all duration-200 ${card.bg} cursor-pointer group`}
+            >
+              <div className={`${card.color} transition-transform group-hover:scale-110`}>
+                {card.icon}
+              </div>
+              <span className="text-[16px] font-extrabold">{card.title}</span>
+              <span className="text-[13px] text-muted-foreground text-center leading-snug whitespace-pre-line">
+                {card.desc}
+              </span>
+              {card.locked && (
+                <Lock className="absolute top-3 right-3 w-4 h-4 text-muted-foreground/50" />
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 비밀번호 다이얼로그 */}
+      {showPw && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-card rounded-xl border shadow-xl p-6 w-[340px]">
+            <div className="flex items-center gap-2 mb-4">
+              <Lock className="w-5 h-5 text-amber-600" />
+              <span className="text-[15px] font-bold">분류작업 비밀번호</span>
+            </div>
+            <input
+              type="password"
+              autoFocus
+              value={pwInput}
+              onChange={(e) => {
+                setPwInput(e.target.value);
+                setPwError(false);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handlePwSubmit();
+              }}
+              placeholder="비밀번호 입력"
+              className={`w-full py-2 px-3 rounded-lg border text-[14px] bg-background ${
+                pwError ? "border-red-400 ring-1 ring-red-400" : ""
+              }`}
+            />
+            {pwError && (
+              <p className="text-[12px] text-red-500 mt-1.5">비밀번호가 틀렸습니다</p>
+            )}
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={handlePwSubmit}
+                className="flex-1 py-2 rounded-lg bg-primary text-primary-foreground text-[13px] font-bold hover:opacity-90 transition-opacity"
+              >
+                확인
+              </button>
+              <button
+                onClick={() => {
+                  setShowPw(false);
+                  setPwInput("");
+                  setPwError(false);
+                }}
+                className="flex-1 py-2 rounded-lg border text-[13px] text-muted-foreground hover:bg-accent transition-colors"
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function DashboardContent({ tabs, readOnly = false }: { tabs: typeof TABS_DATA; readOnly?: boolean }) {
   const { state, dispatch, loadCohortData, refreshHierarchy } = useAppStore();
   const plat = useSelectedPlatform();
   const inst = useSelectedInstructor();
@@ -46,8 +188,6 @@ function MainContent() {
 
   const showPlatDash = plat && !inst;
   const platformName = plat?.name || "";
-
-  // 현재 보여줄 기수 목록
   const visibleCohorts = inst ? (course ? course.cohorts : allCohorts(inst)) : [];
 
   const [platDataLoading, setPlatDataLoading] = useState(false);
@@ -55,22 +195,18 @@ function MainContent() {
   // 플랫폼 선택 · 강사 미선택 시 전체 기수 데이터 병렬 로딩
   useEffect(() => {
     if (!showPlatDash || !plat) return;
-
     const allPlatCohorts = plat.instructors.flatMap((i) =>
       i.courses.flatMap((cr) => cr.cohorts.map((co) => ({ inst: i, course: cr, cohort: co })))
     );
-
     const needsLoad = allPlatCohorts.filter(
       ({ cohort: c }) =>
         (c.preResponses.length > 0 && c.preResponses[0]?.name === "") ||
         (c.postResponses.length > 0 && c.postResponses[0]?.name === "")
     );
-
     if (needsLoad.length === 0) {
       setPlatDataLoading(false);
       return;
     }
-
     setPlatDataLoading(true);
     Promise.all(
       needsLoad.map(({ inst: i, course: cr, cohort: co }) =>
@@ -82,7 +218,6 @@ function MainContent() {
   // 강사/기수 선택 시 실제 데이터 지연 로딩
   useEffect(() => {
     if (!inst || !plat) return;
-
     const loadData = async () => {
       setDataLoading(true);
       if (cohort) {
@@ -90,12 +225,10 @@ function MainContent() {
           (cohort.preResponses.length > 0 && cohort.preResponses[0]?.name === "") ||
           (cohort.postResponses.length > 0 && cohort.postResponses[0]?.name === "");
         if (needsLoad) {
-          // cohort가 속한 course 찾기
           const ownerCourse = inst.courses.find((c) => c.cohorts.some((co) => co.id === cohort.id));
           await loadCohortData(plat.name, inst.name, ownerCourse?.name || "", cohort.label);
         }
       } else {
-        // 선택된 course의 기수만, 또는 전체 기수 병렬 로딩
         const promises = visibleCohorts
           .filter((c) =>
             (c.preResponses.length > 0 && c.preResponses[0]?.name === "") ||
@@ -109,23 +242,19 @@ function MainContent() {
       }
       setDataLoading(false);
     };
-
     loadData();
   }, [inst?.id, course?.id, cohort?.id, plat?.name]);
 
-  if (state.loading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-3" />
-          <div className="text-[14px] text-muted-foreground">데이터 로딩 중...</div>
-        </div>
-      </div>
-    );
-  }
+  // 탭이 현재 목록에 없으면 첫 탭으로 리셋
+  useEffect(() => {
+    const tabIds = tabs.map((t) => t.id);
+    if (!tabIds.includes(state.activeTab)) {
+      dispatch({ type: "SET_TAB", tab: tabIds[0] });
+    }
+  }, [tabs]);
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <>
       {editInst && (
         <EditInstructorDialog
           instructor={editInst}
@@ -134,16 +263,12 @@ function MainContent() {
             dispatch({ type: "UPDATE_INSTRUCTOR", instructor: updated });
             if (plat) {
               const payload = { photo: updated.photo || "", photoPosition: updated.photoPosition || "center 2%" };
-              // localStorage 저장 (즉시, 서버 실패 시 백업)
               try {
                 localStorage.setItem(
                   `instructor-photo-${plat.name}-${updated.name}`,
                   JSON.stringify(payload)
                 );
-              } catch {
-                // quota 초과 시 무시
-              }
-              // 서버 저장 (비동기, 결과 피드백)
+              } catch {}
               fetch("/api/app-settings", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -174,12 +299,11 @@ function MainContent() {
 
       {showUpload && <UploadDialog onClose={() => setShowUpload(false)} />}
 
-      <NavHeader />
-
       <div className="flex" style={{ height: "calc(100vh - 45px)" }}>
         <AppSidebar
           onUpload={() => setShowUpload(true)}
           onEditInstructor={(inst) => setEditInst(inst)}
+          readOnly={readOnly}
         />
 
         <main className="flex-1 overflow-y-auto p-6 px-8 min-w-0">
@@ -210,8 +334,9 @@ function MainContent() {
                   instructor={inst}
                   course={course}
                   cohort={cohort}
+                  readOnly={readOnly}
                   onUpdateCohort={
-                    cohort
+                    !readOnly && cohort
                       ? (c) => {
                           dispatch({ type: "UPDATE_COHORT", instructorId: inst.id, cohort: c });
                           if (plat)
@@ -227,19 +352,23 @@ function MainContent() {
                 />
 
                 <div className="flex gap-0 border-b-2 border-border mb-5">
-                  {TABS.filter((t) => !("onlyWhenAllCohorts" in t && t.onlyWhenAllCohorts) || !cohort).map((t) => (
-                    <button
-                      key={t.id}
-                      onClick={() => dispatch({ type: "SET_TAB", tab: t.id })}
-                      className={`py-2.5 px-4 text-[14px] transition-colors -mb-[2px] ${
-                        state.activeTab === t.id
-                          ? "font-bold text-primary border-b-[2.5px] border-b-primary"
-                          : "text-muted-foreground border-b-[2.5px] border-b-transparent hover:text-foreground"
-                      }`}
-                    >
-                      {t.icon} {t.label}
-                    </button>
-                  ))}
+                  {tabs.filter((t) => !("onlyWhenAllCohorts" in t && t.onlyWhenAllCohorts) || !cohort).map((t) => {
+                    let label = t.label;
+                    if (t.id === "whole") label = cohort ? "설문 정보" : "전체 설문 정보";
+                    return (
+                      <button
+                        key={t.id}
+                        onClick={() => dispatch({ type: "SET_TAB", tab: t.id })}
+                        className={`py-2.5 px-4 text-[14px] transition-colors -mb-[2px] ${
+                          state.activeTab === t.id
+                            ? "font-bold text-primary border-b-[2.5px] border-b-primary"
+                            : "text-muted-foreground border-b-[2.5px] border-b-transparent hover:text-foreground"
+                        }`}
+                      >
+                        {t.icon} {label}
+                      </button>
+                    );
+                  })}
                 </div>
 
                 {dataLoading ? (
@@ -266,8 +395,14 @@ function MainContent() {
                         onGoToQuality={() => dispatch({ type: "SET_TAB", tab: "quality" })}
                       />
                     )}
-                    {(state.activeTab === "feedback" || (state.activeTab === "quality" && cohort)) && (
-                      <TabFeedbackHub instructor={inst} course={course} cohort={cohort} platformName={platformName} />
+                    {state.activeTab === "feedback" && (
+                      <TabFeedbackHub
+                        instructor={inst}
+                        course={course}
+                        cohort={cohort}
+                        platformName={platformName}
+                        readOnly={readOnly}
+                      />
                     )}
                     {state.activeTab === "insight" && (
                       <TabAIInsight
@@ -288,6 +423,57 @@ function MainContent() {
           </div>
         </main>
       </div>
+    </>
+  );
+}
+
+function MainContent() {
+  const { state } = useAppStore();
+  const [appMode, setAppMode] = useState<AppMode>("landing");
+  const [classifyUnlocked, setClassifyUnlocked] = useState(false);
+
+  const handleSelectMode = (mode: AppMode) => {
+    if (mode === "classify" && !classifyUnlocked) {
+      setClassifyUnlocked(true);
+    }
+    setAppMode(mode);
+  };
+
+  const handleGoHome = () => {
+    setAppMode("landing");
+    setClassifyUnlocked(false);
+  };
+
+  if (state.loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-3" />
+          <div className="text-[14px] text-muted-foreground">데이터 로딩 중...</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background text-foreground flex flex-col">
+      <NavHeader
+        onHome={appMode !== "landing" ? handleGoHome : undefined}
+        pageTitle={appMode === "data" ? "전체 설문 정보" : appMode === "role" ? "직무별 피드백" : appMode === "classify" ? "분류 작업" : undefined}
+      />
+
+      {appMode === "landing" && (
+        <LandingScreen
+          onSelectMode={handleSelectMode}
+          classifyUnlocked={classifyUnlocked}
+        />
+      )}
+
+      {appMode === "data" && <DashboardContent tabs={TABS_DATA} readOnly />}
+
+      {appMode === "classify" && <DashboardContent tabs={TABS_CLASSIFY} />}
+
+      {appMode === "role" && <RoleFeedbackView />}
     </div>
   );
 }

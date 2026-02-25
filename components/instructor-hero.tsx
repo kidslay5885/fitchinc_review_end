@@ -13,12 +13,13 @@ interface InstructorHeroProps {
   course: Course | null;
   cohort: Cohort | null;
   onUpdateCohort?: (cohort: Cohort) => void;
+  readOnly?: boolean;
 }
 
 const TOTAL_STUDENTS_KEY = (platform: string, instructor: string, cohortLabel: string | null) =>
   `total-students-${platform}-${instructor}-${cohortLabel ?? "all"}`;
 
-export function InstructorHero({ platformName, instructor, course, cohort, onUpdateCohort }: InstructorHeroProps) {
+export function InstructorHero({ platformName, instructor, course, cohort, onUpdateCohort, readOnly }: InstructorHeroProps) {
   const [totalInput, setTotalInput] = useState("");
   const storageKey = TOTAL_STUDENTS_KEY(platformName, instructor.name, cohort?.label ?? null);
 
@@ -101,30 +102,34 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
                 <div className="border-l pl-4 text-[14px] text-muted-foreground leading-relaxed space-y-0.5">
                   <div className="flex items-center gap-2 mb-1.5">
                     <label className="text-muted-foreground shrink-0">전체 수강생</label>
-                    <input
-                      type="number"
-                      min={0}
-                      value={totalInput}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setTotalInput(v);
-                        const n = parseInt(v, 10);
-                        if (cohort && onUpdateCohort && !isNaN(n) && n >= 0)
-                          onUpdateCohort({ ...cohort, totalStudents: n });
-                        if (!cohort && typeof window !== "undefined" && !isNaN(n) && n >= 0)
-                          localStorage.setItem(storageKey, String(n));
-                      }}
-                      onBlur={() => {
-                        const n = parseInt(totalInput, 10);
-                        if (cohort && (isNaN(n) || n < 0)) setTotalInput(cohort.totalStudents ? String(cohort.totalStudents) : "");
-                        if (!cohort && (isNaN(n) || n < 0)) {
-                          const sum = visibleCohorts.reduce((a, c) => a + (c.totalStudents || 0), 0);
-                          setTotalInput(sum > 0 ? String(sum) : (typeof window !== "undefined" ? localStorage.getItem(storageKey) || "" : ""));
-                        }
-                      }}
-                      placeholder="명"
-                      className="w-16 py-0.5 px-1.5 rounded border text-[13px] bg-card text-foreground"
-                    />
+                    {readOnly ? (
+                      <span className="text-[13px] font-semibold text-foreground">{totalInput || "-"}</span>
+                    ) : (
+                      <input
+                        type="number"
+                        min={0}
+                        value={totalInput}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setTotalInput(v);
+                          const n = parseInt(v, 10);
+                          if (cohort && onUpdateCohort && !isNaN(n) && n >= 0)
+                            onUpdateCohort({ ...cohort, totalStudents: n });
+                          if (!cohort && typeof window !== "undefined" && !isNaN(n) && n >= 0)
+                            localStorage.setItem(storageKey, String(n));
+                        }}
+                        onBlur={() => {
+                          const n = parseInt(totalInput, 10);
+                          if (cohort && (isNaN(n) || n < 0)) setTotalInput(cohort.totalStudents ? String(cohort.totalStudents) : "");
+                          if (!cohort && (isNaN(n) || n < 0)) {
+                            const sum = visibleCohorts.reduce((a, c) => a + (c.totalStudents || 0), 0);
+                            setTotalInput(sum > 0 ? String(sum) : (typeof window !== "undefined" ? localStorage.getItem(storageKey) || "" : ""));
+                          }
+                        }}
+                        placeholder="명"
+                        className="w-16 py-0.5 px-1.5 rounded border text-[13px] bg-card text-foreground"
+                      />
+                    )}
                     <span className="text-muted-foreground">명</span>
                   </div>
                   {(() => {

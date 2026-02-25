@@ -25,9 +25,10 @@ interface TabFeedbackHubProps {
   course: Course | null;
   cohort: Cohort | null;
   platformName: string;
+  readOnly?: boolean;
 }
 
-export function TabFeedbackHub({ instructor, course, cohort, platformName }: TabFeedbackHubProps) {
+export function TabFeedbackHub({ instructor, course, cohort, platformName, readOnly }: TabFeedbackHubProps) {
   const [comments, setComments] = useState<CommentWithCohort[]>([]);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -71,6 +72,7 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName }: Tab
   useEffect(() => {
     loadComments();
   }, [platformName, instructor.name, courseName, cohortLabel]);
+
 
   // 뷰 변경 시 선택 초기화
   useEffect(() => {
@@ -177,6 +179,7 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName }: Tab
   // 필터링
   const filtered = useMemo(() => {
     return comments.filter((c) => {
+
       const et = effectiveTag(c);
 
       if (hubView === "untagged" && et !== null) return false;
@@ -382,8 +385,8 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName }: Tab
     const et = effectiveTag(comment);
     const isAutoTag = comment.tag === null && et !== null;
     const isSelected = selected.has(comment.id);
-    const showCheckbox = hubView === "untagged" || hubView === "instructor";
-    const aiSuggestion = hubView === "untagged" ? aiSuggestions[comment.id] : null;
+    const showCheckbox = !readOnly && (hubView === "untagged" || hubView === "instructor");
+    const aiSuggestion = !readOnly && hubView === "untagged" ? aiSuggestions[comment.id] : null;
 
     return (
       <div
@@ -471,8 +474,8 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName }: Tab
                 </button>
               </div>
             )}
-            {/* 분류된 댓글만: 긍정/부정 구분 (후기 요약에 반영) */}
-            {et && (
+            {/* 분류된 댓글만: 긍정/부정 구분 */}
+            {et && !readOnly && (
               <div className="flex items-center gap-1 mt-1.5">
                 <span className="text-[11px] text-muted-foreground mr-0.5">평가:</span>
                 {(["positive", "negative", "neutral"] as const).map((s) => {
@@ -500,10 +503,22 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName }: Tab
                 })}
               </div>
             )}
+            {/* readOnly: 감정 뱃지만 표시 */}
+            {et && readOnly && comment.sentiment && (
+              <div className="mt-1.5">
+                <span className={`text-[11px] py-0.5 px-1.5 rounded font-semibold ${
+                  comment.sentiment === "positive" ? "bg-emerald-100 text-emerald-700"
+                    : comment.sentiment === "negative" ? "bg-rose-100 text-rose-700"
+                      : "bg-muted text-foreground"
+                }`}>
+                  {comment.sentiment === "positive" ? "긍정" : comment.sentiment === "negative" ? "부정" : "구분없음"}
+                </span>
+              </div>
+            )}
           </div>
 
-          {/* 전체 뷰: 태그 드롭다운 */}
-          {hubView === "all" && (
+          {/* 전체 뷰: 태그 드롭다운 (편집) / 뱃지 (읽기) */}
+          {hubView === "all" && !readOnly && (
             <select
               value={comment.tag || ""}
               onChange={(e) =>
@@ -523,6 +538,11 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName }: Tab
               <option value="instructor">강사</option>
             </select>
           )}
+          {hubView === "all" && readOnly && et && (
+            <span className={`shrink-0 text-[11px] py-0.5 px-1.5 rounded border font-semibold ${getTagColor(et)}`}>
+              {getTagLabel(et)}
+            </span>
+          )}
 
           {/* 강사/플랫폼 뷰: 읽기 전용 태그 뱃지 */}
           {(hubView === "instructor" || hubView === "platform") && (
@@ -532,6 +552,7 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName }: Tab
               {getTagLabel(et)}
             </span>
           )}
+
         </div>
       </div>
     );
@@ -539,57 +560,62 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName }: Tab
 
   return (
     <div className="grid gap-3">
-      {/* 뷰 탭 + 미분류일 때 AI 자동 분류 */}
-      <div className="flex flex-col gap-1.5">
-        <div className="flex items-center gap-2 flex-wrap">
-          {hubView === "untagged" && untaggedCount > 0 && (
+      {/* 뷰 탭 */}
+      {(
+        <div className="flex flex-col gap-1.5">
+          {!readOnly && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {hubView === "untagged" && untaggedCount > 0 && (
+                <button
+                  type="button"
+                  onClick={fetchAiSuggestions}
+                  disabled={aiSuggestLoading}
+                  className="flex items-center gap-1 py-1 px-2.5 rounded-md text-[12px] font-semibold bg-amber-100 text-amber-800 border border-amber-200 hover:bg-amber-200 disabled:opacity-50"
+                >
+                  {aiSuggestLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                  AI 자동 분류
+                </button>
+              )}
+            </div>
+          )}
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex gap-0.5 bg-muted rounded-lg p-0.5 border w-fit">
+              {([
+                { id: "all" as HubView, label: `전체 ${comments.length}` },
+                { id: "platform" as HubView, label: `플랫폼 ${platformCount}` },
+                { id: "instructor" as HubView, label: `강사 ${instructorCount}` },
+                ...(!readOnly ? [{ id: "untagged" as HubView, label: `미분류 ${untaggedCount}` }] : []),
+              ]).map((v) => (
+                <button
+                  key={v.id}
+                  onClick={() => {
+                    setHubView(v.id);
+                    setPlatformSub("all");
+                  }}
+                  className={`py-1.5 px-3.5 rounded-md text-[13px] transition-colors ${
+                    hubView === v.id
+                      ? "bg-card font-bold text-primary shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {v.label}
+                </button>
+              ))}
+            </div>
             <button
               type="button"
-              onClick={fetchAiSuggestions}
-              disabled={aiSuggestLoading}
-              className="flex items-center gap-1 py-1 px-2.5 rounded-md text-[12px] font-semibold bg-amber-100 text-amber-800 border border-amber-200 hover:bg-amber-200 disabled:opacity-50"
+              onClick={exportToExcel}
+              disabled={filtered.length === 0}
+              className="flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-[13px] font-medium border bg-card hover:bg-muted/80 text-foreground disabled:opacity-50 disabled:pointer-events-none transition-colors"
+              title="현재 보기 조건에 맞는 목록을 엑셀(CSV)로 다운로드합니다"
             >
-              {aiSuggestLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-              AI 자동 분류
+              <Download className="w-3.5 h-3.5" />
+              엑셀으로 내보내기
             </button>
-          )}
-        </div>
-        <div className="flex items-center gap-4 flex-wrap">
-          <div className="flex gap-0.5 bg-muted rounded-lg p-0.5 border w-fit">
-            {([
-              { id: "all" as HubView, label: `전체 ${comments.length}` },
-              { id: "platform" as HubView, label: `플랫폼 ${platformCount}` },
-              { id: "instructor" as HubView, label: `강사 ${instructorCount}` },
-              { id: "untagged" as HubView, label: `미분류 ${untaggedCount}` },
-            ]).map((v) => (
-              <button
-                key={v.id}
-                onClick={() => {
-                  setHubView(v.id);
-                  setPlatformSub("all");
-                }}
-                className={`py-1.5 px-3.5 rounded-md text-[13px] transition-colors ${
-                  hubView === v.id
-                    ? "bg-card font-bold text-primary shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {v.label}
-              </button>
-            ))}
           </div>
-          <button
-            type="button"
-            onClick={exportToExcel}
-            disabled={filtered.length === 0}
-            className="flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-[13px] font-medium border bg-card hover:bg-muted/80 text-foreground disabled:opacity-50 disabled:pointer-events-none transition-colors"
-            title="현재 보기 조건에 맞는 목록을 엑셀(CSV)로 다운로드합니다"
-          >
-            <Download className="w-3.5 h-3.5" />
-            엑셀으로 내보내기
-          </button>
         </div>
-      </div>
+      )}
+
 
       {/* 보조 필터 */}
       <div className="flex gap-2 items-center flex-wrap">
@@ -646,7 +672,7 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName }: Tab
           </div>
         )}
 
-        {/* 설문 문항 필터: 전체 뷰가 아닐 때만 표시 (세부 분류 > 전체 UI는 이전처럼 심플하게) */}
+        {/* 설문 문항 필터: 전체 뷰가 아닐 때만 표시 */}
         {sourceFieldsInData.length > 1 && hubView !== "all" && (
           <div className="flex items-center gap-1.5 shrink-0">
             <span className="text-[12px] font-semibold text-muted-foreground whitespace-nowrap">설문 문항</span>
@@ -803,8 +829,8 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName }: Tab
         </div>
       )}
 
-      {/* 강사 뷰: 복사 액션 바 */}
-      {hubView === "instructor" && selected.size > 0 && (
+      {/* 복사/확인완료 액션 바 (강사/플랫폼 뷰) */}
+      {(hubView === "instructor" || hubView === "platform") && selected.size > 0 && (
         <div className="sticky bottom-0 flex items-center gap-3 py-3 px-4 bg-card rounded-xl border shadow-lg">
           <span className="text-[14px] font-bold">{selected.size}건 선택됨</span>
           <button

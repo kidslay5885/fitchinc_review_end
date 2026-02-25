@@ -10,9 +10,10 @@ import type { Instructor, Course } from "@/lib/types";
 interface AppSidebarProps {
   onUpload: () => void;
   onEditInstructor: (inst: Instructor) => void;
+  readOnly?: boolean;
 }
 
-export function AppSidebar({ onUpload, onEditInstructor }: AppSidebarProps) {
+export function AppSidebar({ onUpload, onEditInstructor, readOnly }: AppSidebarProps) {
   const { state, dispatch } = useAppStore();
   const plat = useSelectedPlatform();
   const [orderKey, setOrderKey] = useState(0);
@@ -101,15 +102,17 @@ export function AppSidebar({ onUpload, onEditInstructor }: AppSidebarProps) {
                         >
                           {instructor.name}
                         </span>
-                        <span
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onEditInstructor(instructor);
-                          }}
-                          className="text-muted-foreground cursor-pointer opacity-50 hover:opacity-100 shrink-0"
-                        >
-                          <Settings className="w-3.5 h-3.5" />
-                        </span>
+                        {!readOnly && (
+                          <span
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onEditInstructor(instructor);
+                            }}
+                            className="text-muted-foreground cursor-pointer opacity-50 hover:opacity-100 shrink-0"
+                          >
+                            <Settings className="w-3.5 h-3.5" />
+                          </span>
+                        )}
                       </div>
                       <div className="text-[11px] text-muted-foreground">{instructor.category}</div>
                     </div>
@@ -208,16 +211,18 @@ export function AppSidebar({ onUpload, onEditInstructor }: AppSidebarProps) {
         )}
       </div>
 
-      {/* Upload button */}
-      <div className="p-3 border-t">
-        <button
-          onClick={onUpload}
-          className="w-full py-2 rounded-lg bg-primary text-primary-foreground text-[12px] font-bold cursor-pointer flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity"
-        >
-          <Upload className="w-3.5 h-3.5" />
-          업로드
-        </button>
-      </div>
+      {/* Upload button (분류작업 모드에서만) */}
+      {!readOnly && (
+        <div className="p-3 border-t">
+          <button
+            onClick={onUpload}
+            className="w-full py-2 rounded-lg bg-primary text-primary-foreground text-[12px] font-bold cursor-pointer flex items-center justify-center gap-1.5 hover:opacity-90 transition-opacity"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            업로드
+          </button>
+        </div>
+      )}
     </aside>
   );
 }

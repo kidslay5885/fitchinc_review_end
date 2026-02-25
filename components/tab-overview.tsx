@@ -54,6 +54,29 @@ export function toChartData(record: Record<string, number>) {
     .map(([name, value]) => ({ name, value }));
 }
 
+/** 고정 카테고리 포함 차트 데이터 (없는 값은 0으로 표시) */
+function toChartDataWithDefaults(
+  record: Record<string, number>,
+  defaults: string[],
+) {
+  const merged: Record<string, number> = {};
+  for (const key of defaults) merged[key] = 0;
+  for (const [key, val] of Object.entries(record)) merged[key] = val;
+  return Object.entries(merged)
+    .sort((a, b) => {
+      const ka = labelSortKey(a[0]);
+      const kb = labelSortKey(b[0]);
+      if (ka !== kb) return ka - kb;
+      return a[0].localeCompare(b[0], "ko");
+    })
+    .map(([name, value]) => ({ name, value }));
+}
+
+const AGE_GROUPS = ["10대", "20대", "30대", "40대", "50대", "60대 이상"];
+const GENDER_DEFAULTS = ["여성", "남성"];
+const HOURS_GROUPS = ["1시간 미만", "1~3시간", "3~5시간", "5시간 이상"];
+const CHANNEL_GROUPS = ["SNS", "지인 추천", "검색", "카페/커뮤니티", "블로그", "유튜브", "기타"];
+
 /** 특정 항목을 맨 위/맨 아래로 고정 (대소문자 무시) */
 export function pinItems(
   data: { name: string; value: number }[],
@@ -70,11 +93,11 @@ export function pinItems(
 /** 성별 데이터: 여성(위) → 남성(아래) 고정 순서 + 고정 색상 */
 export function toGenderData(record: Record<string, number>): { data: { name: string; value: number }[]; colors: string[] } {
   const ordered: { name: string; value: number }[] = [];
-  for (const g of GENDER_ORDER) {
-    if (record[g] && record[g] > 0) ordered.push({ name: g, value: record[g] });
+  for (const g of GENDER_DEFAULTS) {
+    ordered.push({ name: g, value: record[g] || 0 });
   }
   for (const [name, value] of Object.entries(record)) {
-    if (!GENDER_ORDER.includes(name) && value > 0) ordered.push({ name, value });
+    if (!GENDER_DEFAULTS.includes(name)) ordered.push({ name, value });
   }
   const colors = ordered.map((d) => GENDER_COLOR_MAP[d.name] || PIE_COLORS[0]);
   return { data: ordered, colors };
@@ -256,10 +279,10 @@ export function TabOverview({ instructor, course, cohort, platformName }: TabOve
 
   // chart data
   const gender = toGenderData(demographics.gender);
-  const ageData = toChartData(demographics.age);
+  const ageData = toChartDataWithDefaults(demographics.age, AGE_GROUPS);
   const jobData = pinItems(toChartData(demographics.job), { bottom: ["기타"] });
-  const hoursData = toChartData(demographics.hours);
-  const channelData = pinItems(toChartData(demographics.channel), { top: ["SNS", "sns"] });
+  const hoursData = toChartDataWithDefaults(demographics.hours, HOURS_GROUPS);
+  const channelData = toChartDataWithDefaults(demographics.channel, CHANNEL_GROUPS);
   const satData = satItems.map((s) => ({ name: s.label, value: s.count }));
 
   return (
