@@ -23,6 +23,7 @@ import { UploadDialog } from "@/components/upload-dialog";
 import { EditInstructorDialog } from "@/components/edit-instructor-dialog";
 import type { Instructor } from "@/lib/types";
 import { BarChart3, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 const TABS = [
   { id: "overview", icon: "📈", label: "전체" },
@@ -130,9 +131,19 @@ function MainContent() {
           instructor={editInst}
           platformName={platformName}
           onSave={(updated) => {
+            dispatch({ type: "UPDATE_INSTRUCTOR", instructor: updated });
             if (plat) {
               const payload = { photo: updated.photo || "", photoPosition: updated.photoPosition || "center 2%" };
-              // 서버 저장 (localStorage 실패와 무관하게 항상 실행)
+              // localStorage 저장 (즉시, 서버 실패 시 백업)
+              try {
+                localStorage.setItem(
+                  `instructor-photo-${plat.name}-${updated.name}`,
+                  JSON.stringify(payload)
+                );
+              } catch {
+                // quota 초과 시 무시
+              }
+              // 서버 저장 (비동기, 결과 피드백)
               fetch("/api/app-settings", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -143,18 +154,17 @@ function MainContent() {
                   photo: payload.photo,
                   photoPosition: payload.photoPosition,
                 }),
-              }).catch(() => {});
-              // localStorage 저장 (quota 초과해도 서버엔 이미 저장됨)
-              try {
-                localStorage.setItem(
-                  `instructor-photo-${plat.name}-${updated.name}`,
-                  JSON.stringify(payload)
-                );
-              } catch {
-                // quota 초과 시 무시 — 서버에서 복원됨
-              }
+              })
+                .then((res) => res.json())
+                .then((data) => {
+                  if (!data.ok) throw new Error("server returned ok:false");
+                  toast.success("강사 정보 저장 완료");
+                })
+                .catch((err) => {
+                  console.error("강사 사진 서버 저장 실패:", err);
+                  toast.error("서버 저장 실패 — 새로고침 시 사진이 사라질 수 있습니다");
+                });
             }
-            dispatch({ type: "UPDATE_INSTRUCTOR", instructor: updated });
           }}
           onDelete={(id) => dispatch({ type: "DELETE_INSTRUCTOR", id })}
           onClose={() => setEditInst(null)}

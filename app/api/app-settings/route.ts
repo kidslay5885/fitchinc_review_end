@@ -18,7 +18,7 @@ export async function GET() {
     const { data, error } = await supabase.from(TABLE).select("key, value");
 
     if (error) {
-      console.warn("app_settings GET error (table may not exist):", error.message);
+      console.error("app_settings GET error (table may not exist):", error.message, error.code);
       return NextResponse.json({ instructorPhotos: {}, cohortOrders: {} });
     }
 
@@ -54,10 +54,11 @@ export async function POST(req: NextRequest) {
     if (body.type === "instructor_photo") {
       const { platform, instructor, photo, photoPosition } = body;
       if (!platform || !instructor) {
-        return NextResponse.json({ error: "platform, instructor 필요" }, { status: 400 });
+        return NextResponse.json({ ok: false, error: "platform, instructor 필요" }, { status: 400 });
       }
       const key = photoKey(platform, instructor);
-      const value = { photo: photo || "", photoPosition: photoPosition || "center 2%" };
+      const photoStr = typeof photo === "string" ? photo : "";
+      const value = { photo: photoStr, photoPosition: photoPosition || "center 2%" };
 
       const supabase = getSupabase();
       const { error } = await supabase.from(TABLE).upsert(
@@ -65,8 +66,8 @@ export async function POST(req: NextRequest) {
         { onConflict: "key" }
       );
       if (error) {
-        console.warn("app_settings upsert photo error:", error.message);
-        return NextResponse.json({ ok: false });
+        console.error("app_settings upsert photo error:", error.message, "key:", key, "photoLen:", photoStr.length);
+        return NextResponse.json({ ok: false, error: error.message });
       }
       return NextResponse.json({ ok: true });
     }
