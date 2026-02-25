@@ -4,7 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "클래스 인사이트 — Fitchnic",
+  title: "핏크닉 클래스 인사이트",
   description: "수강생 설문 분석 & 강사 피드백 자동화",
 };
 

@@ -9,10 +9,8 @@ export function NavHeader() {
   return (
     <header className="py-2.5 px-5 border-b flex items-center justify-between bg-card">
       <div className="flex items-center">
-        <div className="w-[26px] h-[26px] rounded-md bg-primary flex items-center justify-center text-[12px] font-black text-primary-foreground mr-2.5">
-          F
-        </div>
-        <span className="text-[16px] font-extrabold">클래스 인사이트</span>
+        <img src="/fitchnic-logo.png" alt="핏크닉" className="h-[22px] w-auto mr-2.5" />
+        <span className="text-[16px] font-extrabold">핏크닉 클래스 인사이트</span>
       </div>
 
       <button

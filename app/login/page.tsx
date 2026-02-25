@@ -42,10 +42,8 @@ export default function LoginPage() {
         <div className="bg-card rounded-2xl border p-8 shadow-sm">
           {/* Logo */}
           <div className="flex items-center justify-center gap-2.5 mb-6">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-sm font-black text-primary-foreground">
-              F
-            </div>
-            <span className="text-lg font-extrabold">클래스 인사이트</span>
+            <img src="/fitchnic-logo.png" alt="핏크닉" className="h-[28px] w-auto" />
+            <span className="text-lg font-extrabold">핏크닉 클래스 인사이트</span>
           </div>
 
           <p className="text-center text-sm text-muted-foreground mb-6">
