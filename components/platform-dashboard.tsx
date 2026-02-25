@@ -16,6 +16,7 @@ import {
   RecDonut,
   toChartData,
   toGenderData,
+  pinItems,
 } from "@/components/tab-overview";
 import { RingScore } from "@/components/ring-score";
 import { Loader2 } from "lucide-react";
@@ -59,9 +60,9 @@ export function PlatformDashboard({ platform, dataLoading }: PlatformDashboardPr
   // chart data
   const gender = toGenderData(demographics.gender);
   const ageData = toChartData(demographics.age);
-  const jobData = toChartData(demographics.job);
+  const jobData = pinItems(toChartData(demographics.job), { bottom: ["기타"] });
   const hoursData = toChartData(demographics.hours);
-  const channelData = toChartData(demographics.channel);
+  const channelData = pinItems(toChartData(demographics.channel), { top: ["SNS", "sns"] });
   const satData = satItems.map((s) => ({ name: s.label, value: s.count }));
 
   return (
