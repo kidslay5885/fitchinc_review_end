@@ -25,12 +25,46 @@ import {
 const PIE_COLORS = ["#3451B2", "#E5484D", "#46A758", "#F76B15", "#6E56CF", "#30A46C", "#E093D3", "#889096"];
 const BAR_COLOR = "#3451B2";
 
+// 성별 고정 색상
+const GENDER_COLOR_MAP: Record<string, string> = { "여성": "#E5484D", "남성": "#3451B2" };
+const GENDER_ORDER = ["여성", "남성"];
+
 // ---- helpers ----
+
+/** 라벨에서 첫 번째 숫자를 추출해 정렬 키로 사용 */
+function labelSortKey(label: string): number {
+  const m = label.match(/\d+/);
+  if (!m) return Infinity;
+  let n = parseInt(m[0]);
+  if (label.includes("미만") || label.includes("이하")) n -= 0.5;
+  if (label.includes("이상") || label.includes("초과")) n += 0.5;
+  return n;
+}
+
+/** 라벨의 자연 순서(숫자 → 한국어)로 정렬된 차트 데이터 */
 export function toChartData(record: Record<string, number>) {
   return Object.entries(record)
     .filter(([, v]) => v > 0)
-    .sort((a, b) => b[1] - a[1])
+    .sort((a, b) => {
+      const ka = labelSortKey(a[0]);
+      const kb = labelSortKey(b[0]);
+      if (ka !== kb) return ka - kb;
+      return a[0].localeCompare(b[0], "ko");
+    })
     .map(([name, value]) => ({ name, value }));
+}
+
+/** 성별 데이터: 여성(위) → 남성(아래) 고정 순서 + 고정 색상 */
+export function toGenderData(record: Record<string, number>): { data: { name: string; value: number }[]; colors: string[] } {
+  const ordered: { name: string; value: number }[] = [];
+  for (const g of GENDER_ORDER) {
+    if (record[g] && record[g] > 0) ordered.push({ name: g, value: record[g] });
+  }
+  for (const [name, value] of Object.entries(record)) {
+    if (!GENDER_ORDER.includes(name) && value > 0) ordered.push({ name, value });
+  }
+  const colors = ordered.map((d) => GENDER_COLOR_MAP[d.name] || PIE_COLORS[0]);
+  return { data: ordered, colors };
 }
 
 function pctLabel(value: number, total: number) {
@@ -63,8 +97,9 @@ export function ChartCard({ title, children, empty }: { title: string; children:
   );
 }
 
-export function DonutChart({ data }: { data: { name: string; value: number }[] }) {
+export function DonutChart({ data, colors }: { data: { name: string; value: number }[]; colors?: string[] }) {
   const total = data.reduce((s, d) => s + d.value, 0);
+  const getColor = (i: number) => colors?.[i] ?? PIE_COLORS[i % PIE_COLORS.length];
   return (
     <div className="flex items-center gap-4">
       <ResponsiveContainer width={140} height={140}>
@@ -80,7 +115,7 @@ export function DonutChart({ data }: { data: { name: string; value: number }[] }
             stroke="none"
           >
             {data.map((_, i) => (
-              <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+              <Cell key={i} fill={getColor(i)} />
             ))}
           </Pie>
           <Tooltip formatter={(v: number) => [`${v}명 (${pctLabel(v, total)})`]} />
@@ -91,7 +126,7 @@ export function DonutChart({ data }: { data: { name: string; value: number }[] }
           <div key={d.name} className="flex items-center gap-2">
             <span
               className="inline-block w-2.5 h-2.5 rounded-full shrink-0"
-              style={{ background: PIE_COLORS[i % PIE_COLORS.length] }}
+              style={{ background: getColor(i) }}
             />
             <span className="text-muted-foreground">{d.name}</span>
             <span className="font-semibold">{d.value}명</span>
@@ -198,7 +233,7 @@ export function TabOverview({ instructor, course, cohort, platformName }: TabOve
       : `${instructor.name} 전체`;
 
   // chart data
-  const genderData = toChartData(demographics.gender);
+  const gender = toGenderData(demographics.gender);
   const ageData = toChartData(demographics.age);
   const jobData = toChartData(demographics.job);
   const hoursData = toChartData(demographics.hours);
@@ -230,8 +265,8 @@ export function TabOverview({ instructor, course, cohort, platformName }: TabOve
       {/* charts */}
       <div className="grid grid-cols-2 gap-5">
         {/* 성별 */}
-        <ChartCard title="성별 분포" empty={genderData.length === 0}>
-          <DonutChart data={genderData} />
+        <ChartCard title="성별 분포" empty={gender.data.length === 0}>
+          <DonutChart data={gender.data} colors={gender.colors} />
         </ChartCard>
 
         {/* 연령대 */}

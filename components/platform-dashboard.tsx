@@ -15,6 +15,7 @@ import {
   HBarChart,
   RecDonut,
   toChartData,
+  toGenderData,
 } from "@/components/tab-overview";
 import { RingScore } from "@/components/ring-score";
 import { Loader2 } from "lucide-react";
@@ -56,7 +57,7 @@ export function PlatformDashboard({ platform, dataLoading }: PlatformDashboardPr
       : "-";
 
   // chart data
-  const genderData = toChartData(demographics.gender);
+  const gender = toGenderData(demographics.gender);
   const ageData = toChartData(demographics.age);
   const jobData = toChartData(demographics.job);
   const hoursData = toChartData(demographics.hours);
@@ -147,8 +148,8 @@ export function PlatformDashboard({ platform, dataLoading }: PlatformDashboardPr
 
           {/* charts */}
           <div className="grid grid-cols-2 gap-5">
-            <ChartCard title="성별 분포" empty={genderData.length === 0}>
-              <DonutChart data={genderData} />
+            <ChartCard title="성별 분포" empty={gender.data.length === 0}>
+              <DonutChart data={gender.data} colors={gender.colors} />
             </ChartCard>
 
             <ChartCard title="연령대 분포" empty={ageData.length === 0}>
