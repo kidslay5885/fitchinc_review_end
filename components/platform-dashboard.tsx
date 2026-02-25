@@ -126,8 +126,8 @@ export function PlatformDashboard({ platform, dataLoading }: PlatformDashboardPr
 
           {/* summary cards */}
           <div className="grid grid-cols-4 gap-4">
-            <SummaryCard label="사전 응답 수" value={`${preResponses.length}명`} />
-            <SummaryCard label="후기 응답 수" value={`${postResponses.length}명`} />
+            <SummaryCard label="사전 응답 수" value={`${preResponses.length}명`} tip="업로드된 사전 설문의 총 응답자 수" />
+            <SummaryCard label="후기 응답 수" value={`${postResponses.length}명`} tip="업로드된 후기 설문의 총 응답자 수" />
             <SummaryCard
               label="만족도 점수"
               value={
@@ -139,40 +139,42 @@ export function PlatformDashboard({ platform, dataLoading }: PlatformDashboardPr
                   : "-"
               }
               sub="10점 만점"
+              tip="후기 설문의 커리큘럼(ps1)·피드백(ps2) 점수 평균을 10점 만점으로 환산한 값입니다. 원본이 5점 척도인 경우 ×2로 환산합니다."
             />
             <SummaryCard
               label="추천률"
               value={postResponses.length > 0 ? `${scores.recRate}%` : "-"}
+              tip="후기 설문의 '추천 의향' 문항에서 긍정 응답(네, 추천, 강추 등)이 전체 후기 응답 중 차지하는 비율입니다."
             />
           </div>
 
           {/* charts */}
           <div className="grid grid-cols-2 gap-5">
-            <ChartCard title="성별 분포" empty={gender.data.length === 0}>
+            <ChartCard title="성별 분포" empty={gender.data.length === 0} tip="사전·후기 설문 응답자의 성별 비율">
               <DonutChart data={gender.data} colors={gender.colors} />
             </ChartCard>
 
-            <ChartCard title="연령대 분포" empty={ageData.length === 0}>
+            <ChartCard title="연령대 분포" empty={ageData.length === 0} tip="사전·후기 설문 응답자의 연령대 분포">
               <HBarChart data={ageData} />
             </ChartCard>
 
-            <ChartCard title="현재 하고 있는 일" empty={jobData.length === 0}>
+            <ChartCard title="현재 하고 있는 일" empty={jobData.length === 0} tip="사전·후기 설문 응답자의 현재 직업 분포">
               <HBarChart data={jobData} />
             </ChartCard>
 
-            <ChartCard title="부업 투자 시간" empty={hoursData.length === 0}>
+            <ChartCard title="부업 투자 시간" empty={hoursData.length === 0} tip="사전·후기 설문 응답자의 부업에 투자하는 시간 분포">
               <HBarChart data={hoursData} />
             </ChartCard>
 
-            <ChartCard title="알게 된 경로" empty={channelData.length === 0}>
+            <ChartCard title="알게 된 경로" empty={channelData.length === 0} tip="사전·후기 설문 응답자가 해당 강의를 알게 된 경로 분포">
               <HBarChart data={channelData} />
             </ChartCard>
 
-            <ChartCard title="좋았던 점" empty={satData.length === 0}>
+            <ChartCard title="좋았던 점" empty={satData.length === 0} tip="후기 설문의 '만족스러웠던 점' 응답을 항목별로 집계한 수치">
               <HBarChart data={satData} />
             </ChartCard>
 
-            <ChartCard title="커리큘럼 만족도" empty={postResponses.length === 0}>
+            <ChartCard title="커리큘럼 만족도" empty={postResponses.length === 0} tip="후기 설문의 커리큘럼(ps1)·피드백(ps2) 점수를 각각 10점 만점으로 환산한 평균값. 원본 5점 척도 시 ×2 환산.">
               <div className="flex items-center justify-center gap-8 py-4">
                 <RingScore
                   score={scores.ps1Avg}
@@ -189,7 +191,7 @@ export function PlatformDashboard({ platform, dataLoading }: PlatformDashboardPr
               </div>
             </ChartCard>
 
-            <ChartCard title="추천 의향" empty={postResponses.length === 0}>
+            <ChartCard title="추천 의향" empty={postResponses.length === 0} tip="후기 설문 '추천 의향' 문항에서 긍정(네, 추천, 강추 등) / 부정(아니, 글쎄 등)을 분류한 비율">
               <RecDonut postResponses={postResponses} />
             </ChartCard>
           </div>
