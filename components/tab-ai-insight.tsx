@@ -165,12 +165,12 @@ export function TabAIInsight({ instructor, course, cohort, platformName, isActiv
         <div className="bg-card rounded-xl border p-5">
           <div className="flex items-center gap-6 flex-wrap">
             <div className="flex gap-3 items-center">
-              <RingScore score={scores.ps1Avg} label="커리큘럼" max={10} excluded={scores.ps1Excluded} title="후기 설문의 커리큘럼(ps1) 문항 평균을 10점 만점으로 수치화한 결과입니다." />
-              <RingScore score={scores.ps2Avg} label="피드백" max={10} excluded={scores.ps2Excluded} title="후기 설문의 피드백(ps2) 문항 평균을 10점 만점으로 수치화한 결과입니다." />
+              <RingScore score={scores.ps1Avg} label="커리큘럼" max={10} excluded={scores.ps1Excluded} title="후기 설문의 '커리큘럼 만족도' 점수를 10점 만점으로 환산한 평균값입니다." />
+              <RingScore score={scores.ps2Avg} label="피드백" max={10} excluded={scores.ps2Excluded} title="후기 설문의 '피드백 만족도' 점수를 10점 만점으로 환산한 평균값입니다." />
             </div>
             <div className="border-l pl-5 grid gap-1 text-[14px]">
               {scores.recRate > 0 && (
-                <div title="후기 설문의 추천 의향 문항(pRec) 응답 기준">
+                <div title="후기 설문 '이 강의를 지인분들께 추천하실 것 같으신가요?' 문항에서 긍정 응답을 한 비율입니다.">
                   추천률{" "}
                   <strong className={scores.recRate >= 80 ? "text-emerald-600" : "text-amber-600"}>
                     {scores.recRate}%

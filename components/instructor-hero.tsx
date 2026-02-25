@@ -95,8 +95,8 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
             {postResponses.length > 0 && (
               <>
                 <div className="flex gap-2 items-center">
-                  <RingScore score={scores.ps1Avg} label="커리큘럼" max={10} excluded={scores.ps1Excluded} title="후기 설문의 커리큘럼(ps1) 문항 평균을 10점 만점으로 수치화한 결과입니다." />
-                  <RingScore score={scores.ps2Avg} label="피드백" max={10} excluded={scores.ps2Excluded} title="후기 설문의 피드백(ps2) 문항 평균을 10점 만점으로 수치화한 결과입니다." />
+                  <RingScore score={scores.ps1Avg} label="커리큘럼" max={10} excluded={scores.ps1Excluded} title="후기 설문의 '커리큘럼 만족도' 점수를 10점 만점으로 환산한 평균값입니다." />
+                  <RingScore score={scores.ps2Avg} label="피드백" max={10} excluded={scores.ps2Excluded} title="후기 설문의 '피드백 만족도' 점수를 10점 만점으로 환산한 평균값입니다." />
                 </div>
                 <div className="border-l pl-4 text-[14px] text-muted-foreground leading-relaxed space-y-0.5">
                   <div className="flex items-center gap-2 mb-1.5">
@@ -150,7 +150,7 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
                     명
                   </div>
                   {scores.recRate > 0 && (
-                    <div title="후기 설문의 추천 의향 문항(pRec) 응답 기준">
+                    <div title="후기 설문 '이 강의를 지인분들께 추천하실 것 같으신가요?' 문항에서 긍정 응답을 한 비율입니다.">
                       추천률 <strong className="text-emerald-600">{scores.recRate}%</strong>
                       <span className="text-[11px] text-muted-foreground/90 ml-1">(후기 설문 추천 의향 문항 기준)</span>
                     </div>
