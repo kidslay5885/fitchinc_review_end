@@ -320,7 +320,7 @@ export function EditInstructorDialog({
               {courseIdx === 0 && (
                 <thead>
                   <tr className="text-muted-foreground text-[11px] font-bold">
-                    {["기수", "담당PM", "시작일", "종료일", "수강생", "상태", ""].map((h) => (
+                    {["기수", "담당PM", "시작일", "VOD 종료", "수강생", "상태", ""].map((h) => (
                       <th key={h} className="py-1 px-1.5 text-left">
                         {h}
                       </th>

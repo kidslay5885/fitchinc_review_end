@@ -283,6 +283,10 @@ export function TabOverview({ instructor, course, cohort, platformName }: TabOve
   const jobData = pinItems(toChartData(demographics.job), { bottom: ["기타"] });
   const hoursData = toChartDataWithDefaults(demographics.hours, HOURS_GROUPS);
   const channelData = toChartDataWithDefaults(demographics.channel, CHANNEL_GROUPS);
+  const prevExpData = toChartData(demographics.prevExperience);
+  const prevCourseData = toChartData(demographics.prevCourse);
+  const selectReasonData = pinItems(toChartData(demographics.selectReason), { bottom: ["기타"] });
+  const expectedBenefitData = pinItems(toChartData(demographics.expectedBenefit), { bottom: ["기타"] });
   const satData = satItems.map((s) => ({ name: s.label, value: s.count }));
 
   return (
@@ -312,37 +316,65 @@ export function TabOverview({ instructor, course, cohort, platformName }: TabOve
       {/* charts */}
       <div className="grid grid-cols-2 gap-5">
         {/* 성별 */}
-        <ChartCard title="성별 분포" empty={gender.data.length === 0} tip="설문 응답자의 성별 비율">
+        <ChartCard title="성별" empty={gender.data.length === 0} tip="사전 설문 '성별' 항목 응답 분포">
           <DonutChart data={gender.data} colors={gender.colors} />
         </ChartCard>
 
         {/* 연령대 */}
-        <ChartCard title="연령대 분포" empty={ageData.length === 0} tip="설문 응답자의 연령대 분포">
+        <ChartCard title="연령대" empty={ageData.length === 0} tip="사전 설문 '연령대' 항목 응답 분포">
           <HBarChart data={ageData} />
         </ChartCard>
 
         {/* 직업 */}
-        <ChartCard title="현재 하고 있는 일" empty={jobData.length === 0} tip="설문 응답자의 현재 직업 분포">
+        <ChartCard title="현재 하고 계신 일" empty={jobData.length === 0} tip="사전 설문 '현재 하고 계신 일이 무엇인가요?' 항목 응답 분포">
           <HBarChart data={jobData} />
         </ChartCard>
 
         {/* 부업 투자 시간 */}
-        <ChartCard title="부업 투자 시간" empty={hoursData.length === 0} tip="설문 응답자가 부업에 투자하는 시간 분포">
+        <ChartCard title="하루에 평균적으로 부업에 투자할 수 있는 시간" empty={hoursData.length === 0} tip="사전 설문 '하루에 평균적으로 부업에 투자할 수 있는 시간' 항목 응답 분포">
           <HBarChart data={hoursData} />
         </ChartCard>
 
         {/* 유입 경로 */}
-        <ChartCard title="알게 된 경로" empty={channelData.length === 0} tip="설문 응답자가 해당 강의를 알게 된 경로 분포">
+        <ChartCard title="알게 되신 경로" empty={channelData.length === 0} tip="사전 설문 '핏크닉(머니업클래스)을 알게 되신 경로는?' 항목 응답 분포">
           <HBarChart data={channelData} />
         </ChartCard>
 
-        {/* 좋았던 점 */}
-        <ChartCard title="좋았던 점" empty={satData.length === 0} tip="후기 설문 '만족스러웠던 점'에 대한 응답을 항목별로 집계한 수치">
+        {/* 타 플랫폼 강의 수강 경험 */}
+        {prevExpData.length > 0 && (
+          <ChartCard title="타 플랫폼 강의 수강 경험" tip="사전 설문 '이전에 타 플랫폼의 강의 수강하신 경험이 있으신가요?' 항목 응답 분포">
+            <DonutChart data={prevExpData} />
+          </ChartCard>
+        )}
+
+        {/* 핏크닉 다른 정규강의 수강 이력 */}
+        {prevCourseData.length > 0 && (
+          <ChartCard title="핏크닉 다른 정규강의 수강 이력" tip="사전 설문 '핏크닉의 다른 정규강의를 수강하신 적이 있나요?' 항목 응답 분포">
+            <DonutChart data={prevCourseData} />
+          </ChartCard>
+        )}
+
+        {/* 강의 선택 이유 */}
+        {selectReasonData.length > 0 && (
+          <ChartCard title="강사님 강의를 선택하신 이유" tip="사전 설문 '핏크닉의 강사님 강의를 선택하신 이유가 어떻게 되시나요?' 항목 응답 분포">
+            <HBarChart data={selectReasonData} />
+          </ChartCard>
+        )}
+
+        {/* 기대되는 혜택 */}
+        {expectedBenefitData.length > 0 && (
+          <ChartCard title="이번 강의 혜택 중 가장 기대되는 혜택" tip="사전 설문 '이번 강의 혜택 중 가장 필요한(기대되는) 혜택은 무엇인가요?' 항목 응답 분포">
+            <HBarChart data={expectedBenefitData} />
+          </ChartCard>
+        )}
+
+        {/* 수강 과정 중 만족스러웠던 점 */}
+        <ChartCard title="수강 과정 중 만족스러웠던 점" empty={satData.length === 0} tip="후기 설문 '수강 과정 중 가장 만족스러웠던 점' 항목별 집계">
           <HBarChart data={satData} />
         </ChartCard>
 
         {/* 커리큘럼 만족도 */}
-        <ChartCard title="커리큘럼 만족도" empty={postResponses.length === 0} tip="후기 설문의 '커리큘럼 만족도'와 '피드백 만족도' 점수를 각각 10점 만점으로 환산한 평균값">
+        <ChartCard title="전반적인 강의 커리큘럼 만족도" empty={postResponses.length === 0} tip="후기 설문 '전반적인 강의 커리큘럼 만족도는 몇 점이었나요?'와 '강사님의 피드백은 적절히 이루어졌나요?' 점수를 10점 만점으로 환산">
           <div className="flex items-center justify-center gap-8 py-4">
             <RingScore score={scores.ps1Avg} size={80} label="커리큘럼" excluded={scores.ps1Excluded} />
             <RingScore score={scores.ps2Avg} size={80} label="피드백" excluded={scores.ps2Excluded} />
@@ -350,7 +382,7 @@ export function TabOverview({ instructor, course, cohort, platformName }: TabOve
         </ChartCard>
 
         {/* 추천 의향 */}
-        <ChartCard title="추천 의향" empty={postResponses.length === 0} tip="후기 설문 '이 강의를 지인분들께 추천하실 것 같으신가요?'에 대한 응답을 긍정/부정으로 분류한 비율">
+        <ChartCard title="이 강의를 지인분들께 추천하실 것 같으신가요?" empty={postResponses.length === 0} tip="후기 설문 추천 의향 문항의 긍정/부정 응답 비율">
           <RecDonut postResponses={postResponses} />
         </ChartCard>
       </div>

@@ -3,6 +3,7 @@ import { getSupabase } from "@/lib/supabase";
 import { parseXLSXToComments, parseBufferToResponses, countRespondents } from "@/lib/csv-parser";
 import { parseFilename } from "@/lib/filename-parser";
 import { resolveCourse } from "@/lib/course-registry";
+import { findSchedule } from "@/lib/schedule-data";
 
 export async function POST(req: NextRequest) {
   try {
@@ -90,6 +91,19 @@ export async function POST(req: NextRequest) {
         { error: "설문 저장 실패: " + surveyError.message },
         { status: 500 }
       );
+    }
+
+    // 일정 데이터 자동 매칭 (pm, start_date, end_date)
+    const schedule = findSchedule(platform, instructor, cohort, course);
+    if (schedule) {
+      await supabase
+        .from("surveys")
+        .update({
+          pm: schedule.pm,
+          start_date: schedule.startDate,
+          end_date: schedule.endDate,
+        })
+        .eq("id", survey.id);
     }
 
     // comments 테이블에 저장 (응답자 이름 기준 중복 제거)

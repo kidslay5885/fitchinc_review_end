@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { Instructor, Cohort, Course } from "@/lib/types";
 import { allCohorts } from "@/lib/types";
 import { computeScores } from "@/lib/analysis-engine";
 import { RingScore } from "./ring-score";
-import { User, X } from "lucide-react";
+import { User, X, Pencil } from "lucide-react";
+import { toast } from "sonner";
 
 interface InstructorHeroProps {
   platformName: string;
@@ -22,6 +23,63 @@ const TOTAL_STUDENTS_KEY = (platform: string, instructor: string, cohortLabel: s
 export function InstructorHero({ platformName, instructor, course, cohort, onUpdateCohort, readOnly }: InstructorHeroProps) {
   const [totalInput, setTotalInput] = useState("");
   const storageKey = TOTAL_STUDENTS_KEY(platformName, instructor.name, cohort?.label ?? null);
+
+  // 인라인 편집 상태 (분류작업 모드 전용)
+  const [editingPM, setEditingPM] = useState(false);
+  const [pmDraft, setPmDraft] = useState("");
+  const [editingStart, setEditingStart] = useState(false);
+  const [startDraft, setStartDraft] = useState("");
+  const [editingEnd, setEditingEnd] = useState(false);
+  const [endDraft, setEndDraft] = useState("");
+  const pmRef = useRef<HTMLInputElement>(null);
+
+  const canEdit = !readOnly && !!cohort && !!onUpdateCohort;
+
+  // 서버에 스케줄 변경 전송
+  const saveScheduleToServer = (updates: { pm?: string; startDate?: string; endDate?: string }) => {
+    const courseName = course?.name || "";
+    fetch("/api/update-schedule", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        platform: platformName,
+        instructor: instructor.name,
+        course: courseName,
+        cohort: cohort?.label,
+        ...updates,
+      }),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (!d.ok) throw new Error(d.error);
+      })
+      .catch((err) => {
+        console.error("스케줄 저장 실패:", err);
+        toast.error("서버 저장 실패");
+      });
+  };
+
+  const commitPM = () => {
+    const trimmed = pmDraft.trim();
+    setEditingPM(false);
+    if (!cohort || !onUpdateCohort || trimmed === (cohort.pm || "")) return;
+    onUpdateCohort({ ...cohort, pm: trimmed });
+    saveScheduleToServer({ pm: trimmed });
+  };
+
+  const commitStart = () => {
+    setEditingStart(false);
+    if (!cohort || !onUpdateCohort || startDraft === (cohort.date || "")) return;
+    onUpdateCohort({ ...cohort, date: startDraft });
+    saveScheduleToServer({ startDate: startDraft });
+  };
+
+  const commitEnd = () => {
+    setEditingEnd(false);
+    if (!cohort || !onUpdateCohort || endDraft === (cohort.endDate || "")) return;
+    onUpdateCohort({ ...cohort, endDate: endDraft });
+    saveScheduleToServer({ endDate: endDraft });
+  };
 
   // 현재 보여줄 기수 목록: course가 선택되면 해당 course의 기수, 아니면 전체
   const visibleCohorts = course ? course.cohorts : allCohorts(instructor);
@@ -63,7 +121,9 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
       <div className="flex justify-between items-start">
         <div>
           <div className="text-[12px] font-extrabold text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-            {platformName} · {instructor.category}
+            {platformName} · {instructor.courses.length > 0
+              ? instructor.courses.map((c) => c.name || "기본 과정").join(" · ")
+              : instructor.category || "-"}
           </div>
           <div className="flex items-center gap-3.5">
             <button
@@ -85,10 +145,86 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
               </span>
             </div>
           </div>
-          <div className="text-[13px] text-muted-foreground mt-1.5">
-            담당PM {currentPM}
-            {cohort && cohort.date ? ` · ${cohort.date} ~ ${cohort.endDate}` : ""}
-          </div>
+          {cohort && (
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              {/* PM 태그 — 편집 가능 */}
+              {canEdit && editingPM ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-muted/70 text-[11px]">
+                  <span className="text-muted-foreground font-medium">PM</span>
+                  <input
+                    ref={pmRef}
+                    autoFocus
+                    value={pmDraft}
+                    onChange={(e) => setPmDraft(e.target.value)}
+                    onBlur={commitPM}
+                    onKeyDown={(e) => { if (e.key === "Enter") commitPM(); if (e.key === "Escape") setEditingPM(false); }}
+                    className="w-20 py-0 px-1 rounded border text-[11px] font-bold bg-card text-foreground"
+                  />
+                </span>
+              ) : (
+                <span
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted/70 text-[11px] ${canEdit ? "cursor-pointer hover:bg-muted transition-colors" : ""}`}
+                  onClick={() => {
+                    if (!canEdit) return;
+                    setPmDraft(currentPM === "-" ? "" : currentPM);
+                    setEditingPM(true);
+                  }}
+                >
+                  <span className="text-muted-foreground font-medium">PM</span>
+                  <span className="font-bold text-foreground">{currentPM}</span>
+                  {canEdit && <Pencil className="w-2.5 h-2.5 text-muted-foreground/60" />}
+                </span>
+              )}
+
+              {/* 강의 시청 기간 태그 — 편집 가능 */}
+              {(cohort.date || canEdit) && (
+                canEdit && (editingStart || editingEnd) ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-muted/70 text-[11px]">
+                    <span className="text-muted-foreground font-medium">강의 시청 기간</span>
+                    <input
+                      type="date"
+                      autoFocus={editingStart}
+                      value={startDraft}
+                      onChange={(e) => setStartDraft(e.target.value)}
+                      onBlur={commitStart}
+                      onKeyDown={(e) => { if (e.key === "Escape") setEditingStart(false); }}
+                      className="py-0 px-1 rounded border text-[11px] font-bold bg-card text-foreground"
+                    />
+                    <span className="text-muted-foreground">~</span>
+                    <input
+                      type="date"
+                      autoFocus={editingEnd}
+                      value={endDraft}
+                      onChange={(e) => setEndDraft(e.target.value)}
+                      onBlur={commitEnd}
+                      onKeyDown={(e) => { if (e.key === "Escape") setEditingEnd(false); }}
+                      className="py-0 px-1 rounded border text-[11px] font-bold bg-card text-foreground"
+                    />
+                  </span>
+                ) : (
+                  <span
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted/70 text-[11px] ${canEdit ? "cursor-pointer hover:bg-muted transition-colors" : ""}`}
+                    onClick={() => {
+                      if (!canEdit) return;
+                      setStartDraft(cohort.date || "");
+                      setEndDraft(cohort.endDate || "");
+                      setEditingStart(true);
+                    }}
+                  >
+                    <span className="text-muted-foreground font-medium">강의 시청 기간</span>
+                    {cohort.date ? (
+                      <span className="font-bold text-foreground">
+                        {cohort.date.replace(/-/g, ".")} ~ {cohort.endDate.replace(/-/g, ".")}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground/60">미설정</span>
+                    )}
+                    {canEdit && <Pencil className="w-2.5 h-2.5 text-muted-foreground/60" />}
+                  </span>
+                )
+              )}
+            </div>
+          )}
         </div>
 
         {hasData && (

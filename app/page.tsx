@@ -339,7 +339,8 @@ function DashboardContent({ tabs, readOnly = false }: { tabs: typeof TABS_DATA; 
                     !readOnly && cohort
                       ? (c) => {
                           dispatch({ type: "UPDATE_COHORT", instructorId: inst.id, cohort: c });
-                          if (plat)
+                          // totalStudents 변경 시 localStorage에 저장
+                          if (plat && c.totalStudents !== cohort.totalStudents)
                             try {
                               localStorage.setItem(
                                 `total-students-${plat.name}-${inst.name}-${c.label}`,

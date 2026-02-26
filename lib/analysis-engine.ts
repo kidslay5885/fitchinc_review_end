@@ -1,5 +1,31 @@
 import type { SurveyResponse, Cohort } from "./types";
 
+// ---- rawData 추출 패턴 ----
+// XLSX 컬럼명에 매칭되지 않아 rawData에 보관된 필드를 패턴으로 추출
+export const RAW_DATA_PATTERNS: Record<string, RegExp> = {
+  prevExperience: /타.*플랫폼.*강의.*수강|이전.*플랫폼.*수강/i,
+  prevCourse: /다른.*정규강의.*수강|다른.*정규.*강의.*수강|핏크닉.*정규/i,
+  selectReason: /강의를.*선택.*이유|선택하신.*이유/i,
+  expectedBenefit: /혜택.*기대|기대.*혜택|혜택.*필요/i,
+  satOther: /기타.*선택.*어떤|기타.*만족/i,
+};
+
+/** rawData에서 패턴에 매칭되는 첫 번째 값 추출 */
+export function extractFromRawData(rawData: Record<string, string>, pattern: RegExp): string {
+  for (const [key, value] of Object.entries(rawData)) {
+    if (pattern.test(key)) return value;
+  }
+  return "";
+}
+
+/** rawData에서 패턴에 매칭되는 원본 컬럼명(키) 추출 */
+export function extractKeyFromRawData(rawData: Record<string, string>, pattern: RegExp): string {
+  for (const key of Object.keys(rawData)) {
+    if (pattern.test(key)) return key;
+  }
+  return "";
+}
+
 export interface DemographicStats {
   gender: Record<string, number>;
   age: Record<string, number>;
@@ -8,6 +34,10 @@ export interface DemographicStats {
   computer: { avg: number; distribution: Record<number, number> };
   goal: Record<string, number>;
   channel: Record<string, number>;
+  prevExperience: Record<string, number>;
+  prevCourse: Record<string, number>;
+  selectReason: Record<string, number>;
+  expectedBenefit: Record<string, number>;
 }
 
 export function computeDemographics(responses: SurveyResponse[]): DemographicStats {
@@ -17,6 +47,10 @@ export function computeDemographics(responses: SurveyResponse[]): DemographicSta
   const hours: Record<string, number> = {};
   const goal: Record<string, number> = {};
   const channel: Record<string, number> = {};
+  const prevExperience: Record<string, number> = {};
+  const prevCourse: Record<string, number> = {};
+  const selectReason: Record<string, number> = {};
+  const expectedBenefit: Record<string, number> = {};
   const computerDist: Record<number, number> = {};
   let computerSum = 0;
   let computerCount = 0;
@@ -33,6 +67,33 @@ export function computeDemographics(responses: SurveyResponse[]): DemographicSta
       computerSum += r.computer;
       computerCount++;
     }
+
+    // rawData에서 추가 필드 추출
+    if (r.rawData) {
+      const pe = extractFromRawData(r.rawData, RAW_DATA_PATTERNS.prevExperience).trim();
+      if (pe) prevExperience[pe] = (prevExperience[pe] || 0) + 1;
+
+      const pc = extractFromRawData(r.rawData, RAW_DATA_PATTERNS.prevCourse).trim();
+      if (pc) prevCourse[pc] = (prevCourse[pc] || 0) + 1;
+
+      // selectReason: 복수 선택 가능 ("|" 구분자)
+      const sr = extractFromRawData(r.rawData, RAW_DATA_PATTERNS.selectReason).trim();
+      if (sr) {
+        const parts = sr.split("|").map((s) => s.trim()).filter(Boolean);
+        for (const p of parts) {
+          selectReason[p] = (selectReason[p] || 0) + 1;
+        }
+      }
+
+      // expectedBenefit: 복수 선택 가능 ("|" 구분자)
+      const eb = extractFromRawData(r.rawData, RAW_DATA_PATTERNS.expectedBenefit).trim();
+      if (eb) {
+        const parts = eb.split("|").map((s) => s.trim()).filter(Boolean);
+        for (const p of parts) {
+          expectedBenefit[p] = (expectedBenefit[p] || 0) + 1;
+        }
+      }
+    }
   }
 
   return {
@@ -46,6 +107,10 @@ export function computeDemographics(responses: SurveyResponse[]): DemographicSta
     },
     goal,
     channel,
+    prevExperience,
+    prevCourse,
+    selectReason,
+    expectedBenefit,
   };
 }
 
@@ -106,23 +171,23 @@ export function getTopStats(responses: SurveyResponse[]) {
   const result = [];
   if (topGoal) {
     result.push({
-      label: "목표 수익",
-      desc: `${topGoal[0]} 사업화 목표`,
+      label: "월 수익 목표 금액",
+      desc: `최다 응답: ${topGoal[0]}`,
       num: `${Math.round((topGoal[1] / total) * 100)}%`,
       src: `${total}명 응답`,
     });
   }
   if (topChannel) {
     result.push({
-      label: "유입 경로",
-      desc: `${topChannel[0]}를 통해 유입`,
+      label: "알게 되신 경로",
+      desc: `최다 응답: ${topChannel[0]}`,
       num: `${Math.round((topChannel[1] / total) * 100)}%`,
       src: `${total}명 응답`,
     });
   }
   result.push({
-    label: "컴퓨터 활용도",
-    desc: "평균 PC 활용 수준",
+    label: "컴퓨터 활용 능력",
+    desc: "나의 컴퓨터 활용 능력은?",
     num: `${stats.computer.avg}`,
     src: `${total}명 응답 · 10점 만점`,
   });

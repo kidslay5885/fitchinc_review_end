@@ -9,6 +9,11 @@ export const FIELD_LABELS: Record<string, string> = {
   pFree: "자유 의견",
   lowScoreReason: "커리큘럼 불만족 사유",
   lowFeedbackRequest: "피드백 개선 요청",
+  prevExperience: "타 플랫폼 강의 수강 경험",
+  prevCourse: "핏크닉 다른 정규강의 수강 이력",
+  selectReason: "강사님 강의를 선택하신 이유",
+  expectedBenefit: "이번 강의 혜택 중 가장 기대되는 혜택",
+  satOther: "기타 만족 사유",
 };
 
 export const FIELD_ORDER = [

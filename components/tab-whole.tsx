@@ -6,9 +6,21 @@ import { allCohorts } from "@/lib/types";
 import { FIELD_LABELS } from "@/lib/feedback-utils";
 import { getOrderedCohorts } from "@/lib/cohort-order";
 import { computeScores } from "@/lib/analysis-engine";
+import { extractFromRawData, RAW_DATA_PATTERNS } from "@/lib/analysis-engine";
 import { Info, BarChart3 } from "lucide-react";
 
 const PRE_FIELDS = ["hopePlatform", "hopeInstructor"] as const;
+
+// rawData에서 추출할 사전 설문 필드 (텍스트형)
+const RAW_PRE_FIELDS = [
+  { key: "selectReason", label: "강사님 강의를 선택하신 이유", pattern: RAW_DATA_PATTERNS.selectReason },
+  { key: "expectedBenefit", label: "이번 강의 혜택 중 가장 기대되는 혜택", pattern: RAW_DATA_PATTERNS.expectedBenefit },
+] as const;
+
+// rawData에서 추출할 후기 설문 필드 (텍스트형)
+const RAW_POST_FIELDS = [
+  { key: "satOther", label: "기타 만족 사유", pattern: RAW_DATA_PATTERNS.satOther },
+] as const;
 const POST_FIELD_LABELS: Record<string, string> = {
   pFree: "자유 의견",
   pSat: "만족스러웠던 점",
@@ -73,6 +85,14 @@ export function TabWhole({ instructor, course, platformName, selectedCohort, onG
       const label = FIELD_LABELS[field] || field;
       out.push({ id: `pre-${field}`, label: `사전 · ${label}` });
     }
+    // rawData 기반 사전 필드
+    for (const rf of RAW_PRE_FIELDS) {
+      const hasData = safeCohorts.some((c) =>
+        c.preResponses.some((r) => r.rawData && extractFromRawData(r.rawData, rf.pattern).trim().length > 2)
+      );
+      if (!hasData) continue;
+      out.push({ id: `pre-${rf.key}`, label: `사전 · ${rf.label}` });
+    }
     for (const field of POST_FIELDS) {
       const hasData = safeCohorts.some((c) =>
         c.postResponses.some((r) => getResponseText(r, field).length > 2)
@@ -80,6 +100,14 @@ export function TabWhole({ instructor, course, platformName, selectedCohort, onG
       if (!hasData) continue;
       const label = POST_FIELD_LABELS[field] || FIELD_LABELS[field] || field;
       out.push({ id: `post-${field}`, label: `후기 · ${label}` });
+    }
+    // rawData 기반 후기 필드
+    for (const rf of RAW_POST_FIELDS) {
+      const hasData = safeCohorts.some((c) =>
+        c.postResponses.some((r) => r.rawData && extractFromRawData(r.rawData, rf.pattern).trim().length > 2)
+      );
+      if (!hasData) continue;
+      out.push({ id: `post-${rf.key}`, label: `후기 · ${rf.label}` });
     }
     return out;
   }, [safeCohorts]);
@@ -258,6 +286,48 @@ export function TabWhole({ instructor, course, platformName, selectedCohort, onG
                     </div>
                   );
                 })}
+
+                {/* rawData 기반 사전 설문 필드 */}
+                {RAW_PRE_FIELDS.map((rf) => {
+                  const cohortsWithField = safeCohorts.filter((c) =>
+                    c.preResponses.some((r) => r.rawData && extractFromRawData(r.rawData, rf.pattern).trim().length > 2)
+                  );
+                  if (cohortsWithField.length === 0) return null;
+                  return (
+                    <div key={rf.key} id={`pre-${rf.key}`} className="rounded-xl border bg-card overflow-hidden border-blue-100 scroll-mt-[6rem]">
+                      <div className="py-2.5 px-4 rounded-t-lg bg-blue-100/80 border-b border-blue-200 text-[15px] font-bold text-blue-900">
+                        {rf.label}
+                      </div>
+                      <div className="p-4 space-y-5">
+                        {cohortsWithField.map((cohort) => {
+                          const items = cohort.preResponses
+                            .map((r) => ({
+                              name: r.name,
+                              text: r.rawData ? extractFromRawData(r.rawData, rf.pattern).trim() : "",
+                            }))
+                            .filter((x) => x.text.length > 2);
+                          return (
+                            <div key={cohort.id}>
+                              {safeCohorts.length > 1 && (
+                                <div className="text-[13px] font-bold text-blue-700 mb-2 pl-1 pb-1 border-b border-blue-100">
+                                  {cohort.label}
+                                </div>
+                              )}
+                              <ul className="space-y-2 pl-1">
+                                {items.map((item, i) => (
+                                  <li key={i} className="text-[14px] pl-3 border-l-2 border-muted">
+                                    <span className="font-medium text-foreground/90">{item.name}:</span>{" "}
+                                    <span className="text-muted-foreground">{item.text}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </section>
 
@@ -280,6 +350,48 @@ export function TabWhole({ instructor, course, platformName, selectedCohort, onG
                         {cohortsWithField.map((cohort) => {
                           const items = cohort.postResponses
                             .map((r) => ({ name: r.name, text: getResponseText(r, field) }))
+                            .filter((x) => x.text.length > 2);
+                          return (
+                            <div key={cohort.id}>
+                              {safeCohorts.length > 1 && (
+                                <div className="text-[13px] font-bold text-emerald-700 mb-2 pl-1 pb-1 border-b border-emerald-100">
+                                  {cohort.label}
+                                </div>
+                              )}
+                              <ul className="space-y-2 pl-1">
+                                {items.map((item, i) => (
+                                  <li key={i} className="text-[14px] pl-3 border-l-2 border-muted">
+                                    <span className="font-medium text-foreground/90">{item.name}:</span>{" "}
+                                    <span className="text-muted-foreground">{item.text}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* rawData 기반 후기 설문 필드 */}
+                {RAW_POST_FIELDS.map((rf) => {
+                  const cohortsWithField = safeCohorts.filter((c) =>
+                    c.postResponses.some((r) => r.rawData && extractFromRawData(r.rawData, rf.pattern).trim().length > 2)
+                  );
+                  if (cohortsWithField.length === 0) return null;
+                  return (
+                    <div key={rf.key} id={`post-${rf.key}`} className="rounded-xl border bg-card overflow-hidden border-emerald-100 scroll-mt-[6rem]">
+                      <div className="py-2.5 px-4 rounded-t-lg bg-emerald-100/80 border-b border-emerald-200 text-[15px] font-bold text-emerald-900">
+                        {rf.label}
+                      </div>
+                      <div className="p-4 space-y-5">
+                        {cohortsWithField.map((cohort) => {
+                          const items = cohort.postResponses
+                            .map((r) => ({
+                              name: r.name,
+                              text: r.rawData ? extractFromRawData(r.rawData, rf.pattern).trim() : "",
+                            }))
                             .filter((x) => x.text.length > 2);
                           return (
                             <div key={cohort.id}>

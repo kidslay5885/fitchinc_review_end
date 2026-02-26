@@ -114,7 +114,11 @@ export function AppSidebar({ onUpload, onEditInstructor, readOnly }: AppSidebarP
                           </span>
                         )}
                       </div>
-                      <div className="text-[11px] text-muted-foreground">{instructor.category}</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {instructor.courses.length > 0
+                          ? instructor.courses.map((c) => c.name || "기본 과정").join(" · ")
+                          : instructor.category || ""}
+                      </div>
                     </div>
                     <button
                       type="button"
@@ -329,7 +333,12 @@ function CohortList({
                 </span>
               </div>
               {c.pm && (
-                <div className="text-[10px] text-muted-foreground mt-0.5">담당PM {c.pm}</div>
+                <div className="mt-0.5">
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted/70 text-[9px]">
+                    <span className="text-muted-foreground">PM</span>
+                    <span className="font-semibold text-foreground/80">{c.pm}</span>
+                  </span>
+                </div>
               )}
             </div>
           </div>
