@@ -10,7 +10,7 @@ import {
   extractFromRawData,
   RAW_DATA_PATTERNS,
 } from "@/lib/analysis-engine";
-import { ChevronDown, ChevronUp, Undo2 } from "lucide-react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { RingScore } from "@/components/ring-score";
 import {
@@ -376,18 +376,17 @@ function YesNoDonutWithDetails({
               {allNoDetails.map((d, i) => {
                 const isBlocked = blockedItems?.includes(d);
                 return (
-                  <li key={i} className={`text-[12px] text-muted-foreground pl-3 border-l-2 flex items-center justify-between gap-2 ${isBlocked ? "border-amber-300" : "border-muted"}`}>
-                    <span>{d}</span>
-                    {isBlocked && onRestore && (
-                      <button
-                        type="button"
-                        onClick={() => onRestore(d)}
-                        className="shrink-0 p-0.5 rounded hover:bg-blue-100 hover:text-blue-600 transition-colors"
-                        title="있음으로 되돌리기"
-                      >
-                        <Undo2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
+                  <li
+                    key={i}
+                    onClick={onRestore && isBlocked ? () => onRestore(d) : undefined}
+                    className={`text-[12px] text-muted-foreground pl-3 border-l-2 ${
+                      isBlocked
+                        ? "border-amber-300 cursor-pointer hover:line-through hover:text-primary/70 transition-colors"
+                        : "border-muted"
+                    }`}
+                    title={isBlocked ? "클릭하여 있음으로 되돌리기" : undefined}
+                  >
+                    {d}
                   </li>
                 );
               })}
