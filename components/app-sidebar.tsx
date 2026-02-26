@@ -246,7 +246,7 @@ export function AppSidebar({ onUpload, onEditInstructor, readOnly }: AppSidebarP
             <img
               src={zoomPhoto.src}
               alt={zoomPhoto.name}
-              className="w-48 h-48 rounded-2xl object-contain bg-white shadow-2xl"
+              className="w-72 h-72 rounded-2xl object-contain bg-white shadow-2xl"
               style={{ objectPosition: zoomPhoto.pos }}
             />
             <div className="mt-2 text-center text-white text-sm font-semibold">{zoomPhoto.name}</div>
