@@ -176,11 +176,11 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
                 </span>
               )}
 
-              {/* 강의 시청 기간 태그 — 편집 가능 */}
+              {/* 정규 강의 기간 태그 — 편집 가능 */}
               {(cohort.date || canEdit) && (
                 canEdit && (editingStart || editingEnd) ? (
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-muted/70 text-[11px]">
-                    <span className="text-muted-foreground font-medium">강의 시청 기간</span>
+                    <span className="text-muted-foreground font-medium">정규 강의 기간</span>
                     <input
                       type="date"
                       autoFocus={editingStart}
@@ -211,10 +211,10 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
                       setEditingStart(true);
                     }}
                   >
-                    <span className="text-muted-foreground font-medium">강의 시청 기간</span>
+                    <span className="text-muted-foreground font-medium">정규 강의 기간</span>
                     {cohort.date ? (
                       <span className="font-bold text-foreground">
-                        {cohort.date.replace(/-/g, ".")} ~ {cohort.endDate.replace(/-/g, ".")}
+                        {cohort.date.slice(2).replace(/-/g, ".")} ~ {cohort.endDate.slice(2).replace(/-/g, ".")}
                       </span>
                     ) : (
                       <span className="text-muted-foreground/60">미설정</span>

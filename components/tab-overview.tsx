@@ -75,7 +75,7 @@ function toChartDataWithDefaults(
     .map(([name, value]) => ({ name, value }));
 }
 
-const AGE_GROUPS = ["10대", "20대", "30대", "40대", "50대", "60대 이상"];
+const AGE_GROUPS = ["20대", "30대", "40대", "50대", "60대 이상"];
 const GENDER_DEFAULTS = ["여성", "남성"];
 const HOURS_GROUPS = ["1시간 미만", "1~3시간", "3~5시간", "5시간 이상"];
 const CHANNEL_GROUPS = ["SNS", "지인 추천", "검색", "카페/커뮤니티", "블로그", "유튜브", "기타"];
