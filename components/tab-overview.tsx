@@ -10,7 +10,7 @@ import {
   extractFromRawData,
   RAW_DATA_PATTERNS,
 } from "@/lib/analysis-engine";
-import { ChevronDown, ChevronUp, X, Undo2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { RingScore } from "@/components/ring-score";
 import {
@@ -345,18 +345,15 @@ function YesNoDonutWithDetails({
           {yesOpen && (
             <ul className="mt-2 space-y-1 max-h-[200px] overflow-y-auto">
               {details.map((d, i) => (
-                <li key={i} className="text-[12px] text-muted-foreground pl-3 border-l-2 border-muted flex items-center gap-1">
-                  {onRemove && (
-                    <button
-                      type="button"
-                      onClick={() => onRemove(d)}
-                      className="shrink-0 text-muted-foreground/40 hover:text-destructive transition-colors"
-                      title="없음 처리"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  )}
-                  <span>{d}</span>
+                <li
+                  key={i}
+                  onClick={onRemove ? () => onRemove(d) : undefined}
+                  className={`text-[12px] text-muted-foreground pl-3 border-l-2 border-muted ${
+                    onRemove ? "cursor-pointer hover:line-through hover:text-destructive/70 transition-colors" : ""
+                  }`}
+                  title={onRemove ? "클릭하여 없음 처리" : undefined}
+                >
+                  {d}
                 </li>
               ))}
             </ul>
