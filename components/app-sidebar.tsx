@@ -17,6 +17,7 @@ export function AppSidebar({ onUpload, onEditInstructor, readOnly }: AppSidebarP
   const { state, dispatch } = useAppStore();
   const plat = useSelectedPlatform();
   const [orderKey, setOrderKey] = useState(0);
+  const [zoomPhoto, setZoomPhoto] = useState<{ src: string; name: string; pos: string } | null>(null);
 
   const hasMultipleCourses = (inst: Instructor) => inst.courses.length > 1;
 
@@ -69,7 +70,13 @@ export function AppSidebar({ onUpload, onEditInstructor, readOnly }: AppSidebarP
                 <div key={instructor.id}>
                   <div className="flex items-center gap-1.5">
                     {/* Avatar */}
-                    <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+                    <div
+                      className={`w-7 h-7 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden ${instructor.photo ? "cursor-pointer hover:ring-2 hover:ring-primary/30" : ""}`}
+                      onClick={instructor.photo ? (e) => {
+                        e.stopPropagation();
+                        setZoomPhoto({ src: instructor.photo, name: instructor.name, pos: instructor.photoPosition || "center 2%" });
+                      } : undefined}
+                    >
                       {instructor.photo ? (
                         <img
                           src={instructor.photo}
@@ -227,6 +234,23 @@ export function AppSidebar({ onUpload, onEditInstructor, readOnly }: AppSidebarP
             <Upload className="w-3.5 h-3.5" />
             업로드
           </button>
+        </div>
+      )}
+      {/* Photo zoom overlay */}
+      {zoomPhoto && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 cursor-pointer"
+          onClick={() => setZoomPhoto(null)}
+        >
+          <div className="relative" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={zoomPhoto.src}
+              alt={zoomPhoto.name}
+              className="w-48 h-48 rounded-2xl object-contain bg-white shadow-2xl"
+              style={{ objectPosition: zoomPhoto.pos }}
+            />
+            <div className="mt-2 text-center text-white text-sm font-semibold">{zoomPhoto.name}</div>
+          </div>
         </div>
       )}
     </aside>
