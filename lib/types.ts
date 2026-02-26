@@ -26,6 +26,7 @@ export interface Comment {
   ai_summary: string | null;
   source_field: string;
   tag: "platform_pm" | "platform_pd" | "platform_cs" | "platform_etc" | "instructor" | null;
+  ai_classified?: boolean;
   created_at: string;
 }
 
@@ -73,6 +74,10 @@ export interface Cohort {
   totalStudents: number;
   preResponses: SurveyResponse[];
   postResponses: SurveyResponse[];
+  /** 사전설문 업로드 여부 (0건이라도 true) */
+  hasPreSurvey?: boolean;
+  /** 후기설문 업로드 여부 (0건이라도 true) */
+  hasPostSurvey?: boolean;
 }
 
 export interface Course {

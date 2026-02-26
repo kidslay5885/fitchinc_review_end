@@ -23,7 +23,8 @@ import { UploadDialog } from "@/components/upload-dialog";
 import { EditInstructorDialog } from "@/components/edit-instructor-dialog";
 import { RoleFeedbackView } from "@/components/role-feedback-view";
 import type { Instructor } from "@/lib/types";
-import { BarChart3, Loader2, Lock, MessageSquare, Tag } from "lucide-react";
+import { SuggestionsPanel } from "@/components/suggestions-panel";
+import { BarChart3, Loader2, Lock, MessageSquare, Tag, Send } from "lucide-react";
 import { toast } from "sonner";
 
 type AppMode = "landing" | "data" | "role" | "classify";
@@ -37,6 +38,7 @@ const TABS_DATA = [
 ];
 
 const TABS_CLASSIFY = [
+  { id: "overview", icon: "📈", label: "전체" },
   { id: "feedback", icon: "🏷️", label: "세부 분류" },
 ];
 
@@ -251,7 +253,7 @@ function DashboardContent({ tabs, readOnly = false }: { tabs: typeof TABS_DATA; 
     if (!tabIds.includes(state.activeTab)) {
       dispatch({ type: "SET_TAB", tab: tabIds[0] });
     }
-  }, [tabs]);
+  }, [tabs, state.activeTab]);
 
   return (
     <>
@@ -262,7 +264,7 @@ function DashboardContent({ tabs, readOnly = false }: { tabs: typeof TABS_DATA; 
           onSave={(updated) => {
             dispatch({ type: "UPDATE_INSTRUCTOR", instructor: updated });
             if (plat) {
-              const payload = { photo: updated.photo || "", photoPosition: updated.photoPosition || "center 2%" };
+              const payload = { photo: updated.photo || "", photoPosition: updated.photoPosition || "center 2%", category: updated.category || "" };
               try {
                 localStorage.setItem(
                   `instructor-photo-${plat.name}-${updated.name}`,
@@ -278,6 +280,7 @@ function DashboardContent({ tabs, readOnly = false }: { tabs: typeof TABS_DATA; 
                   instructor: updated.name,
                   photo: payload.photo,
                   photoPosition: payload.photoPosition,
+                  category: payload.category,
                 }),
               })
                 .then((res) => res.json())
@@ -308,7 +311,7 @@ function DashboardContent({ tabs, readOnly = false }: { tabs: typeof TABS_DATA; 
 
         <main className="flex-1 overflow-y-auto p-6 px-8 min-w-0">
           <div className="w-full max-w-[1400px]">
-            {!state.selectedPlatformId && (
+            {!state.selectedPlatformId && readOnly && (
               <div className="flex flex-col items-center justify-center h-full">
                 <BarChart3 className="w-9 h-9 opacity-20 mb-3" />
                 <div className="text-[15px] font-bold text-muted-foreground">
@@ -335,12 +338,12 @@ function DashboardContent({ tabs, readOnly = false }: { tabs: typeof TABS_DATA; 
                   course={course}
                   cohort={cohort}
                   readOnly={readOnly}
+                  classifyMode={!readOnly}
                   onUpdateCohort={
-                    !readOnly && cohort
+                    !readOnly
                       ? (c) => {
                           dispatch({ type: "UPDATE_COHORT", instructorId: inst.id, cohort: c });
-                          // totalStudents 변경 시 localStorage에 저장
-                          if (plat && c.totalStudents !== cohort.totalStudents)
+                          if (plat)
                             try {
                               localStorage.setItem(
                                 `total-students-${plat.name}-${inst.name}-${c.label}`,
@@ -352,7 +355,7 @@ function DashboardContent({ tabs, readOnly = false }: { tabs: typeof TABS_DATA; 
                   }
                 />
 
-                <div className="flex gap-0 border-b-2 border-border mb-5">
+                {tabs.length > 1 && <div className="flex gap-0 border-b-2 border-border mb-5">
                   {tabs.filter((t) => !("onlyWhenAllCohorts" in t && t.onlyWhenAllCohorts) || !cohort).map((t) => {
                     let label = t.label;
                     if (t.id === "whole") label = cohort ? "설문 정보" : "전체 설문 정보";
@@ -370,7 +373,7 @@ function DashboardContent({ tabs, readOnly = false }: { tabs: typeof TABS_DATA; 
                       </button>
                     );
                   })}
-                </div>
+                </div>}
 
                 {dataLoading ? (
                   <div className="text-center py-12">
@@ -385,6 +388,7 @@ function DashboardContent({ tabs, readOnly = false }: { tabs: typeof TABS_DATA; 
                         course={course}
                         cohort={cohort}
                         platformName={platformName}
+                        readOnly={readOnly}
                       />
                     )}
                     {state.activeTab === "whole" && (
@@ -421,9 +425,91 @@ function DashboardContent({ tabs, readOnly = false }: { tabs: typeof TABS_DATA; 
                 )}
               </div>
             )}
+
+            {/* 건의함: 분류작업 모드 + 아무것도 미선택 시 바로 표시 */}
+            {!inst && !readOnly && !plat && <SuggestionsPanel />}
           </div>
         </main>
       </div>
+    </>
+  );
+}
+
+function SuggestionFab() {
+  const [showModal, setShowModal] = useState(false);
+  const [content, setContent] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!content.trim()) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/suggestions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: content.trim() }),
+      });
+      const data = await res.json();
+      if (!data.ok) throw new Error(data.error);
+      toast.success("건의사항이 전달되었습니다");
+      setContent("");
+      setShowModal(false);
+    } catch {
+      toast.error("건의사항 제출에 실패했습니다");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <>
+      <button
+        onClick={() => setShowModal(true)}
+        className="fixed bottom-6 right-6 z-[100] flex items-center gap-2 px-4 py-3 rounded-full bg-primary text-primary-foreground shadow-lg hover:opacity-90 transition-opacity text-[14px] font-bold"
+      >
+        <Send className="w-4 h-4" />
+        건의함
+      </button>
+
+      {showModal && (
+        <div
+          className="fixed inset-0 bg-black/20 z-[200] flex items-center justify-center"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowModal(false); }}
+        >
+          <div className="bg-card rounded-xl border shadow-xl p-6 w-[400px] max-w-[90vw]">
+            <div className="flex items-center gap-2 mb-4">
+              <Send className="w-5 h-5 text-primary" />
+              <span className="text-[15px] font-bold">건의함</span>
+            </div>
+            <p className="text-[13px] text-muted-foreground mb-3">
+              익명으로 건의사항을 전달할 수 있습니다.
+            </p>
+            <textarea
+              autoFocus
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder="건의사항을 입력해주세요..."
+              rows={5}
+              className="w-full py-2.5 px-3 rounded-lg border text-[14px] bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
+            />
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={handleSubmit}
+                disabled={!content.trim() || submitting}
+                className="flex-1 py-2.5 rounded-lg bg-primary text-primary-foreground text-[13px] font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
+              >
+                {submitting ? "제출 중..." : "제출"}
+              </button>
+              <button
+                onClick={() => { setShowModal(false); setContent(""); }}
+                className="flex-1 py-2.5 rounded-lg border text-[13px] text-muted-foreground hover:bg-accent transition-colors"
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -455,6 +541,8 @@ function MainContent() {
     );
   }
 
+  const showFab = appMode !== "classify";
+
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       <NavHeader
@@ -475,6 +563,8 @@ function MainContent() {
       {appMode === "classify" && <DashboardContent tabs={TABS_CLASSIFY} />}
 
       {appMode === "role" && <RoleFeedbackView />}
+
+      {showFab && <SuggestionFab />}
     </div>
   );
 }

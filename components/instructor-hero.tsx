@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import type { Instructor, Cohort, Course } from "@/lib/types";
 import { allCohorts } from "@/lib/types";
 import { computeScores } from "@/lib/analysis-engine";
@@ -15,12 +15,13 @@ interface InstructorHeroProps {
   cohort: Cohort | null;
   onUpdateCohort?: (cohort: Cohort) => void;
   readOnly?: boolean;
+  classifyMode?: boolean;
 }
 
 const TOTAL_STUDENTS_KEY = (platform: string, instructor: string, cohortLabel: string | null) =>
   `total-students-${platform}-${instructor}-${cohortLabel ?? "all"}`;
 
-export function InstructorHero({ platformName, instructor, course, cohort, onUpdateCohort, readOnly }: InstructorHeroProps) {
+export function InstructorHero({ platformName, instructor, course, cohort, onUpdateCohort, readOnly, classifyMode }: InstructorHeroProps) {
   const [totalInput, setTotalInput] = useState("");
   const storageKey = TOTAL_STUDENTS_KEY(platformName, instructor.name, cohort?.label ?? null);
 
@@ -81,8 +82,39 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
     saveScheduleToServer({ endDate: endDraft });
   };
 
-  // 현재 보여줄 기수 목록: course가 선택되면 해당 course의 기수, 아니면 전체
-  const visibleCohorts = course ? course.cohorts : allCohorts(instructor);
+  // 기수별 스케줄 저장 (전체 테이블용)
+  const saveScheduleForCohort = (targetCohort: Cohort, updates: { pm?: string; startDate?: string; endDate?: string }) => {
+    const ownerCourse = instructor.courses.find(c => c.cohorts.some(co => co.id === targetCohort.id));
+    fetch("/api/update-schedule", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        platform: platformName,
+        instructor: instructor.name,
+        course: ownerCourse?.name || "",
+        cohort: targetCohort.label,
+        ...updates,
+      }),
+    })
+      .then(r => r.json())
+      .then(d => { if (!d.ok) throw new Error(d.error); })
+      .catch(err => {
+        console.error("스케줄 저장 실패:", err);
+        toast.error("서버 저장 실패");
+      });
+  };
+
+  const origRef = useRef<Record<string, string>>({});
+
+  // 현재 보여줄 기수 목록: course가 선택되면 해당 course의 기수, 아니면 전체 (숫자 정렬)
+  const visibleCohorts = useMemo(() => {
+    const cohorts = course ? course.cohorts : allCohorts(instructor);
+    return [...cohorts].sort((a, b) => {
+      const numA = parseInt(a.label.replace(/\D/g, "")) || 0;
+      const numB = parseInt(b.label.replace(/\D/g, "")) || 0;
+      return numA - numB;
+    });
+  }, [course, instructor]);
 
   useEffect(() => {
     if (cohort) {
@@ -116,14 +148,103 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
   // 브레드크럼: 강사 · 강의명(2개+ 시) · 기수
   const showCourseName = course && instructor.courses.length > 1;
 
+  // 브레드크럼 인라인 편집 (classify 모드) — 강의별 개별 편집 지원
+  const [editingCourseIdx, setEditingCourseIdx] = useState<number | null>(null);
+  const [editingCategory, setEditingCategory] = useState(false);
+  const [breadcrumbDraft, setBreadcrumbDraft] = useState("");
+  const hasCourses = instructor.courses.length > 0;
+
+  const commitCourseRename = (idx: number) => {
+    setEditingCourseIdx(null);
+    const trimmed = breadcrumbDraft.trim();
+    const oldName = instructor.courses[idx]?.name || "";
+    if (trimmed === oldName) return;
+    fetch("/api/rename-course", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ platform: platformName, instructor: instructor.name, oldCourse: oldName, newCourse: trimmed }),
+    })
+      .then(r => r.json())
+      .then(d => { if (!d) throw new Error(); toast.success("강의명 저장 완료"); })
+      .catch(() => toast.error("강의명 저장 실패"));
+  };
+
+  const commitCategory = () => {
+    setEditingCategory(false);
+    const trimmed = breadcrumbDraft.trim();
+    if (trimmed === (instructor.category || "")) return;
+    const payload = { photo: instructor.photo || "", photoPosition: instructor.photoPosition || "center 2%", category: trimmed };
+    try { localStorage.setItem(`instructor-photo-${platformName}-${instructor.name}`, JSON.stringify(payload)); } catch {}
+    fetch("/api/app-settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "instructor_photo", platform: platformName, instructor: instructor.name, ...payload }),
+    })
+      .then(r => r.json())
+      .then(d => { if (!d.ok) throw new Error(); toast.success("카테고리 저장 완료"); })
+      .catch(() => toast.error("카테고리 저장 실패"));
+  };
+
   return (
     <div className="bg-card rounded-xl border p-4 px-5 mb-4">
       <div className="flex justify-between items-start">
         <div>
           <div className="text-[12px] font-extrabold text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-            {platformName} · {instructor.courses.length > 0
-              ? instructor.courses.map((c) => c.name || "기본 과정").join(" · ")
-              : instructor.category || "-"}
+            {platformName} ·{" "}
+            {hasCourses ? (
+              instructor.courses.map((c, idx) => (
+                <span key={idx}>
+                  {idx > 0 && <span className="mx-0.5">·</span>}
+                  {classifyMode && editingCourseIdx === idx ? (
+                    <input
+                      autoFocus
+                      value={breadcrumbDraft}
+                      onChange={(e) => setBreadcrumbDraft(e.target.value)}
+                      onBlur={() => commitCourseRename(idx)}
+                      onKeyDown={(e) => { if (e.key === "Enter") commitCourseRename(idx); if (e.key === "Escape") setEditingCourseIdx(null); }}
+                      className="py-0 px-1.5 rounded border text-[12px] font-extrabold bg-card text-foreground w-[140px]"
+                    />
+                  ) : (
+                    <span
+                      className={classifyMode ? "cursor-pointer hover:text-primary transition-colors" : ""}
+                      onClick={() => {
+                        if (!classifyMode) return;
+                        setBreadcrumbDraft(c.name || "");
+                        setEditingCourseIdx(idx);
+                      }}
+                      title={classifyMode ? "클릭하여 강의명 수정" : undefined}
+                    >
+                      {c.name || "기본 과정"}
+                      {classifyMode && <Pencil className="w-2.5 h-2.5 inline ml-0.5 opacity-40" />}
+                    </span>
+                  )}
+                </span>
+              ))
+            ) : (
+              classifyMode && editingCategory ? (
+                <input
+                  autoFocus
+                  value={breadcrumbDraft}
+                  onChange={(e) => setBreadcrumbDraft(e.target.value)}
+                  onBlur={commitCategory}
+                  onKeyDown={(e) => { if (e.key === "Enter") commitCategory(); if (e.key === "Escape") setEditingCategory(false); }}
+                  className="py-0 px-1.5 rounded border text-[12px] font-extrabold bg-card text-foreground w-[200px]"
+                />
+              ) : (
+                <span
+                  className={classifyMode ? "cursor-pointer hover:text-primary transition-colors" : ""}
+                  onClick={() => {
+                    if (!classifyMode) return;
+                    setBreadcrumbDraft(instructor.category || "");
+                    setEditingCategory(true);
+                  }}
+                  title={classifyMode ? "클릭하여 수정" : undefined}
+                >
+                  {instructor.category || "-"}
+                  {classifyMode && <Pencil className="w-2.5 h-2.5 inline ml-1 opacity-40" />}
+                </span>
+              )
+            )}
           </div>
           <div className="flex items-center gap-3.5">
             <button
@@ -223,11 +344,32 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
                   </span>
                 )
               )}
+
+              {/* 수강생 태그 — classify 전용 */}
+              {classifyMode && onUpdateCohort && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-muted/70 text-[11px]">
+                  <span className="text-muted-foreground font-medium">수강생</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={totalInput}
+                    onChange={(e) => {
+                      setTotalInput(e.target.value);
+                      const n = parseInt(e.target.value, 10);
+                      if (cohort && !isNaN(n) && n >= 0 && onUpdateCohort)
+                        onUpdateCohort({ ...cohort, totalStudents: n });
+                    }}
+                    className="w-14 py-0 px-1 rounded border text-[11px] font-bold bg-card text-foreground"
+                    placeholder="0"
+                  />
+                  <span className="text-muted-foreground font-medium">명</span>
+                </span>
+              )}
             </div>
           )}
         </div>
 
-        {hasData && (
+        {hasData && !classifyMode && (
           <div className="flex gap-5 items-center">
             {postResponses.length > 0 && (
               <>
@@ -291,7 +433,7 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
                     명
                   </div>
                   {scores.recRate > 0 && (
-                    <div title="후기 설문 '이 강의를 지인분들께 추천하실 것 같으신가요?' 문항에서 긍정 응답을 한 비율입니다.">
+                    <div className="cursor-help" title="후기 설문 '이 강의를 지인분들께 추천하실 것 같으신가요?' 문항에서 긍정 응답을 한 비율입니다.">
                       추천률 <strong className="text-emerald-600">{scores.recRate}%</strong>
                       <span className="text-[11px] text-muted-foreground/90 ml-1">(후기 설문 추천 의향 문항 기준)</span>
                     </div>
@@ -306,7 +448,97 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
             )}
           </div>
         )}
+
+        {hasData && classifyMode && (
+          <div className="text-[13px] text-muted-foreground leading-relaxed text-right shrink-0">
+            {!cohort && <div className="font-semibold text-foreground mb-0.5">{visibleCohorts.length}개 기수</div>}
+            <div>
+              사전 <strong className="text-foreground">{preResponses.length}</strong>명
+              {" · "}후기 <strong className="text-foreground">{postResponses.length}</strong>명
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Classify 전체 기수 관리 테이블 */}
+      {classifyMode && !cohort && onUpdateCohort && visibleCohorts.length > 0 && (
+        <div className="mt-3 border-t pt-3">
+          <table className="w-full text-[12px]">
+            <thead>
+              <tr className="text-[11px] text-muted-foreground font-bold border-b">
+                <th className="py-1.5 px-1.5 text-left">기수</th>
+                <th className="py-1.5 px-1.5 text-left">PM</th>
+                <th className="py-1.5 px-1.5 text-left">시작일</th>
+                <th className="py-1.5 px-1.5 text-left">종료일</th>
+                <th className="py-1.5 px-1.5 text-left">수강생</th>
+                <th className="py-1.5 px-1.5 text-center">사전</th>
+                <th className="py-1.5 px-1.5 text-center">후기</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleCohorts.map(c => (
+                <tr key={c.id} className="border-b last:border-0">
+                  <td className="py-1 px-1.5 font-semibold">{c.label}</td>
+                  <td className="py-1 px-1">
+                    <input
+                      value={c.pm || ""}
+                      onFocus={e => { origRef.current[`${c.id}-pm`] = e.target.value; }}
+                      onChange={e => onUpdateCohort({ ...c, pm: e.target.value })}
+                      onBlur={e => {
+                        if (e.target.value !== (origRef.current[`${c.id}-pm`] ?? ""))
+                          saveScheduleForCohort(c, { pm: e.target.value });
+                      }}
+                      className="w-16 py-0.5 px-1.5 rounded border text-[12px] bg-card"
+                      placeholder="-"
+                    />
+                  </td>
+                  <td className="py-1 px-1">
+                    <input
+                      type="date"
+                      value={c.date || ""}
+                      onFocus={e => { origRef.current[`${c.id}-date`] = e.target.value; }}
+                      onChange={e => onUpdateCohort({ ...c, date: e.target.value })}
+                      onBlur={e => {
+                        if (e.target.value !== (origRef.current[`${c.id}-date`] ?? ""))
+                          saveScheduleForCohort(c, { startDate: e.target.value });
+                      }}
+                      className="py-0.5 px-1 rounded border text-[11px] bg-card"
+                    />
+                  </td>
+                  <td className="py-1 px-1">
+                    <input
+                      type="date"
+                      value={c.endDate || ""}
+                      onFocus={e => { origRef.current[`${c.id}-end`] = e.target.value; }}
+                      onChange={e => onUpdateCohort({ ...c, endDate: e.target.value })}
+                      onBlur={e => {
+                        if (e.target.value !== (origRef.current[`${c.id}-end`] ?? ""))
+                          saveScheduleForCohort(c, { endDate: e.target.value });
+                      }}
+                      className="py-0.5 px-1 rounded border text-[11px] bg-card"
+                    />
+                  </td>
+                  <td className="py-1 px-1">
+                    <input
+                      type="number"
+                      min={0}
+                      value={c.totalStudents > 0 ? c.totalStudents : ""}
+                      onChange={e => {
+                        const n = parseInt(e.target.value, 10);
+                        onUpdateCohort({ ...c, totalStudents: isNaN(n) ? 0 : n });
+                      }}
+                      className="w-14 py-0.5 px-1.5 rounded border text-[12px] bg-card"
+                      placeholder="0"
+                    />
+                  </td>
+                  <td className="py-1 px-1.5 text-center text-muted-foreground">{c.preResponses.length}</td>
+                  <td className="py-1 px-1.5 text-center text-muted-foreground">{c.postResponses.length}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {photoOpen && instructor.photo && (
         <div

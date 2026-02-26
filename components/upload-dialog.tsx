@@ -79,13 +79,14 @@ export function UploadDialog({ onClose }: UploadDialogProps) {
 
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
-      if (!f.inst || !f.cohort) {
+      if (!f.inst || !f.course || !f.cohort) {
         setFiles((prev) =>
           prev.map((file, idx) =>
             idx === i ? { ...file, status: "error" } : file
           )
         );
-        toast.error(`${f.name}: ${!f.inst ? "강사명 없음" : "기수 없음"}`);
+        const missing = !f.inst ? "강사명" : !f.course ? "강의명" : "기수";
+        toast.error(`${f.name}: ${missing} 없음`);
         continue;
       }
 
@@ -143,7 +144,7 @@ export function UploadDialog({ onClose }: UploadDialogProps) {
   };
 
   const allDone = files.every((f) => f.status === "done" || f.status === "error");
-  const hasInvalid = files.some((f) => !f.inst || !f.cohort);
+  const hasInvalid = files.some((f) => !f.inst || !f.course || !f.cohort);
 
   return (
     <div
@@ -205,6 +206,7 @@ export function UploadDialog({ onClose }: UploadDialogProps) {
             </div>
             {files.map((f, i) => {
               const hasInst = !!f.inst;
+              const hasCourse = !!f.course;
               const hasCohort = !!f.cohort;
               return (
                 <div key={i} className="p-3.5 bg-muted rounded-[10px] mb-2 border">
@@ -265,9 +267,14 @@ export function UploadDialog({ onClose }: UploadDialogProps) {
                       <input
                         value={f.course}
                         onChange={(e) => updateFile(i, "course", e.target.value)}
-                        placeholder="(선택)"
-                        className="w-full py-1.5 px-2 rounded-md border text-[12px] bg-card border-border"
+                        placeholder="강의명 필수"
+                        className={`w-full py-1.5 px-2 rounded-md border text-[12px] bg-card ${
+                          hasCourse ? "border-emerald-500" : "border-amber-500"
+                        }`}
                       />
+                      {!hasCourse && (
+                        <div className="text-[10px] text-amber-600 mt-0.5">강의명을 입력하세요</div>
+                      )}
                     </div>
                     <div>
                       <label className="text-[10px] font-bold text-muted-foreground block mb-1">

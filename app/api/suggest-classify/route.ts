@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 
+// Vercel 서버리스 함수 타임아웃 확장 (기본 10초 → 60초)
+export const maxDuration = 60;
+
 function getAI() {
   return new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 }

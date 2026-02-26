@@ -165,24 +165,36 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// PATCH: 개별 댓글의 sentiment 또는 tag 수동 변경
+// PATCH: 개별 댓글의 sentiment 또는 tag 변경 (ai_classified 플래그 포함)
 export async function PATCH(req: NextRequest) {
   try {
-    const { commentId, sentiment, tag } = await req.json();
+    const { commentId, sentiment, tag, ai_classified } = await req.json();
 
-    const updates: Record<string, string> = {};
+    const updates: Record<string, unknown> = {};
     if (sentiment !== undefined) updates.sentiment = sentiment;
     if (tag !== undefined) updates.tag = tag;
+    if (ai_classified !== undefined) updates.ai_classified = ai_classified;
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: "수정할 필드 없음" }, { status: 400 });
     }
 
     const supabase = getSupabase();
-    const { error } = await supabase
+    let { error } = await supabase
       .from("comments")
       .update(updates)
       .eq("id", commentId);
+
+    // ai_classified 컬럼이 없으면 해당 필드 제외 후 재시도
+    if (error && ai_classified !== undefined) {
+      delete updates.ai_classified;
+      if (Object.keys(updates).length > 0) {
+        const retry = await supabase.from("comments").update(updates).eq("id", commentId);
+        error = retry.error;
+      } else {
+        error = null;
+      }
+    }
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

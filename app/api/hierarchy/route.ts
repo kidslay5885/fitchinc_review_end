@@ -19,7 +19,7 @@ export async function GET() {
     // 4단계 계층 빌드: platform → instructor → course → cohort
     // Map<platform, Map<instructor, Map<course, Set<cohort>>>>
     const platformMap = new Map<string, Map<string, Map<string, Set<string>>>>();
-    const cohortMeta = new Map<string, { pm: string; startDate: string | null; endDate: string | null; totalStudents: number; preCount: number; postCount: number }>();
+    const cohortMeta = new Map<string, { pm: string; startDate: string | null; endDate: string | null; totalStudents: number; preCount: number; postCount: number; hasPreSurvey: boolean; hasPostSurvey: boolean }>();
 
     for (const s of surveys || []) {
       if (!s.platform || !s.instructor) continue;
@@ -44,7 +44,7 @@ export async function GET() {
         courseMap.get(courseName)!.add(s.cohort);
 
         const key = `${s.platform}|${s.instructor}|${courseName}|${s.cohort}`;
-        const existing = cohortMeta.get(key) || { pm: "", startDate: null, endDate: null, totalStudents: 0, preCount: 0, postCount: 0 };
+        const existing = cohortMeta.get(key) || { pm: "", startDate: null, endDate: null, totalStudents: 0, preCount: 0, postCount: 0, hasPreSurvey: false, hasPostSurvey: false };
 
         if (s.pm) existing.pm = s.pm;
         if (s.start_date) existing.startDate = s.start_date;
@@ -52,8 +52,10 @@ export async function GET() {
         if (s.total_students) existing.totalStudents = s.total_students;
 
         if (s.survey_type === "사전") {
+          existing.hasPreSurvey = true;
           existing.preCount += s.response_count || 0;
         } else {
+          existing.hasPostSurvey = true;
           existing.postCount += s.response_count || 0;
         }
 
@@ -79,6 +81,8 @@ export async function GET() {
               totalStudents: meta?.totalStudents || 0,
               preCount: meta?.preCount || 0,
               postCount: meta?.postCount || 0,
+              hasPreSurvey: meta?.hasPreSurvey || false,
+              hasPostSurvey: meta?.hasPostSurvey || false,
             };
           }),
         })),

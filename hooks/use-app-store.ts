@@ -345,7 +345,7 @@ function makePlaceholderResponses(count: number): SurveyResponse[] {
 }
 
 // hierarchy API 응답 타입
-interface HierarchyCohort { label: string; pm: string; preCount: number; postCount: number; startDate: string; endDate: string; totalStudents: number }
+interface HierarchyCohort { label: string; pm: string; preCount: number; postCount: number; startDate: string; endDate: string; totalStudents: number; hasPreSurvey?: boolean; hasPostSurvey?: boolean }
 interface HierarchyCourse { name: string; cohorts: HierarchyCohort[] }
 interface HierarchyInstructor { name: string; courses: HierarchyCourse[] }
 interface HierarchyPlatform { name: string; instructors: HierarchyInstructor[] }
@@ -369,6 +369,8 @@ function buildInstructor(ai: HierarchyInstructor): Instructor {
         totalStudents: aco.totalStudents || 0,
         preResponses: makePlaceholderResponses(aco.preCount || 0),
         postResponses: makePlaceholderResponses(aco.postCount || 0),
+        hasPreSurvey: aco.hasPreSurvey ?? (aco.preCount > 0),
+        hasPostSurvey: aco.hasPostSurvey ?? (aco.postCount > 0),
       })),
     })),
   };
@@ -417,9 +419,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
               for (const inst of p.instructors) {
                 const key = `instructor_photo:${p.name}:${inst.name}`;
                 const photoData = instructorPhotos?.[key];
-                if (photoData?.photo != null) {
-                  inst.photo = photoData.photo || "";
-                  inst.photoPosition = photoData.photoPosition || "center 2%";
+                if (photoData) {
+                  if (photoData.photo) {
+                    inst.photo = photoData.photo;
+                    inst.photoPosition = photoData.photoPosition || "center 2%";
+                  }
+                  if (photoData.category) {
+                    inst.category = photoData.category;
+                  }
                 }
               }
               for (const inst of p.instructors) {
@@ -467,6 +474,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
                   inst.photo = parsed.photo;
                   inst.photoPosition = parsed.photoPosition || "center 2%";
                 }
+                if (!inst.category && parsed.category) {
+                  inst.category = parsed.category;
+                }
               }
             } catch {
               // ignore
@@ -494,7 +504,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const params = new URLSearchParams({ platform: platformName, instructor: instructorName, course: courseName, cohort: cohortLabel });
       const res = await fetch(`/api/responses?${params}`);
-      if (!res.ok) throw new Error("responses fetch failed");
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        console.warn(`responses fetch failed (${res.status}): ${platformName}/${instructorName}/${courseName}/${cohortLabel}`, body);
+        return;
+      }
       const data = await res.json();
 
       dispatch({
@@ -507,7 +521,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         postResponses: data.postResponses || [],
       });
     } catch (err) {
-      console.error("Cohort data load error:", err);
+      console.warn("Cohort data load error:", err);
     }
   }, []);
 

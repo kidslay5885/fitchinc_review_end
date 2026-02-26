@@ -26,8 +26,43 @@ export function extractKeyFromRawData(rawData: Record<string, string>, pattern: 
   return "";
 }
 
-/** "없음" 계열 응답 정규화 패턴 */
-const NO_PATTERN = /^(없음|없습니다|없어요|아니요|아니오|x|X|없읒|아뇨|없어|없슴|없네요|없습니닷|없쓰빈다|해당없음|-|\.+)$/;
+/** "없음" 계열 개별 단어 패턴 (정제 후 비교, 대소문자 무시) */
+const NO_WORD = /^(없음|없습니다|없어요|없어여|아니요|아니오|아뇨|없어|없슴|없네요|없습니닷|없쓰빈다|해당없음|해당사항없음|해당없어요|모르겠|몰라요|모릅니다|없읒|없름|x|no|none|nope|-|\.+)$/i;
+
+/** "처음/첫" 계열 — 수강 이력이 없다는 의미 */
+const FIRST_TIME = /처음|첫\s*(수강|강의|번째)|이번이/;
+
+/** "수강한 적 없음" 등 문장형 부정 표현 */
+const NO_EXPERIENCE = /수강.{0,5}없|들은?.{0,5}없|경험.{0,5}없|안.{0,3}(들어|해\s?봤)|듣지/;
+
+/** "기억 안 남" 등 기억 못하는 경우 — 실질적으로 수강 이력 불명 */
+const NO_MEMORY = /기억.{0,3}(안|못|없)|모르겠|잘\s*모르|까먹|잊어/;
+
+/** 의미 없는 짧은 응답 — "반반", "글쎄", "음" 등 */
+const MEANINGLESS = /^(반반|글쎄|글세|음+|흠+|ㅇ|ㅡ|모름|몰라|잘|뭐|그냥)$/;
+
+/** "없음" 응답 판별 — 특수문자 정제 + 다단계 필터 */
+function isNegativeResponse(text: string): boolean {
+  // 1) 특수문자 정제 (~, !, ?, ㅎㅋㅠ 등)
+  const cleaned = text.replace(/[~!?…·ㅎㅋㅠㅜ^*#@'"()~！？]/g, "").trim();
+  if (!cleaned) return true;
+
+  // 2) "처음입니다", "첫 수강", "이번이 처음" 등
+  if (FIRST_TIME.test(cleaned)) return true;
+
+  // 3) "수강한 적 없음", "들은 적 없다" 등 문장형
+  if (NO_EXPERIENCE.test(cleaned)) return true;
+
+  // 4) "기억안납니다", "기억이 안 나요" 등
+  if (NO_MEMORY.test(cleaned)) return true;
+
+  // 5) "반반", "글쎄" 등 의미 없는 짧은 응답
+  if (MEANINGLESS.test(cleaned)) return true;
+
+  // 4) 단어별 분리 후 모두 "없음" 계열인지 체크
+  const parts = cleaned.split(/[\s,.\/|]+/).filter(Boolean);
+  return parts.length === 0 || parts.every((p) => NO_WORD.test(p));
+}
 
 export interface DemographicStats {
   gender: Record<string, number>;
@@ -40,6 +75,7 @@ export interface DemographicStats {
   prevExperience: Record<string, number>;
   prevCourse: Record<string, number>;
   prevCourseDetails: string[];
+  prevCourseNoDetails: string[];
   expectedBenefit: Record<string, number>;
 }
 
@@ -53,6 +89,7 @@ export function computeDemographics(responses: SurveyResponse[]): DemographicSta
   const prevExperience: Record<string, number> = {};
   const prevCourse: Record<string, number> = {};
   const prevCourseDetails: string[] = [];
+  const prevCourseNoDetails: string[] = [];
   const expectedBenefit: Record<string, number> = {};
   const computerDist: Record<number, number> = {};
   let computerSum = 0;
@@ -85,8 +122,9 @@ export function computeDemographics(responses: SurveyResponse[]): DemographicSta
       // prevCourse: 자유 서술 → "있음"/"없음" 정규화
       const pc = extractFromRawData(r.rawData, RAW_DATA_PATTERNS.prevCourse).trim();
       if (pc) {
-        if (NO_PATTERN.test(pc)) {
+        if (isNegativeResponse(pc)) {
           prevCourse["없음"] = (prevCourse["없음"] || 0) + 1;
+          prevCourseNoDetails.push(pc);
         } else {
           prevCourse["있음"] = (prevCourse["있음"] || 0) + 1;
           prevCourseDetails.push(pc);
@@ -118,6 +156,7 @@ export function computeDemographics(responses: SurveyResponse[]): DemographicSta
     prevExperience,
     prevCourse,
     prevCourseDetails,
+    prevCourseNoDetails,
     expectedBenefit,
   };
 }

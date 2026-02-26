@@ -73,9 +73,9 @@ function RingScoreContent({
 export function RingScore({ score, max = 10, size = 50, label, title, excluded }: RingScoreProps) {
   const defaultTitle =
     label === "커리큘럼"
-      ? "후기 설문의 커리큘럼(ps1) 문항 평균을 10점 만점으로 수치화한 결과입니다."
+      ? "후기 설문의 커리큘럼 만족도 평균 점수입니다. (10점 만점)"
       : label === "피드백"
-        ? "후기 설문의 피드백(ps2) 문항 평균을 10점 만점으로 수치화한 결과입니다."
+        ? "후기 설문의 강사 피드백 만족도 평균 점수입니다. (10점 만점)"
         : undefined;
   const tooltipText = title ?? defaultTitle ?? (excluded ? "폼 항목 차이로 측정되지 않아 해당 항목은 제외되었습니다." : undefined);
 

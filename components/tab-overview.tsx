@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import type { Instructor, Course, Cohort, SurveyResponse } from "@/lib/types";
 import { allCohorts } from "@/lib/types";
 import {
@@ -10,7 +10,8 @@ import {
   extractFromRawData,
   RAW_DATA_PATTERNS,
 } from "@/lib/analysis-engine";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, X, Undo2 } from "lucide-react";
+import { toast } from "sonner";
 import { RingScore } from "@/components/ring-score";
 import {
   PieChart,
@@ -115,7 +116,7 @@ function pctLabel(value: number, total: number) {
 
 export function SummaryCard({ label, value, sub, tip }: { label: string; value: string | number; sub?: string; tip?: string }) {
   return (
-    <div className="rounded-xl border bg-card p-4 text-center cursor-default" title={tip}>
+    <div className={`rounded-xl border bg-card p-4 text-center ${tip ? "cursor-help" : "cursor-default"}`} title={tip}>
       <div className="text-[12px] text-muted-foreground mb-1">{label}</div>
       <div className="text-2xl font-extrabold">{value}</div>
       {sub && <div className="text-[11px] text-muted-foreground mt-0.5">{sub}</div>}
@@ -126,7 +127,7 @@ export function SummaryCard({ label, value, sub, tip }: { label: string; value: 
 export function ChartCard({ title, children, empty, tip }: { title: string; children: React.ReactNode; empty?: boolean; tip?: string }) {
   return (
     <div className="rounded-xl border bg-card p-5">
-      <div className="text-[13px] font-bold mb-3 cursor-default" title={tip}>{title}</div>
+      <div className={`text-[13px] font-bold mb-3 ${tip ? "cursor-help" : "cursor-default"}`} title={tip}>{title}</div>
       {empty ? (
         <div className="text-[12px] text-muted-foreground text-center py-8">데이터 없음</div>
       ) : (
@@ -263,7 +264,7 @@ export function ListBar({ data }: { data: { name: string; value: number }[] }) {
 
 /** 접이식 텍스트 리스트 (selectReason 등 자유 서술형) */
 function CollapsibleTextList({ responses, pattern, emptyMsg }: { responses: SurveyResponse[]; pattern: RegExp; emptyMsg?: string }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   const items = useMemo(() => {
     const result: { name: string; text: string }[] = [];
     for (const r of responses) {
@@ -301,30 +302,98 @@ function CollapsibleTextList({ responses, pattern, emptyMsg }: { responses: Surv
 }
 
 /** 있음/없음 도넛 + 상세 리스트 (prevCourse) */
-function YesNoDonutWithDetails({ data, details }: { data: { name: string; value: number }[]; details: string[] }) {
-  const [open, setOpen] = useState(false);
+function YesNoDonutWithDetails({
+  data,
+  details,
+  noDetails,
+  blockedItems,
+  onRemove,
+  onRestore,
+}: {
+  data: { name: string; value: number }[];
+  details: string[];
+  noDetails?: string[];
+  blockedItems?: string[];
+  onRemove?: (text: string) => void;
+  onRestore?: (text: string) => void;
+}) {
+  const [yesOpen, setYesOpen] = useState(true);
+  const [noOpen, setNoOpen] = useState(false);
+  const [blockedOpen, setBlockedOpen] = useState(true);
   const yesCount = data.find((d) => d.name === "있음")?.value || 0;
+  const noCount = data.find((d) => d.name === "없음")?.value || 0;
+  const hasBlocked = blockedItems && blockedItems.length > 0;
+  const allNoDetails = useMemo(() => {
+    const blocked = blockedItems || [];
+    return [...blocked, ...(noDetails || [])];
+  }, [blockedItems, noDetails]);
 
   return (
     <div>
       <DonutChart data={data} colors={["#3451B2", "#889096"]} />
+      {/* 있음 상세 */}
       {yesCount > 0 && details.length > 0 && (
         <div className="mt-3 pt-3 border-t">
           <button
             type="button"
-            onClick={() => setOpen(!open)}
+            onClick={() => setYesOpen(!yesOpen)}
             className="flex items-center gap-1.5 text-[12px] font-semibold text-primary hover:underline"
           >
-            {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            수강 이력 {details.length}건 {open ? "접기" : "보기"}
+            {yesOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            수강 이력 {details.length}건 {yesOpen ? "접기" : "보기"}
           </button>
-          {open && (
+          {yesOpen && (
             <ul className="mt-2 space-y-1 max-h-[200px] overflow-y-auto">
               {details.map((d, i) => (
-                <li key={i} className="text-[12px] text-muted-foreground pl-3 border-l-2 border-muted">
-                  {d}
+                <li key={i} className="text-[12px] text-muted-foreground pl-3 border-l-2 border-muted flex items-center justify-between gap-2">
+                  <span>{d}</span>
+                  {onRemove && (
+                    <button
+                      type="button"
+                      onClick={() => onRemove(d)}
+                      className="shrink-0 p-0.5 rounded hover:bg-destructive/10 hover:text-destructive transition-colors"
+                      title="없음 처리 (블랙리스트 등록)"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </li>
               ))}
+            </ul>
+          )}
+        </div>
+      )}
+      {/* 없음 상세 (자동 분류 + 블랙리스트 합산) */}
+      {noCount > 0 && allNoDetails.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-dashed">
+          <button
+            type="button"
+            onClick={() => setNoOpen(!noOpen)}
+            className="flex items-center gap-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground hover:underline"
+          >
+            {noOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            없음 응답 {allNoDetails.length}건 {noOpen ? "접기" : "보기"}
+          </button>
+          {noOpen && (
+            <ul className="mt-2 space-y-1 max-h-[200px] overflow-y-auto">
+              {allNoDetails.map((d, i) => {
+                const isBlocked = blockedItems?.includes(d);
+                return (
+                  <li key={i} className={`text-[12px] text-muted-foreground pl-3 border-l-2 flex items-center justify-between gap-2 ${isBlocked ? "border-amber-300" : "border-muted"}`}>
+                    <span>{d}</span>
+                    {isBlocked && onRestore && (
+                      <button
+                        type="button"
+                        onClick={() => onRestore(d)}
+                        className="shrink-0 p-0.5 rounded hover:bg-blue-100 hover:text-blue-600 transition-colors"
+                        title="있음으로 되돌리기"
+                      >
+                        <Undo2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
@@ -340,9 +409,52 @@ interface TabOverviewProps {
   course: Course | null;
   cohort: Cohort | null;
   platformName: string;
+  readOnly?: boolean;
 }
 
-export function TabOverview({ instructor, course, cohort, platformName }: TabOverviewProps) {
+export function TabOverview({ instructor, course, cohort, platformName, readOnly }: TabOverviewProps) {
+  // 블랙리스트 state
+  const [blocklist, setBlocklist] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetch("/api/app-settings")
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d.prevCourseBlocklist)) setBlocklist(d.prevCourseBlocklist);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleRemovePrevCourse = useCallback(async (text: string) => {
+    setBlocklist((prev) => [...prev, text]);
+    try {
+      await fetch("/api/app-settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "prevCourse_blocklist", action: "add", text }),
+      });
+      toast.success("없음 처리됨 — 모든 강사에 적용");
+    } catch {
+      setBlocklist((prev) => prev.filter((t) => t !== text));
+      toast.error("저장 실패");
+    }
+  }, []);
+
+  const handleRestorePrevCourse = useCallback(async (text: string) => {
+    setBlocklist((prev) => prev.filter((t) => t !== text));
+    try {
+      await fetch("/api/app-settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "prevCourse_blocklist", action: "remove", text }),
+      });
+      toast.success("있음으로 복원됨 — 모든 강사에 적용");
+    } catch {
+      setBlocklist((prev) => [...prev, text]);
+      toast.error("복원 실패");
+    }
+  }, []);
+
   // 응답 수집
   const { preResponses, postResponses } = useMemo(() => {
     const cohorts = cohort
@@ -385,15 +497,39 @@ export function TabOverview({ instructor, course, cohort, platformName }: TabOve
   const gender = toGenderData(demographics.gender);
   const ageData = toChartDataWithDefaults(demographics.age, AGE_GROUPS);
   const jobData = pinItems(toChartData(demographics.job), { bottom: ["기타"] });
-  const hoursData = toChartDataWithDefaults(demographics.hours, HOURS_GROUPS);
+  const hoursData = toChartData(demographics.hours);
   const channelData = toChartDataWithDefaults(demographics.channel, CHANNEL_GROUPS);
-  const prevExpData = pinItems(toChartData(demographics.prevExperience), { bottom: ["기타", "이 강의가 처음입니다."] });
-  const prevCourseData = toChartData(demographics.prevCourse);
+  // 블랙리스트 적용: prevCourseDetails에서 제거 + 카운트 보정
+  const { filteredPrevCourseData, filteredPrevCourseDetails, blockedPrevCourseItems } = useMemo(() => {
+    const blockedItems = demographics.prevCourseDetails.filter((d) => blocklist.includes(d));
+    const filteredDetails = demographics.prevCourseDetails.filter((d) => !blocklist.includes(d));
+    const adjustedPrevCourse = { ...demographics.prevCourse };
+    if (blockedItems.length > 0) {
+      adjustedPrevCourse["있음"] = Math.max(0, (adjustedPrevCourse["있음"] || 0) - blockedItems.length);
+      adjustedPrevCourse["없음"] = (adjustedPrevCourse["없음"] || 0) + blockedItems.length;
+    }
+    return {
+      filteredPrevCourseData: toChartData(adjustedPrevCourse),
+      filteredPrevCourseDetails: filteredDetails,
+      blockedPrevCourseItems: blockedItems,
+    };
+  }, [demographics.prevCourse, demographics.prevCourseDetails, blocklist]);
+  const prevCourseData = filteredPrevCourseData;
   const expectedBenefitData = pinItems(toChartData(demographics.expectedBenefit), { bottom: ["기타"] });
-
-  // selectReason: 자유 서술이므로 raw 텍스트 추출 (차트 아닌 리스트)
-  const hasSelectReason = preResponses.some((r) => r.rawData && extractFromRawData(r.rawData, RAW_DATA_PATTERNS.selectReason).trim().length > 1);
   const satData = satItems.map((s) => ({ name: s.label, value: s.count }));
+
+  // 선호 강의 방식 (후기 설문 pFmt)
+  const fmtData = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const r of postResponses) {
+      if (!r.pFmt) continue;
+      const parts = r.pFmt.split("|").map((s) => s.trim());
+      for (const p of parts) {
+        if (p) counts[p] = (counts[p] || 0) + 1;
+      }
+    }
+    return toChartData(counts);
+  }, [postResponses]);
 
   return (
     <div className="space-y-6">
@@ -446,37 +582,36 @@ export function TabOverview({ instructor, course, cohort, platformName }: TabOve
           <HBarChart data={channelData} />
         </ChartCard>
 
-        {/* 타 플랫폼 강의 수강 경험 */}
-        {prevExpData.length > 0 && (
-          <ChartCard title="타 플랫폼 강의 수강 경험" tip="사전 설문 '이전에 타 플랫폼의 강의 수강하신 경험이 있으신가요?' 항목 응답 분포 (복수 선택)">
-            <HBarChart data={prevExpData} />
-          </ChartCard>
-        )}
-
         {/* 핏크닉 다른 정규강의 수강 이력 */}
-        {prevCourseData.length > 0 && (
-          <ChartCard title="핏크닉 다른 정규강의 수강 이력" tip="사전 설문 '핏크닉의 다른 정규강의를 수강하신 적이 있나요?' 항목 응답 분포">
-            <YesNoDonutWithDetails data={prevCourseData} details={demographics.prevCourseDetails} />
-          </ChartCard>
-        )}
+        <ChartCard title="핏크닉 다른 정규강의 수강 이력" empty={prevCourseData.length === 0} tip="사전 설문 '핏크닉의 다른 정규강의를 수강하신 적이 있나요?' 항목 응답 분포">
+          <YesNoDonutWithDetails
+            data={prevCourseData}
+            details={filteredPrevCourseDetails}
+            noDetails={demographics.prevCourseNoDetails}
+            blockedItems={!readOnly ? blockedPrevCourseItems : undefined}
+            onRemove={!readOnly ? handleRemovePrevCourse : undefined}
+            onRestore={!readOnly ? handleRestorePrevCourse : undefined}
+          />
+        </ChartCard>
 
-        {/* 강의 선택 이유 (자유 서술 → 접이식 텍스트 리스트) */}
-        {hasSelectReason && (
-          <ChartCard title="강사님 강의를 선택하신 이유" tip="사전 설문 '핏크닉의 강사님 강의를 선택하신 이유가 어떻게 되시나요?' (자유 서술)">
-            <CollapsibleTextList responses={preResponses} pattern={RAW_DATA_PATTERNS.selectReason} />
-          </ChartCard>
-        )}
+        {/* 강의 선택 이유 (자유 서술 → 텍스트 리스트) */}
+        <ChartCard title="강사님 강의를 선택하신 이유" empty={preResponses.length === 0} tip="사전 설문 '핏크닉의 강사님 강의를 선택하신 이유가 어떻게 되시나요?' (자유 서술)">
+          <CollapsibleTextList responses={preResponses} pattern={RAW_DATA_PATTERNS.selectReason} />
+        </ChartCard>
 
         {/* 기대되는 혜택 (긴 라벨 → 인라인 바 리스트) */}
-        {expectedBenefitData.length > 0 && (
-          <ChartCard title="이번 강의 혜택 중 가장 기대되는 혜택" tip="사전 설문 '이번 강의 혜택 중 가장 필요한(기대되는) 혜택은 무엇인가요?' 항목 응답 분포">
-            <ListBar data={expectedBenefitData} />
-          </ChartCard>
-        )}
+        <ChartCard title="이번 강의 혜택 중 가장 기대되는 혜택" empty={expectedBenefitData.length === 0} tip="사전 설문 '이번 강의 혜택 중 가장 필요한(기대되는) 혜택은 무엇인가요?' 항목 응답 분포">
+          <ListBar data={expectedBenefitData} />
+        </ChartCard>
 
         {/* 수강 과정 중 만족스러웠던 점 */}
         <ChartCard title="수강 과정 중 만족스러웠던 점" empty={satData.length === 0} tip="후기 설문 '수강 과정 중 가장 만족스러웠던 점' 항목별 집계">
           <HBarChart data={satData} />
+        </ChartCard>
+
+        {/* 선호하는 강의 방식 */}
+        <ChartCard title="선호하는 강의 방식" empty={fmtData.length === 0} tip="후기 설문 '선호하는 강의 방식(형태)' 항목 응답 분포">
+          <ListBar data={fmtData} />
         </ChartCard>
 
         {/* 커리큘럼 만족도 */}

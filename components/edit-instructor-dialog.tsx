@@ -23,7 +23,18 @@ export function EditInstructorDialog({
   onClose,
   onRefresh,
 }: EditInstructorDialogProps) {
-  const [data, setData] = useState<Instructor>(JSON.parse(JSON.stringify(instructor)));
+  const [data, setData] = useState<Instructor>(() => {
+    const copy: Instructor = JSON.parse(JSON.stringify(instructor));
+    // 기수를 숫자 순으로 자동 정렬 (3기 → 4기 → 5기)
+    for (const course of copy.courses) {
+      course.cohorts.sort((a, b) => {
+        const numA = parseInt(a.label.replace(/\D/g, "")) || 0;
+        const numB = parseInt(b.label.replace(/\D/g, "")) || 0;
+        return numA - numB;
+      });
+    }
+    return copy;
+  });
   const [confirmDel, setConfirmDel] = useState<null | "inst" | string>(null);
 
   // 강의명 편집 상태: courseIdx → 편집 중인 새 이름
@@ -105,44 +116,49 @@ export function EditInstructorDialog({
     setData((prev) => ({ ...prev, photoPosition: `center ${value}%` }));
   };
 
-  // 강의명 변경 API 호출
-  const renameCourse = async (courseIdx: number, newName: string) => {
-    const course = instructor.courses[courseIdx];
-    if (!course) return;
-    const oldName = course.name;
+  // 강의명 적용 (로컬 상태만 변경, 서버 반영은 저장 시)
+  const applyCourseRename = (courseIdx: number, newName: string) => {
     const trimmed = newName.trim();
-    if (oldName === trimmed) {
-      setEditingCourse((prev) => { const n = { ...prev }; delete n[courseIdx]; return n; });
-      return;
-    }
+    setEditingCourse((prev) => { const n = { ...prev }; delete n[courseIdx]; return n; });
+    setData((prev) => ({
+      ...prev,
+      courses: prev.courses.map((c, i) => i === courseIdx ? { ...c, name: trimmed } : c),
+    }));
+  };
 
+  // 저장: 강의명 변경 + 기타 정보 일괄 서버 반영
+  const handleSave = async () => {
     setSaving(true);
     try {
-      const res = await fetch("/api/rename-course", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          platform: platformName,
-          instructor: instructor.name,
-          oldCourse: oldName,
-          newCourse: trimmed,
-        }),
-      });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error);
-
-      // 같은 이름의 다른 강의가 있으면 병합됨을 안내
-      const existing = instructor.courses.find((c, i) => i !== courseIdx && c.name === trimmed);
-      if (existing) {
-        toast.success(`'${oldName || "(기본 과정)"}' → '${trimmed || "(기본 과정)"}' 병합 완료 (${result.updated}건)`);
-      } else {
-        toast.success(`강의명 변경: ${result.updated}건 업데이트`);
+      // 1. 강의명 변경 처리
+      for (let i = 0; i < data.courses.length && i < instructor.courses.length; i++) {
+        const oldName = instructor.courses[i].name;
+        const newName = data.courses[i].name;
+        if (oldName !== newName) {
+          const res = await fetch("/api/rename-course", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              platform: platformName,
+              instructor: instructor.name,
+              oldCourse: oldName,
+              newCourse: newName,
+            }),
+          });
+          const result = await res.json();
+          if (!res.ok) throw new Error(result.error || "강의명 변경 실패");
+        }
       }
 
-      setEditingCourse((prev) => { const n = { ...prev }; delete n[courseIdx]; return n; });
+      // 2. 사진/카테고리/기수 정보 저장
+      onSave(data);
+
+      // 3. 서버에서 최신 데이터 반영
       await onRefresh();
+
+      onClose();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "변경 실패";
+      const msg = err instanceof Error ? err.message : "저장 실패";
       toast.error(msg);
     } finally {
       setSaving(false);
@@ -240,19 +256,19 @@ export function EditInstructorDialog({
         )}
 
         {/* Course management — 강의명 편집/병합 */}
-        {hasMultipleCourses && (
+        {data.courses.length > 0 && (
           <div className="mb-5">
             <div className="text-[12px] font-bold text-muted-foreground mb-2">
               강의명 관리
-              <span className="font-normal ml-2 text-[11px]">이름을 같게 바꾸면 자동 병합됩니다</span>
+              {hasMultipleCourses && <span className="font-normal ml-2 text-[11px]">이름을 같게 바꾸면 자동 병합됩니다</span>}
             </div>
             <div className="space-y-1.5">
-              {instructor.courses.map((course, idx) => {
+              {data.courses.map((course, idx) => {
                 const isEditing = editingCourse[idx] !== undefined;
                 const editValue = editingCourse[idx] ?? "";
-                const cohortLabels = course.cohorts.map((c) => c.label).join(", ");
+                const isRenamed = idx < instructor.courses.length && instructor.courses[idx].name !== course.name;
                 return (
-                  <div key={idx} className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-muted/50 border">
+                  <div key={idx} className={`flex items-center gap-2 py-1.5 px-3 rounded-lg border ${isRenamed ? "bg-amber-50 border-amber-300" : "bg-muted/50"}`}>
                     {isEditing ? (
                       <>
                         <input
@@ -260,24 +276,21 @@ export function EditInstructorDialog({
                           value={editValue}
                           onChange={(e) => setEditingCourse((prev) => ({ ...prev, [idx]: e.target.value }))}
                           onKeyDown={(e) => {
-                            if (e.key === "Enter") renameCourse(idx, editValue);
+                            if (e.key === "Enter") applyCourseRename(idx, editValue);
                             if (e.key === "Escape") setEditingCourse((prev) => { const n = { ...prev }; delete n[idx]; return n; });
                           }}
                           placeholder="강의명 (빈칸 = 기본 과정)"
                           className="flex-1 py-1 px-2 rounded-md border text-[13px] bg-card"
-                          disabled={saving}
                         />
                         <button
-                          onClick={() => renameCourse(idx, editValue)}
-                          disabled={saving}
-                          className="py-1 px-2.5 rounded-md bg-primary text-primary-foreground text-[11px] font-bold hover:opacity-90 disabled:opacity-50"
+                          onClick={() => applyCourseRename(idx, editValue)}
+                          className="py-1 px-2.5 rounded-md bg-primary text-primary-foreground text-[11px] font-bold hover:opacity-90"
                         >
-                          {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : "적용"}
+                          적용
                         </button>
                         <button
                           onClick={() => setEditingCourse((prev) => { const n = { ...prev }; delete n[idx]; return n; })}
                           className="text-muted-foreground hover:text-foreground"
-                          disabled={saving}
                         >
                           <X className="w-3.5 h-3.5" />
                         </button>
@@ -286,9 +299,7 @@ export function EditInstructorDialog({
                       <>
                         <span className="flex-1 text-[13px] font-semibold truncate">
                           {course.name || "(기본 과정)"}
-                        </span>
-                        <span className="text-[11px] text-muted-foreground shrink-0">
-                          {cohortLabels}
+                          {isRenamed && <span className="text-[10px] text-amber-600 font-normal ml-1.5">변경됨</span>}
                         </span>
                         <button
                           onClick={() => setEditingCourse((prev) => ({ ...prev, [idx]: course.name }))}
@@ -457,12 +468,11 @@ export function EditInstructorDialog({
               취소
             </button>
             <button
-              onClick={() => {
-                onSave(data);
-                onClose();
-              }}
-              className="py-2 px-5 rounded-lg bg-primary text-primary-foreground text-[13px] font-bold hover:opacity-90"
+              onClick={handleSave}
+              disabled={saving}
+              className="py-2 px-5 rounded-lg bg-primary text-primary-foreground text-[13px] font-bold hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5"
             >
+              {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               저장
             </button>
           </div>

@@ -61,7 +61,7 @@ export function TabQualityOverview({ instructor, course, platformName }: TabQual
                     <TooltipTrigger asChild>
                       <span className="cursor-help border-b border-dotted border-muted-foreground">커리큘럼</span>
                     </TooltipTrigger>
-                    <TooltipContent>후기 설문의 커리큘럼(ps1) 문항 평균, 10점 만점</TooltipContent>
+                    <TooltipContent>후기 설문의 커리큘럼 만족도 평균 점수 (10점 만점)</TooltipContent>
                   </Tooltip>
                 </th>
                 <th className="text-right py-2.5 px-3 font-semibold">
@@ -69,7 +69,7 @@ export function TabQualityOverview({ instructor, course, platformName }: TabQual
                     <TooltipTrigger asChild>
                       <span className="cursor-help border-b border-dotted border-muted-foreground">피드백</span>
                     </TooltipTrigger>
-                    <TooltipContent>후기 설문의 피드백(ps2) 문항 평균, 10점 만점</TooltipContent>
+                    <TooltipContent>후기 설문의 강사 피드백 만족도 평균 점수 (10점 만점)</TooltipContent>
                   </Tooltip>
                 </th>
                 <th className="text-right py-2.5 px-3 font-semibold">추천률</th>
@@ -89,7 +89,7 @@ export function TabQualityOverview({ instructor, course, platformName }: TabQual
                       <TooltipTrigger asChild>
                         <span className="cursor-help">{r.ps1 > 0 ? r.ps1.toFixed(1) : "—"}</span>
                       </TooltipTrigger>
-                      <TooltipContent>후기 설문의 커리큘럼(ps1) 문항 평균, 10점 만점</TooltipContent>
+                      <TooltipContent>후기 설문의 커리큘럼 만족도 평균 점수 (10점 만점)</TooltipContent>
                     </Tooltip>
                   </td>
                   <td className="text-right py-2 px-3">
@@ -97,7 +97,7 @@ export function TabQualityOverview({ instructor, course, platformName }: TabQual
                       <TooltipTrigger asChild>
                         <span className="cursor-help">{r.ps2 > 0 ? r.ps2.toFixed(1) : "—"}</span>
                       </TooltipTrigger>
-                      <TooltipContent>후기 설문의 피드백(ps2) 문항 평균, 10점 만점</TooltipContent>
+                      <TooltipContent>후기 설문의 강사 피드백 만족도 평균 점수 (10점 만점)</TooltipContent>
                     </Tooltip>
                   </td>
                   <td className="text-right py-2 px-3">{r.recRate > 0 ? `${r.recRate}%` : "—"}</td>

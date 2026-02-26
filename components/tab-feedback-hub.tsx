@@ -68,9 +68,11 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
   };
 
   const courseName = course?.name ?? null;
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     loadComments();
+    return () => { abortRef.current?.abort(); };
   }, [platformName, instructor.name, courseName, cohortLabel]);
 
 
@@ -101,6 +103,8 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
       return;
     }
     setAiSuggestLoading(true);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 90000);
     try {
       const res = await fetch("/api/suggest-classify", {
         method: "POST",
@@ -108,6 +112,7 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
         body: JSON.stringify({
           items: untagged.slice(0, 50).map((c) => ({ id: c.id, original_text: c.original_text, source_field: c.source_field })),
         }),
+        signal: controller.signal,
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
@@ -117,14 +122,23 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
       }
       setAiSuggestions(map);
       toast.success(`AI 분류 ${Object.keys(map).length}건 완료`);
-    } catch {
-      toast.error("AI 분류 실패");
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        toast.error("AI 분류 시간 초과 — 다시 시도해주세요");
+      } else {
+        toast.error("AI 분류 실패");
+      }
     } finally {
+      clearTimeout(timeout);
       setAiSuggestLoading(false);
     }
   };
 
   const loadComments = async () => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -134,13 +148,13 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
       if (courseName != null) params.set("course", courseName);
       if (cohortLabel) params.set("cohort", cohortLabel);
 
-      const res = await fetch(`/api/classify?${params}`);
+      const res = await fetch(`/api/classify?${params}`, { signal: controller.signal });
       if (!res.ok) throw new Error();
       const data: Comment[] = await res.json();
       const useful = data.filter(isUsefulComment);
 
       if (!cohortLabel) {
-        const surveyRes = await fetch("/api/surveys");
+        const surveyRes = await fetch("/api/surveys", { signal: controller.signal });
         if (surveyRes.ok) {
           const surveys: Survey[] = await surveyRes.json();
           const surveyMap = new Map(surveys.map((s) => [s.id, s.cohort || ""]));
@@ -152,7 +166,8 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
         setComments(useful.map((c) => ({ ...c, cohortLabel })));
       }
       setLoaded(true);
-    } catch {
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
       toast.error("피드백 로드 실패");
     } finally {
       setLoading(false);
@@ -242,57 +257,67 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
 
   type SentimentValue = "positive" | "negative" | "neutral";
 
-  // 개별 태그 변경 (AI 제안 있으면 적용 후 제거)
+  // 개별 태그 변경 (수동 → ai_classified: false)
   const handleTagChange = async (commentId: string, tag: TagValue) => {
     try {
       const res = await fetch("/api/classify", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ commentId, tag }),
+        body: JSON.stringify({ commentId, tag, ai_classified: false }),
       });
       if (!res.ok) throw new Error();
-      setComments((prev) => prev.map((c) => (c.id === commentId ? { ...c, tag } : c)));
+      setComments((prev) => prev.map((c) => (c.id === commentId ? { ...c, tag, ai_classified: false } : c)));
       clearSuggestion(commentId);
     } catch {
       toast.error("태그 변경 실패");
     }
   };
 
-  // 개별 긍정/부정 설정 (AI 제안 있으면 적용 후 제거)
+  // 개별 긍정/부정 설정 (수동 → ai_classified: false)
   const handleSentimentChange = async (commentId: string, sentiment: SentimentValue) => {
     try {
       const res = await fetch("/api/classify", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ commentId, sentiment }),
+        body: JSON.stringify({ commentId, sentiment, ai_classified: false }),
       });
       if (!res.ok) throw new Error();
-      setComments((prev) => prev.map((c) => (c.id === commentId ? { ...c, sentiment } : c)));
+      setComments((prev) => prev.map((c) => (c.id === commentId ? { ...c, sentiment, ai_classified: false } : c)));
       clearSuggestion(commentId);
     } catch {
       toast.error("평가 구분 저장 실패");
     }
   };
 
-  // 일괄 태깅 (전달대상 + 감정 함께)
+  // 일괄 태깅 (전달대상 + 감정 함께, 수동 → ai_classified: false)
   const handleBulkTagWithSentiment = async (tag: TagValue, sentiment: "positive" | "negative" | "neutral") => {
     if (selected.size === 0) return;
     setTagging(true);
     try {
       const ids = Array.from(selected);
-      await Promise.all(
+      const results = await Promise.allSettled(
         ids.map((commentId) =>
           fetch("/api/classify", {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ commentId, tag, sentiment }),
-          })
+            body: JSON.stringify({ commentId, tag, sentiment, ai_classified: false }),
+          }).then((r) => { if (!r.ok) throw new Error(); return commentId; })
         )
       );
-      setComments((prev) =>
-        prev.map((c) => (selected.has(c.id) ? { ...c, tag, sentiment } : c))
+      const successIds = new Set(
+        results.filter((r): r is PromiseFulfilledResult<string> => r.status === "fulfilled").map((r) => r.value)
       );
-      toast.success(`${ids.length}건 등록 완료`);
+      const failCount = ids.length - successIds.size;
+      if (successIds.size > 0) {
+        setComments((prev) =>
+          prev.map((c) => (successIds.has(c.id) ? { ...c, tag, sentiment, ai_classified: false } : c))
+        );
+      }
+      if (failCount > 0) {
+        toast.error(`${failCount}건 등록 실패 (${successIds.size}건 성공)`);
+      } else {
+        toast.success(`${ids.length}건 등록 완료`);
+      }
       setSelected(new Set());
     } catch {
       toast.error("등록 실패");
@@ -301,30 +326,46 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
     }
   };
 
-  // AI 분류 전체 적용
+  // AI 분류 전체 적용 (ai_classified: true)
   const handleBulkApplyAi = async () => {
     const entries = Object.entries(aiSuggestions);
     if (entries.length === 0) return;
     setTagging(true);
     try {
-      await Promise.all(
+      const results = await Promise.allSettled(
         entries.map(([commentId, { tag, sentiment }]) =>
           fetch("/api/classify", {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ commentId, tag, sentiment }),
-          })
+            body: JSON.stringify({ commentId, tag, sentiment, ai_classified: true }),
+          }).then((r) => { if (!r.ok) throw new Error(); return commentId; })
         )
       );
-      setComments((prev) =>
-        prev.map((c) => {
-          const suggestion = aiSuggestions[c.id];
-          if (!suggestion) return c;
-          return { ...c, tag: suggestion.tag, sentiment: suggestion.sentiment };
-        })
+      const successIds = new Set(
+        results.filter((r): r is PromiseFulfilledResult<string> => r.status === "fulfilled").map((r) => r.value)
       );
-      toast.success(`${entries.length}건 AI 분류 적용 완료`);
-      setAiSuggestions({});
+      const failCount = entries.length - successIds.size;
+      if (successIds.size > 0) {
+        setComments((prev) =>
+          prev.map((c) => {
+            if (!successIds.has(c.id)) return c;
+            const suggestion = aiSuggestions[c.id];
+            return suggestion ? { ...c, tag: suggestion.tag, sentiment: suggestion.sentiment, ai_classified: true } : c;
+          })
+        );
+        // 성공한 건만 제안에서 제거
+        setAiSuggestions((prev) => {
+          const next = { ...prev };
+          for (const id of successIds) delete next[id];
+          return next;
+        });
+      }
+      if (failCount > 0) {
+        toast.error(`${failCount}건 실패 (${successIds.size}건 적용 완료)`);
+      } else {
+        toast.success(`${entries.length}건 AI 분류 적용 완료`);
+        setAiSuggestions({});
+      }
     } catch {
       toast.error("AI 분류 적용 실패");
     } finally {
@@ -519,16 +560,57 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
 
           {/* 전체 뷰: 태그 드롭다운 (편집) / 뱃지 (읽기) */}
           {hubView === "all" && !readOnly && (
-            <select
-              value={comment.tag || ""}
-              onChange={(e) =>
-                handleTagChange(comment.id, (e.target.value || null) as TagValue)
-              }
-              className={`shrink-0 text-[11px] py-0.5 px-1.5 rounded border font-semibold cursor-pointer ${
-                isAutoTag ? "opacity-50 " : ""
-              }${getTagColor(et)}`}
-            >
-              <option value="">미분류</option>
+            <div className="flex items-center gap-1 shrink-0">
+              {comment.ai_classified && (
+                <span className="text-[9px] px-1 py-0 rounded bg-violet-100 text-violet-600 border border-violet-200 font-bold leading-[16px]">AI</span>
+              )}
+              <select
+                value={comment.tag || ""}
+                onChange={(e) =>
+                  handleTagChange(comment.id, (e.target.value || null) as TagValue)
+                }
+                className={`text-[11px] py-0.5 px-1.5 rounded border font-semibold cursor-pointer ${
+                  isAutoTag ? "opacity-50 " : ""
+                }${getTagColor(et)}`}
+              >
+                <option value="">미분류</option>
+                <optgroup label="플랫폼">
+                  <option value="platform_pm">PM</option>
+                  <option value="platform_pd">PD</option>
+                  <option value="platform_cs">CS</option>
+                  <option value="platform_etc">기타</option>
+                </optgroup>
+                <option value="instructor">강사</option>
+              </select>
+            </div>
+          )}
+          {hubView === "all" && readOnly && et && (
+            <div className="flex items-center gap-1 shrink-0">
+              {comment.ai_classified && (
+                <span className="text-[9px] px-1 py-0 rounded bg-violet-100 text-violet-600 border border-violet-200 font-bold leading-[16px]">AI</span>
+              )}
+              <span className={`text-[11px] py-0.5 px-1.5 rounded border font-semibold ${getTagColor(et)}`}>
+                {getTagLabel(et)}
+              </span>
+            </div>
+          )}
+
+          {/* 강사/플랫폼 뷰: 태그 드롭다운 (편집) / 뱃지 (읽기) */}
+          {(hubView === "instructor" || hubView === "platform") && !readOnly && (
+            <div className="flex items-center gap-1 shrink-0">
+              {comment.ai_classified && (
+                <span className="text-[9px] px-1 py-0 rounded bg-violet-100 text-violet-600 border border-violet-200 font-bold leading-[16px]">AI</span>
+              )}
+              <select
+                value={comment.tag || ""}
+                onChange={(e) =>
+                  handleTagChange(comment.id, (e.target.value || null) as TagValue)
+                }
+                className={`text-[11px] py-0.5 px-1.5 rounded border font-semibold cursor-pointer ${
+                  isAutoTag ? "opacity-50 " : ""
+                }${getTagColor(et)}`}
+              >
+                <option value="">미분류</option>
               <optgroup label="플랫폼">
                 <option value="platform_pm">PM</option>
                 <option value="platform_pd">PD</option>
@@ -537,20 +619,19 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
               </optgroup>
               <option value="instructor">강사</option>
             </select>
+            </div>
           )}
-          {hubView === "all" && readOnly && et && (
-            <span className={`shrink-0 text-[11px] py-0.5 px-1.5 rounded border font-semibold ${getTagColor(et)}`}>
-              {getTagLabel(et)}
-            </span>
-          )}
-
-          {/* 강사/플랫폼 뷰: 읽기 전용 태그 뱃지 */}
-          {(hubView === "instructor" || hubView === "platform") && (
-            <span
-              className={`shrink-0 text-[11px] py-0.5 px-1.5 rounded border font-semibold ${getTagColor(et)}`}
-            >
-              {getTagLabel(et)}
-            </span>
+          {(hubView === "instructor" || hubView === "platform") && readOnly && (
+            <div className="flex items-center gap-1 shrink-0">
+              {comment.ai_classified && (
+                <span className="text-[9px] px-1 py-0 rounded bg-violet-100 text-violet-600 border border-violet-200 font-bold leading-[16px]">AI</span>
+              )}
+              <span
+                className={`text-[11px] py-0.5 px-1.5 rounded border font-semibold ${getTagColor(et)}`}
+              >
+                {getTagLabel(et)}
+              </span>
+            </div>
           )}
 
         </div>

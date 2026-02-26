@@ -59,8 +59,7 @@ export function parseFilename(
   const cohortMatch = n.match(/[(\s]?(\d+)\s*기/);
   if (cohortMatch) cohort = cohortMatch[1] + "기";
 
-  // Default to "1기" when no cohort number found
-  if (!cohort) cohort = "1기";
+  // 기수를 못 찾으면 빈 문자열 → 업로드 시 사용자가 직접 입력
 
   // --- Instructor name ---
   let instructor = "";

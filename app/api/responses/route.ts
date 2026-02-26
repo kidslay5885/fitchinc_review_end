@@ -33,7 +33,8 @@ export async function GET(req: NextRequest) {
 
     const { data: surveys, error: surveyError } = await surveyQuery;
     if (surveyError) {
-      return NextResponse.json({ error: surveyError.message }, { status: 500 });
+      console.warn("surveys query error:", surveyError.message);
+      return NextResponse.json({ preResponses: [], postResponses: [], _error: surveyError.message });
     }
 
     if (!surveys || surveys.length === 0) {
@@ -83,6 +84,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ preResponses, postResponses });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "응답 조회 실패";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.warn("responses API error:", msg);
+    // Supabase 연결 실패 등 → 빈 데이터로 fallback (클라이언트 throw 방지)
+    return NextResponse.json({ preResponses: [], postResponses: [], _error: msg });
   }
 }
