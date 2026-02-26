@@ -147,16 +147,13 @@ export function AppSidebar({ onUpload, onEditInstructor, readOnly }: AppSidebarP
                       {/* 전체 보기 (모든 강의/기수) */}
                       <div
                         onClick={() => {
-                          if (readOnly) return;
                           dispatch({ type: "SELECT_COURSE", id: null });
                           dispatch({ type: "SELECT_COHORT", id: null });
                         }}
-                        className={`py-1.5 px-2.5 rounded-md text-[12px] border-l-2 min-h-[32px] flex items-center ${
-                          readOnly ? "" : "cursor-pointer"
-                        } ${
+                        className={`py-1.5 px-2.5 rounded-md text-[12px] border-l-2 min-h-[32px] flex items-center cursor-pointer ${
                           !state.selectedCourseId && !state.selectedCohortId
                             ? "font-semibold text-primary bg-primary/5 border-l-primary"
-                            : `text-muted-foreground border-l-transparent ${readOnly ? "" : "hover:bg-accent"}`
+                            : "text-muted-foreground border-l-transparent hover:bg-accent"
                         }`}
                       >
                         전체 보기
@@ -167,16 +164,13 @@ export function AppSidebar({ onUpload, onEditInstructor, readOnly }: AppSidebarP
                           <div key={course.id}>
                             <div
                               onClick={() => {
-                                if (readOnly) return;
                                 dispatch({ type: "SELECT_COURSE", id: isCourseSelected ? null : course.id });
                                 dispatch({ type: "SELECT_COHORT", id: null });
                               }}
-                              className={`py-1.5 px-2.5 rounded-md text-[12px] border-l-2 min-h-[32px] flex items-center gap-1 ${
-                                readOnly ? "" : "cursor-pointer"
-                              } ${
+                              className={`py-1.5 px-2.5 rounded-md text-[12px] border-l-2 min-h-[32px] flex items-center gap-1 cursor-pointer ${
                                 isCourseSelected
                                   ? "font-semibold text-primary bg-primary/5 border-l-primary"
-                                  : `text-muted-foreground border-l-transparent ${readOnly ? "" : "hover:bg-accent"}`
+                                  : "text-muted-foreground border-l-transparent hover:bg-accent"
                               }`}
                             >
                               <BookOpen className="w-3 h-3 shrink-0" />
@@ -297,13 +291,11 @@ function CohortList({
     <div className={`${indent ? "pl-4" : "pl-7"} py-1.5 space-y-0.5`}>
       {!indent && (
         <div
-          onClick={() => !readOnly && dispatch({ type: "SELECT_COHORT", id: null })}
-          className={`py-1.5 px-2.5 rounded-md text-[12px] border-l-2 min-h-[32px] flex items-center ${
-            readOnly ? "" : "cursor-pointer"
-          } ${
+          onClick={() => dispatch({ type: "SELECT_COHORT", id: null })}
+          className={`py-1.5 px-2.5 rounded-md text-[12px] border-l-2 min-h-[32px] flex items-center cursor-pointer ${
             !selectedCohortId
               ? "font-semibold text-primary bg-primary/5 border-l-primary"
-              : `text-muted-foreground border-l-transparent ${readOnly ? "" : "hover:bg-accent"}`
+              : "text-muted-foreground border-l-transparent hover:bg-accent"
           }`}
         >
           전체 보기
@@ -319,13 +311,11 @@ function CohortList({
             onDragStart={readOnly ? undefined : (e) => handleDragStart(e, index)}
             onDragOver={readOnly ? undefined : handleDragOver}
             onDrop={readOnly ? undefined : (e) => handleDrop(e, index)}
-            onClick={() => !readOnly && dispatch({ type: "SELECT_COHORT", id: c.id })}
-            className={`group py-1.5 px-2.5 rounded-md text-[12px] border-l-2 min-h-[32px] flex items-center gap-1 ${
-              readOnly ? "" : "cursor-pointer"
-            } ${
+            onClick={() => dispatch({ type: "SELECT_COHORT", id: c.id })}
+            className={`group py-1.5 px-2.5 rounded-md text-[12px] border-l-2 min-h-[32px] flex items-center gap-1 cursor-pointer ${
               isSelCo
                 ? "bg-primary/5 border-l-primary font-semibold text-primary"
-                : `border-l-transparent ${readOnly ? "" : "hover:bg-accent"}`
+                : "border-l-transparent hover:bg-accent"
             }`}
           >
             {!readOnly && <span
