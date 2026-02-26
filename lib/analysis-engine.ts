@@ -26,6 +26,9 @@ export function extractKeyFromRawData(rawData: Record<string, string>, pattern: 
   return "";
 }
 
+/** "없음" 계열 응답 정규화 패턴 */
+const NO_PATTERN = /^(없음|없습니다|없어요|아니요|아니오|x|X|없읒|아뇨|없어|없슴|없네요|없습니닷|없쓰빈다|해당없음|-|\.+)$/;
+
 export interface DemographicStats {
   gender: Record<string, number>;
   age: Record<string, number>;
@@ -36,7 +39,7 @@ export interface DemographicStats {
   channel: Record<string, number>;
   prevExperience: Record<string, number>;
   prevCourse: Record<string, number>;
-  selectReason: Record<string, number>;
+  prevCourseDetails: string[];
   expectedBenefit: Record<string, number>;
 }
 
@@ -49,7 +52,7 @@ export function computeDemographics(responses: SurveyResponse[]): DemographicSta
   const channel: Record<string, number> = {};
   const prevExperience: Record<string, number> = {};
   const prevCourse: Record<string, number> = {};
-  const selectReason: Record<string, number> = {};
+  const prevCourseDetails: string[] = [];
   const expectedBenefit: Record<string, number> = {};
   const computerDist: Record<number, number> = {};
   let computerSum = 0;
@@ -70,18 +73,23 @@ export function computeDemographics(responses: SurveyResponse[]): DemographicSta
 
     // rawData에서 추가 필드 추출
     if (r.rawData) {
+      // prevExperience: 복수 선택 가능 ("|" 구분자)
       const pe = extractFromRawData(r.rawData, RAW_DATA_PATTERNS.prevExperience).trim();
-      if (pe) prevExperience[pe] = (prevExperience[pe] || 0) + 1;
-
-      const pc = extractFromRawData(r.rawData, RAW_DATA_PATTERNS.prevCourse).trim();
-      if (pc) prevCourse[pc] = (prevCourse[pc] || 0) + 1;
-
-      // selectReason: 복수 선택 가능 ("|" 구분자)
-      const sr = extractFromRawData(r.rawData, RAW_DATA_PATTERNS.selectReason).trim();
-      if (sr) {
-        const parts = sr.split("|").map((s) => s.trim()).filter(Boolean);
+      if (pe) {
+        const parts = pe.split("|").map((s) => s.trim()).filter(Boolean);
         for (const p of parts) {
-          selectReason[p] = (selectReason[p] || 0) + 1;
+          prevExperience[p] = (prevExperience[p] || 0) + 1;
+        }
+      }
+
+      // prevCourse: 자유 서술 → "있음"/"없음" 정규화
+      const pc = extractFromRawData(r.rawData, RAW_DATA_PATTERNS.prevCourse).trim();
+      if (pc) {
+        if (NO_PATTERN.test(pc)) {
+          prevCourse["없음"] = (prevCourse["없음"] || 0) + 1;
+        } else {
+          prevCourse["있음"] = (prevCourse["있음"] || 0) + 1;
+          prevCourseDetails.push(pc);
         }
       }
 
@@ -109,7 +117,7 @@ export function computeDemographics(responses: SurveyResponse[]): DemographicSta
     channel,
     prevExperience,
     prevCourse,
-    selectReason,
+    prevCourseDetails,
     expectedBenefit,
   };
 }

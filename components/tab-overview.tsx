@@ -1,13 +1,16 @@
 "use client";
 
-import { useMemo } from "react";
+import { useState, useMemo } from "react";
 import type { Instructor, Course, Cohort, SurveyResponse } from "@/lib/types";
 import { allCohorts } from "@/lib/types";
 import {
   computeDemographics,
   computeScores,
   getSatisfactionItems,
+  extractFromRawData,
+  RAW_DATA_PATTERNS,
 } from "@/lib/analysis-engine";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { RingScore } from "@/components/ring-score";
 import {
   PieChart,
@@ -229,6 +232,107 @@ export function RecDonut({ postResponses }: { postResponses: SurveyResponse[] })
   return <DonutChart data={data} />;
 }
 
+/** 긴 라벨용 세로 리스트 + 인라인 바 (expectedBenefit 등) */
+export function ListBar({ data }: { data: { name: string; value: number }[] }) {
+  const maxVal = Math.max(...data.map((d) => d.value), 1);
+  const total = data.reduce((s, d) => s + d.value, 0);
+  return (
+    <div className="space-y-2">
+      {data.map((d) => {
+        const pct = total > 0 ? Math.round((d.value / total) * 100) : 0;
+        return (
+          <div key={d.name}>
+            <div className="flex items-baseline justify-between gap-2 mb-0.5">
+              <span className="text-[12px] text-foreground leading-snug">{d.name}</span>
+              <span className="text-[11px] text-muted-foreground whitespace-nowrap shrink-0">
+                {d.value}명 ({pct}%)
+              </span>
+            </div>
+            <div className="h-2 rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full rounded-full bg-[#3451B2] transition-all"
+                style={{ width: `${(d.value / maxVal) * 100}%` }}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** 접이식 텍스트 리스트 (selectReason 등 자유 서술형) */
+function CollapsibleTextList({ responses, pattern, emptyMsg }: { responses: SurveyResponse[]; pattern: RegExp; emptyMsg?: string }) {
+  const [open, setOpen] = useState(false);
+  const items = useMemo(() => {
+    const result: { name: string; text: string }[] = [];
+    for (const r of responses) {
+      if (!r.rawData) continue;
+      const text = extractFromRawData(r.rawData, pattern).trim();
+      if (text.length > 1) result.push({ name: r.name, text });
+    }
+    return result;
+  }, [responses, pattern]);
+
+  if (items.length === 0) return <div className="text-[12px] text-muted-foreground text-center py-8">{emptyMsg || "데이터 없음"}</div>;
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1.5 text-[13px] font-semibold text-primary hover:underline"
+      >
+        {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+        응답 {items.length}건 {open ? "접기" : "펼치기"}
+      </button>
+      {open && (
+        <ul className="mt-2 space-y-1.5 max-h-[300px] overflow-y-auto">
+          {items.map((item, i) => (
+            <li key={i} className="text-[13px] pl-3 border-l-2 border-muted">
+              <span className="font-medium text-foreground/70">{item.name}</span>{" "}
+              <span className="text-muted-foreground">{item.text}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** 있음/없음 도넛 + 상세 리스트 (prevCourse) */
+function YesNoDonutWithDetails({ data, details }: { data: { name: string; value: number }[]; details: string[] }) {
+  const [open, setOpen] = useState(false);
+  const yesCount = data.find((d) => d.name === "있음")?.value || 0;
+
+  return (
+    <div>
+      <DonutChart data={data} colors={["#3451B2", "#889096"]} />
+      {yesCount > 0 && details.length > 0 && (
+        <div className="mt-3 pt-3 border-t">
+          <button
+            type="button"
+            onClick={() => setOpen(!open)}
+            className="flex items-center gap-1.5 text-[12px] font-semibold text-primary hover:underline"
+          >
+            {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            수강 이력 {details.length}건 {open ? "접기" : "보기"}
+          </button>
+          {open && (
+            <ul className="mt-2 space-y-1 max-h-[200px] overflow-y-auto">
+              {details.map((d, i) => (
+                <li key={i} className="text-[12px] text-muted-foreground pl-3 border-l-2 border-muted">
+                  {d}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---- main ----
 
 interface TabOverviewProps {
@@ -283,10 +387,12 @@ export function TabOverview({ instructor, course, cohort, platformName }: TabOve
   const jobData = pinItems(toChartData(demographics.job), { bottom: ["기타"] });
   const hoursData = toChartDataWithDefaults(demographics.hours, HOURS_GROUPS);
   const channelData = toChartDataWithDefaults(demographics.channel, CHANNEL_GROUPS);
-  const prevExpData = toChartData(demographics.prevExperience);
+  const prevExpData = pinItems(toChartData(demographics.prevExperience), { bottom: ["기타", "이 강의가 처음입니다."] });
   const prevCourseData = toChartData(demographics.prevCourse);
-  const selectReasonData = pinItems(toChartData(demographics.selectReason), { bottom: ["기타"] });
   const expectedBenefitData = pinItems(toChartData(demographics.expectedBenefit), { bottom: ["기타"] });
+
+  // selectReason: 자유 서술이므로 raw 텍스트 추출 (차트 아닌 리스트)
+  const hasSelectReason = preResponses.some((r) => r.rawData && extractFromRawData(r.rawData, RAW_DATA_PATTERNS.selectReason).trim().length > 1);
   const satData = satItems.map((s) => ({ name: s.label, value: s.count }));
 
   return (
@@ -342,29 +448,29 @@ export function TabOverview({ instructor, course, cohort, platformName }: TabOve
 
         {/* 타 플랫폼 강의 수강 경험 */}
         {prevExpData.length > 0 && (
-          <ChartCard title="타 플랫폼 강의 수강 경험" tip="사전 설문 '이전에 타 플랫폼의 강의 수강하신 경험이 있으신가요?' 항목 응답 분포">
-            <DonutChart data={prevExpData} />
+          <ChartCard title="타 플랫폼 강의 수강 경험" tip="사전 설문 '이전에 타 플랫폼의 강의 수강하신 경험이 있으신가요?' 항목 응답 분포 (복수 선택)">
+            <HBarChart data={prevExpData} />
           </ChartCard>
         )}
 
         {/* 핏크닉 다른 정규강의 수강 이력 */}
         {prevCourseData.length > 0 && (
           <ChartCard title="핏크닉 다른 정규강의 수강 이력" tip="사전 설문 '핏크닉의 다른 정규강의를 수강하신 적이 있나요?' 항목 응답 분포">
-            <DonutChart data={prevCourseData} />
+            <YesNoDonutWithDetails data={prevCourseData} details={demographics.prevCourseDetails} />
           </ChartCard>
         )}
 
-        {/* 강의 선택 이유 */}
-        {selectReasonData.length > 0 && (
-          <ChartCard title="강사님 강의를 선택하신 이유" tip="사전 설문 '핏크닉의 강사님 강의를 선택하신 이유가 어떻게 되시나요?' 항목 응답 분포">
-            <HBarChart data={selectReasonData} />
+        {/* 강의 선택 이유 (자유 서술 → 접이식 텍스트 리스트) */}
+        {hasSelectReason && (
+          <ChartCard title="강사님 강의를 선택하신 이유" tip="사전 설문 '핏크닉의 강사님 강의를 선택하신 이유가 어떻게 되시나요?' (자유 서술)">
+            <CollapsibleTextList responses={preResponses} pattern={RAW_DATA_PATTERNS.selectReason} />
           </ChartCard>
         )}
 
-        {/* 기대되는 혜택 */}
+        {/* 기대되는 혜택 (긴 라벨 → 인라인 바 리스트) */}
         {expectedBenefitData.length > 0 && (
           <ChartCard title="이번 강의 혜택 중 가장 기대되는 혜택" tip="사전 설문 '이번 강의 혜택 중 가장 필요한(기대되는) 혜택은 무엇인가요?' 항목 응답 분포">
-            <HBarChart data={expectedBenefitData} />
+            <ListBar data={expectedBenefitData} />
           </ChartCard>
         )}
 
