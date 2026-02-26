@@ -84,7 +84,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
 
   // 확인 완료
   const [confirmedIds, setConfirmedIds] = useState<Set<string>>(new Set());
-  const [hideConfirmed, setHideConfirmed] = useState(true);
+  const [viewMode, setViewMode] = useState<"unconfirmed" | "confirmed">("unconfirmed");
 
   // 상세 뷰 스크롤 ref
   const detailRef = useRef<HTMLDivElement>(null);
@@ -158,6 +158,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
     setSentimentFilter("all");
     setDetailSearch("");
     setSelected(new Set());
+    setViewMode("unconfirmed");
   };
 
   const loadComments = async (r: Role) => {
@@ -260,11 +261,13 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
     return FIELD_ORDER.filter((f) => set.has(f));
   }, [selectedSummary]);
 
-  // 상세 뷰 필터링 (확인완료 숨김 포함)
+  // 상세 뷰 필터링 (미확인/확인완료 탭 기준)
   const detailFiltered = useMemo(() => {
     if (!selectedSummary) return [];
     return selectedSummary.comments.filter((c) => {
-      if (hideConfirmed && confirmedIds.has(c.id)) return false;
+      const isConfirmed = confirmedIds.has(c.id);
+      if (viewMode === "unconfirmed" && isConfirmed) return false;
+      if (viewMode === "confirmed" && !isConfirmed) return false;
       if (cohortFilter !== "all" && c._cohort !== cohortFilter) return false;
       if (sourceFieldFilter !== "all" && c.source_field !== sourceFieldFilter) return false;
       if (sentimentFilter !== "all") {
@@ -279,7 +282,17 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
       }
       return true;
     });
-  }, [selectedSummary, cohortFilter, sourceFieldFilter, sentimentFilter, detailSearch, hideConfirmed, confirmedIds]);
+  }, [selectedSummary, cohortFilter, sourceFieldFilter, sentimentFilter, detailSearch, viewMode, confirmedIds]);
+
+  // 확인완료/미확인 건수 (필터 무관하게 해당 강사 전체 기준)
+  const confirmedCount = useMemo(() => {
+    if (!selectedSummary) return 0;
+    return selectedSummary.comments.filter((c) => confirmedIds.has(c.id)).length;
+  }, [selectedSummary, confirmedIds]);
+  const unconfirmedCount = useMemo(() => {
+    if (!selectedSummary) return 0;
+    return selectedSummary.total - confirmedCount;
+  }, [selectedSummary, confirmedCount]);
 
   const handleCardClick = (key: string) => {
     if (selectedInstructor === key) {
@@ -530,20 +543,6 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
               <span className="text-[13px] text-muted-foreground">{selectedSummary.platform}</span>
               <span className="text-[13px] font-bold text-primary">{detailFiltered.length}건</span>
               <div className="flex-1" />
-              {selectedSummary.confirmed > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setHideConfirmed(!hideConfirmed)}
-                  className={`flex items-center gap-1 py-1 px-2.5 rounded-lg text-[12px] font-medium border transition-colors ${
-                    hideConfirmed
-                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                      : "bg-card text-muted-foreground hover:bg-muted/80"
-                  }`}
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  {hideConfirmed ? `확인완료 ${selectedSummary.confirmed}건 숨김` : `확인완료 ${selectedSummary.confirmed}건`}
-                </button>
-              )}
               <button
                 onClick={() => setSelectedInstructor(null)}
                 className="flex items-center gap-1 text-[12px] text-muted-foreground hover:text-foreground transition-colors"
@@ -555,6 +554,20 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
 
             {/* 상세 필터 */}
             <div className="flex gap-2 items-center flex-wrap px-5 py-3 border-b bg-muted/20">
+              {/* 확인 상태 필터 */}
+              <select
+                value={viewMode}
+                onChange={(e) => { setViewMode(e.target.value as typeof viewMode); setSelected(new Set()); }}
+                className={`py-1.5 px-2.5 rounded-lg border text-[13px] font-semibold ${
+                  viewMode === "confirmed"
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    : "bg-card"
+                }`}
+              >
+                <option value="unconfirmed">미확인 {unconfirmedCount}건</option>
+                <option value="confirmed">확인완료 {confirmedCount}건</option>
+              </select>
+
               {detailCohorts.length > 1 && (
                 <select
                   value={cohortFilter}
@@ -628,7 +641,9 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
             <div className="max-h-[calc(100vh-420px)] overflow-y-auto">
               {detailFiltered.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground text-[14px]">
-                  해당 조건의 피드백이 없습니다
+                  {viewMode === "confirmed"
+                    ? "확인 완료된 피드백이 없습니다"
+                    : "해당 조건의 피드백이 없습니다"}
                 </div>
               )}
               <div className="grid gap-1 px-5 py-3">

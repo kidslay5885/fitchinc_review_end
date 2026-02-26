@@ -442,7 +442,6 @@ function MainContent() {
 
   const handleGoHome = () => {
     setAppMode("landing");
-    setClassifyUnlocked(false);
   };
 
   if (state.loading) {
@@ -459,8 +458,9 @@ function MainContent() {
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       <NavHeader
-        onHome={appMode !== "landing" ? handleGoHome : undefined}
-        pageTitle={appMode === "data" ? "전체 설문 정보" : appMode === "role" ? "직무별 피드백" : appMode === "classify" ? "분류 작업" : undefined}
+        onHome={handleGoHome}
+        appMode={appMode}
+        onChangeMode={handleSelectMode}
       />
 
       {appMode === "landing" && (
