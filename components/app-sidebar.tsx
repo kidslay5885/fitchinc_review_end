@@ -354,7 +354,7 @@ function CohortList({
                 <span className={isSelCo ? "font-semibold text-primary" : ""}>
                   {c.label}
                 </span>
-                <span className="inline-flex items-center gap-0.5 shrink-0" title={`사전 ${c.hasPreSurvey ? (c.preResponses.length || c.preCount || 0) + "명" : "미업로드"} · 후기 ${c.hasPostSurvey ? (c.postResponses.length || c.postCount || 0) + "명" : "미업로드"}`}>
+                <span className="inline-flex items-center gap-0.5 shrink-0" title={`사전 ${c.hasPreSurvey ? ((c.preResponses.length || c.preCount || 0) > 0 ? (c.preResponses.length || c.preCount) + "명" : "없음") : "미업로드"} · 후기 ${c.hasPostSurvey ? ((c.postResponses.length || c.postCount || 0) > 0 ? (c.postResponses.length || c.postCount) + "명" : "없음") : "미업로드"}`}>
                   <span className={`w-[7px] h-[7px] rounded-full ${c.preResponses.length > 0 ? "bg-emerald-500" : c.hasPreSurvey ? "bg-amber-400" : "bg-muted-foreground/25"}`} />
                   <span className={`w-[7px] h-[7px] rounded-full ${c.postResponses.length > 0 ? "bg-emerald-500" : c.hasPostSurvey ? "bg-amber-400" : "bg-muted-foreground/25"}`} />
                 </span>

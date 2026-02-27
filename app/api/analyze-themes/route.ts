@@ -9,13 +9,26 @@ function getAI() {
 // POST: 불만/제안/강점 테마 분류
 export async function POST(req: NextRequest) {
   try {
-    const { instructorName, freeTexts, hopeTexts, platform, instructor, cohort } =
+    const { instructorName, freeTexts, hopeTexts, surveyQuestions, platform, instructor, cohort } =
       await req.json();
 
     if (!freeTexts?.length && !hopeTexts?.length) {
       return NextResponse.json(
         { complaints: [], suggestions: [], strengths: [] }
       );
+    }
+
+    // 동적 설문 질문 통계 섹션 구성
+    let surveySection = "";
+    if (surveyQuestions && surveyQuestions.length > 0) {
+      const lines = surveyQuestions.map((sq: { question: string; summary: Record<string, number>; total: number }) => {
+        const dist = Object.entries(sq.summary)
+          .sort((a, b) => (b[1] as number) - (a[1] as number))
+          .map(([answer, count]) => `${answer} ${Math.round(((count as number) / sq.total) * 100)}%`)
+          .join(", ");
+        return `- ${sq.question}: ${dist} (총 ${sq.total}명)`;
+      });
+      surveySection = `\n\n== 사전 설문 통계 ==\n${lines.join("\n")}`;
     }
 
     const prompt = `당신은 온라인 강의 설문 데이터 분석 전문가입니다.
@@ -26,7 +39,7 @@ export async function POST(req: NextRequest) {
 ${(freeTexts || []).map((t: { name: string; text: string }, i: number) => `[${i}] ${t.name}: "${t.text}"`).join("\n") || "(없음)"}
 
 == 사전 설문 바라는 점 ==
-${(hopeTexts || []).map((t: { name: string; text: string }, i: number) => `[${i}] ${t.name}: "${t.text}"`).join("\n") || "(없음)"}
+${(hopeTexts || []).map((t: { name: string; text: string }, i: number) => `[${i}] ${t.name}: "${t.text}"`).join("\n") || "(없음)"}${surveySection}
 
 다음 JSON만 출력하세요:
 {
@@ -46,6 +59,7 @@ ${(hopeTexts || []).map((t: { name: string; text: string }, i: number) => `[${i}
 - suggestions: 구체적 개선 제안 (1건도 포함)
 - strengths: 긍정 피드백을 주제별로 묶기
 - 1~2줄 단답은 무시
+- 사전 설문 통계가 있으면 수강생 배경/특성을 참고하여 인사이트를 더 구체적으로 제시
 - JSON만 출력, 다른 텍스트 없이`;
 
     const response = await getAI().models.generateContent({

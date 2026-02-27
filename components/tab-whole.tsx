@@ -6,7 +6,7 @@ import { allCohorts } from "@/lib/types";
 import { FIELD_LABELS } from "@/lib/feedback-utils";
 import { getOrderedCohorts } from "@/lib/cohort-order";
 import { computeScores } from "@/lib/analysis-engine";
-import { extractFromRawData, RAW_DATA_PATTERNS } from "@/lib/analysis-engine";
+import { extractFromRawData, RAW_DATA_PATTERNS, collectExtraQuestions } from "@/lib/analysis-engine";
 import { Info, BarChart3 } from "lucide-react";
 
 const PRE_FIELDS = ["hopePlatform", "hopeInstructor"] as const;
@@ -75,6 +75,16 @@ export function TabWhole({ instructor, course, platformName, selectedCohort, onG
   const showAll = isEffectivelyAll;
   const safeCohorts = currentCohorts.length > 0 ? currentCohorts : orderedCohorts;
 
+  // 동적 설문 질문 수집 (사전/후기 각각)
+  const extraPreQuestions = useMemo(
+    () => collectExtraQuestions(safeCohorts.flatMap((c) => c.preResponses)),
+    [safeCohorts]
+  );
+  const extraPostQuestions = useMemo(
+    () => collectExtraQuestions(safeCohorts.flatMap((c) => c.postResponses)),
+    [safeCohorts]
+  );
+
   const tocEntries = useMemo((): TocEntry[] => {
     const out: TocEntry[] = [];
     for (const field of PRE_FIELDS) {
@@ -93,6 +103,10 @@ export function TabWhole({ instructor, course, platformName, selectedCohort, onG
       if (!hasData) continue;
       out.push({ id: `pre-${rf.key}`, label: `사전 · ${rf.label}` });
     }
+    // 동적 사전 질문
+    for (let i = 0; i < extraPreQuestions.length; i++) {
+      out.push({ id: `pre-extra-${i}`, label: `사전 · ${extraPreQuestions[i].question}` });
+    }
     for (const field of POST_FIELDS) {
       const hasData = safeCohorts.some((c) =>
         c.postResponses.some((r) => getResponseText(r, field).length > 2)
@@ -109,8 +123,12 @@ export function TabWhole({ instructor, course, platformName, selectedCohort, onG
       if (!hasData) continue;
       out.push({ id: `post-${rf.key}`, label: `후기 · ${rf.label}` });
     }
+    // 동적 후기 질문
+    for (let i = 0; i < extraPostQuestions.length; i++) {
+      out.push({ id: `post-extra-${i}`, label: `후기 · ${extraPostQuestions[i].question}` });
+    }
     return out;
-  }, [safeCohorts]);
+  }, [safeCohorts, extraPreQuestions, extraPostQuestions]);
 
   const scrollTo = (id: string) => {
     const el = document.getElementById(id);
@@ -328,6 +346,48 @@ export function TabWhole({ instructor, course, platformName, selectedCohort, onG
                     </div>
                   );
                 })}
+
+                {/* 동적 사전 설문 질문 (rawData 미매핑) */}
+                {extraPreQuestions.map((eq, qi) => {
+                  const cohortsWithField = safeCohorts.filter((c) =>
+                    c.preResponses.some((r) => r.rawData && r.rawData[eq.rawKey]?.trim().length > 0)
+                  );
+                  if (cohortsWithField.length === 0) return null;
+                  return (
+                    <div key={`pre-extra-${qi}`} id={`pre-extra-${qi}`} className="rounded-xl border bg-card overflow-hidden border-blue-100 scroll-mt-[6rem]">
+                      <div className="py-2.5 px-4 rounded-t-lg bg-blue-100/80 border-b border-blue-200 text-[15px] font-bold text-blue-900">
+                        {eq.question}
+                      </div>
+                      <div className="p-4 space-y-5">
+                        {cohortsWithField.map((cohort) => {
+                          const items = cohort.preResponses
+                            .map((r) => ({
+                              name: r.name,
+                              text: r.rawData?.[eq.rawKey]?.trim() || "",
+                            }))
+                            .filter((x) => x.text.length > 0);
+                          return (
+                            <div key={cohort.id}>
+                              {safeCohorts.length > 1 && (
+                                <div className="text-[13px] font-bold text-blue-700 mb-2 pl-1 pb-1 border-b border-blue-100">
+                                  {cohort.label}
+                                </div>
+                              )}
+                              <ul className="space-y-2 pl-1">
+                                {items.map((item, i) => (
+                                  <li key={i} className="text-[14px] pl-3 border-l-2 border-muted">
+                                    <span className="font-medium text-foreground/90">{item.name}:</span>{" "}
+                                    <span className="text-muted-foreground">{item.text}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </section>
 
@@ -393,6 +453,48 @@ export function TabWhole({ instructor, course, platformName, selectedCohort, onG
                               text: r.rawData ? extractFromRawData(r.rawData, rf.pattern).trim() : "",
                             }))
                             .filter((x) => x.text.length > 2);
+                          return (
+                            <div key={cohort.id}>
+                              {safeCohorts.length > 1 && (
+                                <div className="text-[13px] font-bold text-emerald-700 mb-2 pl-1 pb-1 border-b border-emerald-100">
+                                  {cohort.label}
+                                </div>
+                              )}
+                              <ul className="space-y-2 pl-1">
+                                {items.map((item, i) => (
+                                  <li key={i} className="text-[14px] pl-3 border-l-2 border-muted">
+                                    <span className="font-medium text-foreground/90">{item.name}:</span>{" "}
+                                    <span className="text-muted-foreground">{item.text}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* 동적 후기 설문 질문 (rawData 미매핑) */}
+                {extraPostQuestions.map((eq, qi) => {
+                  const cohortsWithField = safeCohorts.filter((c) =>
+                    c.postResponses.some((r) => r.rawData && r.rawData[eq.rawKey]?.trim().length > 0)
+                  );
+                  if (cohortsWithField.length === 0) return null;
+                  return (
+                    <div key={`post-extra-${qi}`} id={`post-extra-${qi}`} className="rounded-xl border bg-card overflow-hidden border-emerald-100 scroll-mt-[6rem]">
+                      <div className="py-2.5 px-4 rounded-t-lg bg-emerald-100/80 border-b border-emerald-200 text-[15px] font-bold text-emerald-900">
+                        {eq.question}
+                      </div>
+                      <div className="p-4 space-y-5">
+                        {cohortsWithField.map((cohort) => {
+                          const items = cohort.postResponses
+                            .map((r) => ({
+                              name: r.name,
+                              text: r.rawData?.[eq.rawKey]?.trim() || "",
+                            }))
+                            .filter((x) => x.text.length > 0);
                           return (
                             <div key={cohort.id}>
                               {safeCohorts.length > 1 && (

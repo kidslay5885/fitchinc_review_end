@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
-import { parseXLSXToComments, parseBufferToResponses, countRespondents } from "@/lib/csv-parser";
+import { parseXLSXToComments, parseBufferToResponses } from "@/lib/csv-parser";
 import { parseFilename } from "@/lib/filename-parser";
 import { resolveCourse } from "@/lib/course-registry";
 import { findSchedule } from "@/lib/schedule-data";
@@ -36,19 +36,8 @@ export async function POST(req: NextRequest) {
         : parsed.course ?? ""
     );
 
-    const responseCount = countRespondents(buffer);
     const comments = parseXLSXToComments(buffer, isPre);
-    let responses = parseBufferToResponses(buffer, isPre);
-
-    // 응답자 이름 기준 중복 제거 (같은 이름이 여러 행이면 마지막 것만 유지)
-    const nameMap = new Map<string, typeof responses[number]>();
-    for (const r of responses) {
-      const key = r.name.trim();
-      if (key) nameMap.set(key, r);
-    }
-    const dedupedResponses = [...nameMap.values()];
-    const dupCount = responses.length - dedupedResponses.length;
-    responses = dedupedResponses;
+    const responses = parseBufferToResponses(buffer, isPre);
 
     const supabase = getSupabase();
 
@@ -179,7 +168,6 @@ export async function POST(req: NextRequest) {
       commentCount: comments.length,
       responseCount: responses.length,
       replaced,
-      dupCount,
     });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "업로드 실패";

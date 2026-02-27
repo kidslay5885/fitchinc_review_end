@@ -9,6 +9,7 @@ import {
   getSatisfactionItems,
   extractFromRawData,
   RAW_DATA_PATTERNS,
+  collectExtraQuestions,
 } from "@/lib/analysis-engine";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
@@ -470,6 +471,10 @@ export function TabOverview({ instructor, course, cohort, platformName, readOnly
   const scores = useMemo(() => computeScores(postResponses), [postResponses]);
   const satItems = useMemo(() => getSatisfactionItems(postResponses), [postResponses]);
 
+  // 동적 설문 질문 (rawData 미매핑)
+  const extraPreQuestions = useMemo(() => collectExtraQuestions(preResponses), [preResponses]);
+  const extraPostQuestions = useMemo(() => collectExtraQuestions(postResponses), [postResponses]);
+
   const noData = preResponses.length === 0 && postResponses.length === 0;
 
   if (noData) {
@@ -622,6 +627,20 @@ export function TabOverview({ instructor, course, cohort, platformName, readOnly
         <ChartCard title="이 강의를 지인분들께 추천하실 것 같으신가요?" empty={postResponses.length === 0} tip="후기 설문 추천 의향 문항의 긍정/부정 응답 비율">
           <RecDonut postResponses={postResponses} />
         </ChartCard>
+
+        {/* 동적 사전 설문 질문 */}
+        {extraPreQuestions.map((eq, i) => (
+          <ChartCard key={`pre-extra-${i}`} title={eq.question} tip={`사전 설문 '${eq.question}' 항목 응답 분포 (${eq.total}명)`}>
+            <ListBar data={toChartData(eq.summary)} />
+          </ChartCard>
+        ))}
+
+        {/* 동적 후기 설문 질문 */}
+        {extraPostQuestions.map((eq, i) => (
+          <ChartCard key={`post-extra-${i}`} title={eq.question} tip={`후기 설문 '${eq.question}' 항목 응답 분포 (${eq.total}명)`}>
+            <ListBar data={toChartData(eq.summary)} />
+          </ChartCard>
+        ))}
       </div>
     </div>
   );

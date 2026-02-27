@@ -1,4 +1,5 @@
 import type { SurveyResponse, Cohort } from "./types";
+import { COLUMN_PATTERNS } from "./constants";
 
 // ---- rawData 추출 패턴 ----
 // XLSX 컬럼명에 매칭되지 않아 rawData에 보관된 필드를 패턴으로 추출
@@ -281,4 +282,52 @@ export function aggregateInstructor(cohorts: Cohort[]) {
   const avgScore = rawAvg <= 5 ? Math.min(10, rawAvg * 2) : Math.min(10, rawAvg);
 
   return { totalPre, totalPost, avgScore };
+}
+
+// ---- 동적 설문 질문 수집 ----
+
+export interface ExtraQuestion {
+  question: string;
+  /** rawData 원본 키 (UI 표시에는 question, rawData 조회에는 rawKey 사용) */
+  rawKey: string;
+  summary: Record<string, number>;
+  total: number;
+}
+
+/** 타임스탬프·이메일·동의·관리용 컬럼 스킵 */
+const SKIP_COL = /^(타임스탬프|timestamp|제출\s*시간|수집\s*일시?|응답\s*일시?|이메일|email|e-?mail|접수\s*번호|참여자|번호|순번)$|개인\s*정보.*동의/i;
+
+/**
+ * rawData에서 COLUMN_PATTERNS·RAW_DATA_PATTERNS에 매칭되지 않는 "미매핑 질문"을 수집하여
+ * 질문별 응답 분포를 반환한다.
+ */
+export function collectExtraQuestions(responses: SurveyResponse[]): ExtraQuestion[] {
+  const rawPatterns = Object.values(RAW_DATA_PATTERNS);
+  const colPatterns = Object.values(COLUMN_PATTERNS);
+
+  const questionMap: Record<string, Record<string, number>> = {};
+
+  for (const r of responses) {
+    if (!r.rawData) continue;
+    for (const [key, value] of Object.entries(r.rawData)) {
+      if (!value || value.trim().length === 0) continue;
+      const k = key.trim();
+      if (SKIP_COL.test(k)) continue;
+      if (rawPatterns.some((p) => p.test(k))) continue;
+      if (colPatterns.some((p) => p.test(k))) continue;
+
+      if (!questionMap[k]) questionMap[k] = {};
+      const answer = value.trim();
+      questionMap[k][answer] = (questionMap[k][answer] || 0) + 1;
+    }
+  }
+
+  return Object.entries(questionMap)
+    .map(([question, summary]) => ({
+      question: question.replace(/\(\*\)\s*$/, "").trim(),
+      rawKey: question,
+      summary,
+      total: Object.values(summary).reduce((a, b) => a + b, 0),
+    }))
+    .sort((a, b) => b.total - a.total);
 }

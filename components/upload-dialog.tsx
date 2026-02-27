@@ -125,7 +125,6 @@ export function UploadDialog({ onClose }: UploadDialogProps) {
 
         const msgs: string[] = [`${data.responseCount}명 업로드 완료`];
         if (data.replaced) msgs.push("(기존 데이터 교체)");
-        if (data.dupCount > 0) msgs.push(`중복 ${data.dupCount}건 제거`);
         toast.success(`${f.name}: ${msgs.join(" · ")}`);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : "업로드 실패";

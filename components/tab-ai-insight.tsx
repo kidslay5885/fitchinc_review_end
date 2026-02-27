@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import type { Instructor, Course, Cohort, AnalysisResult } from "@/lib/types";
 import { allCohorts } from "@/lib/types";
-import { computeScores } from "@/lib/analysis-engine";
+import { computeScores, collectExtraQuestions } from "@/lib/analysis-engine";
 import { RingScore } from "./ring-score";
 import { Loader2, Sparkles, Flame, ThumbsUp, Lightbulb, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
@@ -98,6 +98,14 @@ export function TabAIInsight({ instructor, course, cohort, platformName, isActiv
           .map((r) => ({ name: r.name, text: r.hopeInstructor })),
       ];
 
+      // 동적 설문 질문 수집 (사전)
+      const extraQuestions = collectExtraQuestions(preResponses);
+      const surveyQuestions = extraQuestions.map((eq) => ({
+        question: eq.question,
+        summary: eq.summary,
+        total: eq.total,
+      }));
+
       const res = await fetch("/api/analyze-themes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -105,6 +113,7 @@ export function TabAIInsight({ instructor, course, cohort, platformName, isActiv
           instructorName: instructor.name,
           freeTexts,
           hopeTexts,
+          surveyQuestions,
           platform: platformName,
           instructor: instructor.name,
           cohort: cohortLabel,

@@ -532,8 +532,8 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
                       placeholder="0"
                     />
                   </td>
-                  <td className="py-1 px-1.5 text-center text-muted-foreground">{c.preResponses.length}</td>
-                  <td className="py-1 px-1.5 text-center text-muted-foreground">{c.postResponses.length}</td>
+                  <td className={`py-1 px-1.5 text-center ${c.hasPreSurvey && c.preResponses.length === 0 ? "text-amber-500" : "text-muted-foreground"}`}>{c.hasPreSurvey && c.preResponses.length === 0 ? "없음" : c.preResponses.length}</td>
+                  <td className={`py-1 px-1.5 text-center ${c.hasPostSurvey && c.postResponses.length === 0 ? "text-amber-500" : "text-muted-foreground"}`}>{c.hasPostSurvey && c.postResponses.length === 0 ? "없음" : c.postResponses.length}</td>
                 </tr>
               ))}
             </tbody>

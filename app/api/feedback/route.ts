@@ -7,7 +7,7 @@ function getAI() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { instructorName, cohortLabel, pmName, tone, scores, analysis, demographics } =
+    const { instructorName, cohortLabel, pmName, tone, scores, analysis, demographics, surveyQuestions } =
       await req.json();
 
     const toneGuide =
@@ -40,6 +40,17 @@ export async function POST(req: NextRequest) {
 ${demographics?.topGoal ? `- 수강생 목표: ${demographics.topGoal[0]} ${Math.round((demographics.topGoal[1] / (scores?.preCount || 1)) * 100)}%` : ""}
 ${demographics?.computerAvg ? `- PC 활용도 평균: ${demographics.computerAvg}/10` : ""}
 ${analysisSection}
+${(() => {
+      if (!surveyQuestions || surveyQuestions.length === 0) return "";
+      const lines = surveyQuestions.map((sq: { question: string; summary: Record<string, number>; total: number }) => {
+        const dist = Object.entries(sq.summary)
+          .sort((a, b) => (b[1] as number) - (a[1] as number))
+          .map(([answer, count]) => `${answer} ${Math.round(((count as number) / sq.total) * 100)}%`)
+          .join(", ");
+        return `- ${sq.question}: ${dist} (총 ${sq.total}명)`;
+      });
+      return `\n## 추가 설문 통계:\n${lines.join("\n")}`;
+    })()}
 
 ## 작성 규칙:
 1. 인사 → 전체 만족도 공유 → 긍정 피드백 → 개선점 1~2개 (${toneGuide}) → 운영 관련 처리 안내 → 마무리
