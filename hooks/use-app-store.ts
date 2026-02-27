@@ -412,9 +412,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // 서버 앱 설정 복원 (강사 사진, 기수 순서) - 새 창/새로고침 시 유지
       if (typeof window !== "undefined") {
         try {
-          const res = await fetch("/api/app-settings");
-          if (res.ok) {
-            const { instructorPhotos, cohortOrders } = await res.json();
+          // 재시도 로직 (Vercel cold start 대비)
+          let settingsRes: Response | null = null;
+          for (let attempt = 0; attempt < 2; attempt++) {
+            settingsRes = await fetch("/api/app-settings", { cache: "no-store" });
+            if (settingsRes.ok) break;
+            if (attempt === 0) await new Promise((r) => setTimeout(r, 1000));
+          }
+          if (settingsRes?.ok) {
+            const { instructorPhotos, cohortOrders } = await settingsRes.json();
             for (const p of platforms) {
               for (const inst of p.instructors) {
                 const key = `instructor_photo:${p.name}:${inst.name}`;

@@ -148,15 +148,16 @@ export function parseBufferToResponses(
 
 // ===== 서버용: Buffer → 댓글 목록 =====
 
-// 피드백 허브에 가치 있는 텍스트 필드만 추출
-// pSat(만족스러운 점) → 키워드성 응답, 이미 만족도 집계에 사용
-// pRec(추천 의향) → yes/no 응답, 이미 추천률 수치로 집계
-const TEXT_FIELDS = ["hopePlatform", "hopeInstructor", "pFree", "lowScoreReason", "lowFeedbackRequest"] as const;
+// 세부 분류 대상 8개 문항만 포함
+const TEXT_FIELDS = [
+  "selectReason", "hopePlatform", "hopeInstructor",
+  "satOther", "lowScoreReason", "lowFeedbackRequest", "pFree", "pRec",
+] as const;
 
 // 사전 설문 전용 필드
-const PRE_FIELDS = new Set(["hopePlatform", "hopeInstructor"]);
+const PRE_FIELDS = new Set(["selectReason", "hopePlatform", "hopeInstructor"]);
 // 후기 설문 전용 필드
-const POST_FIELDS = new Set(["pFree", "lowScoreReason", "lowFeedbackRequest"]);
+const POST_FIELDS = new Set(["satOther", "lowScoreReason", "lowFeedbackRequest", "pFree", "pRec"]);
 
 // 피드백으로 의미 없는 짧은/일반적 응답 필터
 const NOISE_PATTERNS = /^(네|예|아니요|없습니다|없음|감사합니다|고맙습니다|좋습니다|좋았습니다|잘 모르겠습니다|모르겠습니다|특별히 없습니다|딱히 없습니다|아직 없습니다|글쎄요|x|X|-|강의 내용|커리큘럼|피드백|추천합니다|네 추천합니다|예 추천합니다|네 너무 좋습니다|[.\s]*)$/;
@@ -204,16 +205,6 @@ export function parseXLSXToComments(
       if (/^[.\s]*$/.test(text) || NOISE_PATTERNS.test(text.trim())) continue;
 
       comments.push({ respondent, original_text: text, source_field: field });
-    }
-
-    const mappedCols = new Set(Object.values(mapping));
-    for (const [col, val] of Object.entries(row)) {
-      if (mappedCols.has(col)) continue;
-      const text = String(val).trim();
-      if (text.length >= 20 && !/^\d+$/.test(text)) {
-        if (NOISE_PATTERNS.test(text.trim())) continue;
-        comments.push({ respondent, original_text: text, source_field: col });
-      }
     }
   }
 

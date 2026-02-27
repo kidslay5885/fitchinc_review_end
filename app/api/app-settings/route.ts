@@ -45,10 +45,16 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json({ instructorPhotos, cohortOrders, prevCourseBlocklist });
+    return NextResponse.json(
+      { instructorPhotos, cohortOrders, prevCourseBlocklist },
+      { headers: { "Cache-Control": "no-store, max-age=0" } },
+    );
   } catch (e) {
     console.warn("app_settings GET error:", e);
-    return NextResponse.json({ instructorPhotos: {}, cohortOrders: {}, prevCourseBlocklist: [] });
+    return NextResponse.json(
+      { instructorPhotos: {}, cohortOrders: {}, prevCourseBlocklist: [] },
+      { headers: { "Cache-Control": "no-store, max-age=0" } },
+    );
   }
 }
 

@@ -4,6 +4,7 @@ import { parseXLSXToComments, parseBufferToResponses, countRespondents } from "@
 import { parseFilename } from "@/lib/filename-parser";
 import { resolveCourse } from "@/lib/course-registry";
 import { findSchedule } from "@/lib/schedule-data";
+import { suggestTag } from "@/lib/feedback-utils";
 
 export async function POST(req: NextRequest) {
   try {
@@ -114,14 +115,19 @@ export async function POST(req: NextRequest) {
         commentDedup.set(key, c);
       }
 
-      const commentRows = [...commentDedup.values()].map((c) => ({
-        survey_id: survey.id,
-        respondent: c.respondent,
-        original_text: c.original_text,
-        source_field: c.source_field,
-        sentiment: null,
-        ai_summary: null,
-      }));
+      const commentRows = [...commentDedup.values()].map((c) => {
+        const autoTag = suggestTag(c.source_field);
+        return {
+          survey_id: survey.id,
+          respondent: c.respondent,
+          original_text: c.original_text,
+          source_field: c.source_field,
+          sentiment: null,
+          ai_summary: null,
+          tag: autoTag,
+          ai_classified: autoTag !== null,
+        };
+      });
 
       const { error: commentsError } = await supabase
         .from("comments")

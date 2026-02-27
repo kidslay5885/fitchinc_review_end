@@ -89,7 +89,7 @@ export async function GET() {
       })),
     }));
 
-    return NextResponse.json(result);
+    return NextResponse.json(result, { headers: { "Cache-Control": "no-store, max-age=0" } });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "계층 조회 실패";
     return NextResponse.json({ error: msg }, { status: 500 });

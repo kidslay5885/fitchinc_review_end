@@ -562,7 +562,7 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
           {hubView === "all" && !readOnly && (
             <div className="flex items-center gap-1 shrink-0">
               {comment.ai_classified && (
-                <span className="text-[9px] px-1 py-0 rounded bg-violet-100 text-violet-600 border border-violet-200 font-bold leading-[16px]">AI</span>
+                <span className="text-[9px] px-1 py-0 rounded bg-violet-100 text-violet-600 border border-violet-200 font-bold leading-[16px]">자동</span>
               )}
               <select
                 value={comment.tag || ""}
@@ -587,7 +587,7 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
           {hubView === "all" && readOnly && et && (
             <div className="flex items-center gap-1 shrink-0">
               {comment.ai_classified && (
-                <span className="text-[9px] px-1 py-0 rounded bg-violet-100 text-violet-600 border border-violet-200 font-bold leading-[16px]">AI</span>
+                <span className="text-[9px] px-1 py-0 rounded bg-violet-100 text-violet-600 border border-violet-200 font-bold leading-[16px]">자동</span>
               )}
               <span className={`text-[11px] py-0.5 px-1.5 rounded border font-semibold ${getTagColor(et)}`}>
                 {getTagLabel(et)}
@@ -599,7 +599,7 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
           {(hubView === "instructor" || hubView === "platform") && !readOnly && (
             <div className="flex items-center gap-1 shrink-0">
               {comment.ai_classified && (
-                <span className="text-[9px] px-1 py-0 rounded bg-violet-100 text-violet-600 border border-violet-200 font-bold leading-[16px]">AI</span>
+                <span className="text-[9px] px-1 py-0 rounded bg-violet-100 text-violet-600 border border-violet-200 font-bold leading-[16px]">자동</span>
               )}
               <select
                 value={comment.tag || ""}
@@ -624,7 +624,7 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
           {(hubView === "instructor" || hubView === "platform") && readOnly && (
             <div className="flex items-center gap-1 shrink-0">
               {comment.ai_classified && (
-                <span className="text-[9px] px-1 py-0 rounded bg-violet-100 text-violet-600 border border-violet-200 font-bold leading-[16px]">AI</span>
+                <span className="text-[9px] px-1 py-0 rounded bg-violet-100 text-violet-600 border border-violet-200 font-bold leading-[16px]">자동</span>
               )}
               <span
                 className={`text-[11px] py-0.5 px-1.5 rounded border font-semibold ${getTagColor(et)}`}

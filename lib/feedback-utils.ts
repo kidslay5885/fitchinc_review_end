@@ -17,14 +17,15 @@ export const FIELD_LABELS: Record<string, string> = {
 };
 
 export const FIELD_ORDER = [
+  "selectReason",
   "hopePlatform",
   "hopeInstructor",
-  "pFree",
+  "satOther",
   "lowScoreReason",
   "lowFeedbackRequest",
+  "pFree",
+  "pRec",
 ];
-
-export const EXCLUDED_FIELDS = new Set(["pSat", "pRec"]);
 
 export const NOISE_RE =
   /^(네|예|아니요|없습니다|없음|감사합니다|고맙습니다|좋습니다|좋았습니다|잘 모르겠습니다|모르겠습니다|특별히 없습니다|딱히 없습니다|아직 없습니다|글쎄요|x|X|-|강의 내용|커리큘럼|피드백|추천합니다|네 추천합니다|예 추천합니다|네 너무 좋습니다|없어요|없읒|[.\s]*)$/;
@@ -56,7 +57,6 @@ export function isPlatformTag(tag: TagValue): boolean {
 }
 
 export function isUsefulComment(c: { original_text: string; source_field: string }): boolean {
-  if (EXCLUDED_FIELDS.has(c.source_field)) return false;
   const text = c.original_text.trim();
   if (text.length < 5) return false;
   if (NOISE_RE.test(text)) return false;
@@ -64,10 +64,12 @@ export function isUsefulComment(c: { original_text: string; source_field: string
 }
 
 // source_field 기반 자동 추천 태그 (tag가 null일 때 사용)
-function suggestTag(sourceField: string): TagValue {
-  if (sourceField === "hopePlatform") return "platform_etc";
-  if (sourceField === "hopeInstructor") return "instructor";
-  return null;
+export function suggestTag(sourceField: string): TagValue {
+  if (sourceField === "hopePlatform" || sourceField === "pFree") return "platform_etc";
+  if (
+    ["hopeInstructor", "selectReason", "satOther", "lowScoreReason", "lowFeedbackRequest"].includes(sourceField)
+  ) return "instructor";
+  return null; // pRec 등
 }
 
 export function effectiveTag(c: { tag: TagValue; source_field: string }): TagValue {
