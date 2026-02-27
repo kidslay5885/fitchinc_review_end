@@ -18,7 +18,7 @@ import type {
 } from "@/lib/types";
 import { generateId, allCohorts } from "@/lib/types";
 import { DEFAULT_PLATFORMS } from "@/lib/constants";
-import { toast } from "sonner";
+
 
 // ---- State ----
 export interface AppState {
@@ -466,16 +466,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
             fetchOk = true;
             break;
           }
-          toast.error(`사진 로드 시도 ${attempt + 1}/3 실패 (${res.status})`);
+          console.warn(`[사진] attempt ${attempt + 1} failed: ${res.status}`);
         } catch (err) {
-          toast.error(`사진 로드 시도 ${attempt + 1}/3 에러`);
           console.warn(`[사진] attempt ${attempt + 1} error:`, err);
         }
         if (attempt < 2) await new Promise((r) => setTimeout(r, 2000));
       }
 
       if (!fetchOk) {
-        toast.error("강사 사진 로드 최종 실패 — 새로고침 해보세요");
+        console.error("[사진] 3회 시도 모두 실패");
         return;
       }
 
@@ -511,7 +510,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
 
         dispatch({ type: "APPLY_PHOTOS", photos: photosMap });
-        toast.success(`강사 사진 ${Object.keys(photosMap).length}개 로드 완료`);
       }
 
       // 3) 기수 순서 localStorage 복원
