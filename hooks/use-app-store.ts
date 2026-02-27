@@ -381,9 +381,71 @@ function buildInstructor(ai: HierarchyInstructor): Instructor {
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
 
+  // 앱 설정에서 사진·기수 순서 적용 (platforms 배열에 직접 적용)
+  const applySettingsToPlat = useCallback((platforms: Platform[], instructorPhotos: Record<string, { photo?: string; photoPosition?: string; category?: string }>, cohortOrders: Record<string, string[]>) => {
+    let photoCount = 0;
+    for (const p of platforms) {
+      for (const inst of p.instructors) {
+        const key = `instructor_photo:${p.name}:${inst.name}`;
+        const photoData = instructorPhotos?.[key];
+        if (photoData) {
+          if (photoData.photo) {
+            inst.photo = photoData.photo;
+            inst.photoPosition = photoData.photoPosition || "center 2%";
+            photoCount++;
+          }
+          if (photoData.category) {
+            inst.category = photoData.category;
+          }
+        }
+      }
+      for (const inst of p.instructors) {
+        for (const course of inst.courses) {
+          const keySuffix = course.name ? `:${course.name}` : "";
+          const key = `cohort_order:${p.name}:${inst.name}${keySuffix}`;
+          const labels = cohortOrders?.[key];
+          if (Array.isArray(labels) && labels.length > 0) {
+            try {
+              const localKey = course.name
+                ? `cohort-order-${p.name}-${inst.name}-${course.name}`
+                : `cohort-order-${p.name}-${inst.name}`;
+              localStorage.setItem(localKey, JSON.stringify(labels));
+            } catch { /* ignore */ }
+          }
+        }
+        const legacyKey = `cohort_order:${p.name}:${inst.name}`;
+        const legacyLabels = cohortOrders?.[legacyKey];
+        if (Array.isArray(legacyLabels) && legacyLabels.length > 0) {
+          try {
+            localStorage.setItem(`cohort-order-${p.name}-${inst.name}`, JSON.stringify(legacyLabels));
+          } catch { /* ignore */ }
+        }
+      }
+    }
+    return photoCount;
+  }, []);
+
+  // 앱 설정 fetch (사진, 기수 순서, 블랙리스트)
+  const fetchAppSettings = useCallback(async (): Promise<{ instructorPhotos: Record<string, { photo?: string; photoPosition?: string; category?: string }>; cohortOrders: Record<string, string[]> } | null> => {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const res = await fetch("/api/app-settings", { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          return { instructorPhotos: data.instructorPhotos || {}, cohortOrders: data.cohortOrders || {} };
+        }
+        console.warn(`[ClassInsight] app-settings fetch attempt ${attempt + 1} failed: ${res.status}`);
+      } catch (err) {
+        console.warn(`[ClassInsight] app-settings fetch attempt ${attempt + 1} error:`, err);
+      }
+      if (attempt < 2) await new Promise((r) => setTimeout(r, 1500));
+    }
+    return null;
+  }, []);
+
   const refreshHierarchy = useCallback(async () => {
     try {
-      const res = await fetch("/api/hierarchy");
+      const res = await fetch("/api/hierarchy", { cache: "no-store" });
       if (!res.ok) throw new Error("hierarchy fetch failed");
       const data: HierarchyPlatform[] = await res.json();
 
@@ -411,63 +473,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       // 서버 앱 설정 복원 (강사 사진, 기수 순서) - 새 창/새로고침 시 유지
       if (typeof window !== "undefined") {
-        try {
-          // 재시도 로직 (Vercel cold start 대비)
-          let settingsRes: Response | null = null;
-          for (let attempt = 0; attempt < 2; attempt++) {
-            settingsRes = await fetch("/api/app-settings", { cache: "no-store" });
-            if (settingsRes.ok) break;
-            if (attempt === 0) await new Promise((r) => setTimeout(r, 1000));
-          }
-          if (settingsRes?.ok) {
-            const { instructorPhotos, cohortOrders } = await settingsRes.json();
-            for (const p of platforms) {
-              for (const inst of p.instructors) {
-                const key = `instructor_photo:${p.name}:${inst.name}`;
-                const photoData = instructorPhotos?.[key];
-                if (photoData) {
-                  if (photoData.photo) {
-                    inst.photo = photoData.photo;
-                    inst.photoPosition = photoData.photoPosition || "center 2%";
-                  }
-                  if (photoData.category) {
-                    inst.category = photoData.category;
-                  }
-                }
-              }
-              for (const inst of p.instructors) {
-                // 기수 순서 복원: course별로
-                for (const course of inst.courses) {
-                  const keySuffix = course.name ? `:${course.name}` : "";
-                  const key = `cohort_order:${p.name}:${inst.name}${keySuffix}`;
-                  const labels = cohortOrders?.[key];
-                  if (Array.isArray(labels) && labels.length > 0) {
-                    try {
-                      const localKey = course.name
-                        ? `cohort-order-${p.name}-${inst.name}-${course.name}`
-                        : `cohort-order-${p.name}-${inst.name}`;
-                      localStorage.setItem(localKey, JSON.stringify(labels));
-                    } catch {
-                      // ignore
-                    }
-                  }
-                }
-                // 하위 호환: 기존 cohort_order 키도 복원 시도
-                const legacyKey = `cohort_order:${p.name}:${inst.name}`;
-                const legacyLabels = cohortOrders?.[legacyKey];
-                if (Array.isArray(legacyLabels) && legacyLabels.length > 0) {
-                  try {
-                    localStorage.setItem(`cohort-order-${p.name}-${inst.name}`, JSON.stringify(legacyLabels));
-                  } catch {
-                    // ignore
-                  }
-                }
-              }
-            }
-          }
-        } catch {
-          // API 실패 시 localStorage만 사용
+        const settings = await fetchAppSettings();
+        if (settings) {
+          const photoCount = applySettingsToPlat(platforms, settings.instructorPhotos, settings.cohortOrders);
+          console.log(`[ClassInsight] 사진 ${photoCount}개 로드 완료`);
+        } else {
+          console.warn("[ClassInsight] 앱 설정 로드 실패 — localStorage 폴백 사용");
         }
+
         // localStorage에 저장된 강사 사진·수강생 수 복원 (서버에 없을 때만 적용)
         for (const p of platforms) {
           for (const inst of p.instructors) {
@@ -475,7 +488,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
               const raw = localStorage.getItem(`instructor-photo-${p.name}-${inst.name}`);
               if (raw) {
                 const parsed = JSON.parse(raw);
-                // 서버에서 이미 복원된 사진이 있으면 덮어쓰지 않음
                 if (!inst.photo && parsed.photo) {
                   inst.photo = parsed.photo;
                   inst.photoPosition = parsed.photoPosition || "center 2%";
@@ -484,16 +496,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
                   inst.category = parsed.category;
                 }
               }
-            } catch {
-              // ignore
-            }
+            } catch { /* ignore */ }
             for (const c of allCohorts(inst)) {
               try {
                 const v = localStorage.getItem(`total-students-${p.name}-${inst.name}-${c.label}`);
                 if (v && /^\d+$/.test(v)) c.totalStudents = parseInt(v, 10);
-              } catch {
-                // ignore
-              }
+              } catch { /* ignore */ }
             }
           }
         }
@@ -501,10 +509,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       dispatch({ type: "HYDRATE", platforms });
     } catch (err) {
-      console.error("Hierarchy load error:", err);
+      console.error("[ClassInsight] Hierarchy load error:", err);
       dispatch({ type: "HYDRATE", platforms: DEFAULT_PLATFORMS });
     }
-  }, []);
+  }, [fetchAppSettings, applySettingsToPlat]);
+
+  // 사진 누락 시 자동 재시도 (hydration 후 사진이 없으면 별도로 다시 로드)
+  const retryPhotos = useCallback(async () => {
+    const hasAnyPhoto = state.platforms.some((p) => p.instructors.some((i) => i.photo));
+    const hasAnyInstructor = state.platforms.some((p) => p.instructors.length > 0);
+    if (hasAnyPhoto || !hasAnyInstructor) return;
+
+    console.log("[ClassInsight] 사진 누락 감지 — 재로드 시도");
+    const settings = await fetchAppSettings();
+    if (!settings) return;
+
+    const photoKeys = Object.keys(settings.instructorPhotos);
+    if (photoKeys.length === 0) return;
+
+    // 불변 업데이트: 새 platforms 배열 생성 후 SET_PLATFORMS 디스패치
+    const updated = state.platforms.map((p) => ({
+      ...p,
+      instructors: p.instructors.map((inst) => {
+        const key = `instructor_photo:${p.name}:${inst.name}`;
+        const photoData = settings.instructorPhotos[key];
+        if (photoData?.photo) {
+          return { ...inst, photo: photoData.photo, photoPosition: photoData.photoPosition || "center 2%", category: photoData.category || inst.category };
+        }
+        return inst;
+      }),
+    }));
+    dispatch({ type: "SET_PLATFORMS", platforms: updated });
+    console.log("[ClassInsight] 사진 재로드 완료");
+  }, [state.platforms, fetchAppSettings]);
 
   const loadCohortData = useCallback(async (platformName: string, instructorName: string, courseName: string, cohortLabel: string) => {
     try {
@@ -534,6 +571,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     refreshHierarchy();
   }, [refreshHierarchy]);
+
+  // hydration 완료 후 사진 누락 시 자동 재시도 (3초 후)
+  useEffect(() => {
+    if (!state.hydrated) return;
+    const timer = setTimeout(retryPhotos, 3000);
+    return () => clearTimeout(timer);
+  }, [state.hydrated]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return React.createElement(
     AppContext.Provider,
