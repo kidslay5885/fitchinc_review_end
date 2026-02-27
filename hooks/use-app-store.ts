@@ -231,6 +231,7 @@ function reducer(state: AppState, action: Action): AppState {
                       ...c,
                       preResponses: action.preResponses,
                       postResponses: action.postResponses,
+                      dataLoaded: true,
                     };
                   }),
                 };
@@ -378,15 +379,6 @@ export function useSelectedCohort() {
   return cohorts.find((c) => c.id === state.selectedCohortId) || null;
 }
 
-// ---- placeholder response 생성 ----
-function makePlaceholderResponses(count: number): SurveyResponse[] {
-  return Array(count).fill(null).map(() => ({
-    id: generateId(), name: "", gender: "", age: "", job: "", hours: "",
-    channel: "", computer: 0, goal: "", hopePlatform: "", hopeInstructor: "",
-    ps1: 0, ps2: 0, pSat: "", pFmt: "", pFree: "", pRec: "", rawData: {},
-  }));
-}
-
 // hierarchy API 응답 타입
 interface HierarchyCohort { label: string; pm: string; preCount: number; postCount: number; startDate: string; endDate: string; totalStudents: number; hasPreSurvey?: boolean; hasPostSurvey?: boolean }
 interface HierarchyCourse { name: string; cohorts: HierarchyCohort[] }
@@ -410,8 +402,10 @@ function buildInstructor(ai: HierarchyInstructor): Instructor {
         date: aco.startDate || "",
         endDate: aco.endDate || "",
         totalStudents: aco.totalStudents || 0,
-        preResponses: makePlaceholderResponses(aco.preCount || 0),
-        postResponses: makePlaceholderResponses(aco.postCount || 0),
+        preResponses: [],
+        postResponses: [],
+        preCount: aco.preCount || 0,
+        postCount: aco.postCount || 0,
         hasPreSurvey: aco.hasPreSurvey ?? (aco.preCount > 0),
         hasPostSurvey: aco.hasPostSurvey ?? (aco.postCount > 0),
       })),
@@ -426,9 +420,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const refreshHierarchy = useCallback(async () => {
     try {
-      const res = await fetch("/api/hierarchy", { cache: "no-store" });
-      if (!res.ok) throw new Error(`hierarchy fetch failed: ${res.status}`);
-      const data: HierarchyPlatform[] = await res.json();
+      // ★ hierarchy + 사진/설정을 병렬로 동시 fetch (워터폴 제거)
+      const [hierarchyRes, settingsRes] = await Promise.all([
+        fetch("/api/hierarchy", { cache: "no-store" }),
+        fetch("/api/app-settings", { cache: "no-store" }).catch(() => null),
+      ]);
+
+      if (!hierarchyRes.ok) throw new Error(`hierarchy fetch failed: ${hierarchyRes.status}`);
+      const data: HierarchyPlatform[] = await hierarchyRes.json();
+
+      // 사진/설정 파싱 (실패해도 계속 진행)
+      let instructorPhotos: Record<string, { photo?: string; photoPosition?: string; category?: string }> = {};
+      let cohortOrders: Record<string, string[]> = {};
+      if (settingsRes?.ok) {
+        try {
+          const json = await settingsRes.json();
+          instructorPhotos = json.instructorPhotos || {};
+          cohortOrders = json.cohortOrders || {};
+        } catch { /* ignore */ }
+      }
 
       // hierarchy API 데이터를 Platform[] 형태로 변환
       const platforms: Platform[] = DEFAULT_PLATFORMS.map((dp) => {
@@ -444,107 +454,44 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       }
 
-      // localStorage에 저장된 수강생 수 복원
+      // 사진 + localStorage 데이터 머지 (별도 dispatch 없이 한 번에)
       if (typeof window !== "undefined") {
         for (const p of platforms) {
           for (const inst of p.instructors) {
+            // 사진 적용: 서버 → localStorage 폴백
+            const photoKey = `instructor_photo:${p.name}:${inst.name}`;
+            const pd = instructorPhotos[photoKey];
+            if (pd?.photo) {
+              inst.photo = pd.photo;
+              inst.photoPosition = pd.photoPosition || "center 2%";
+              if (pd.category) inst.category = pd.category;
+            } else {
+              try {
+                const raw = localStorage.getItem(`instructor-photo-${p.name}-${inst.name}`);
+                if (raw) {
+                  const parsed = JSON.parse(raw);
+                  if (parsed.photo) {
+                    inst.photo = parsed.photo;
+                    inst.photoPosition = parsed.photoPosition || "center 2%";
+                    if (parsed.category) inst.category = parsed.category;
+                  }
+                }
+              } catch { /* ignore */ }
+            }
+
+            // 수강생 수 복원
             for (const c of allCohorts(inst)) {
               try {
                 const v = localStorage.getItem(`total-students-${p.name}-${inst.name}-${c.label}`);
                 if (v && /^\d+$/.test(v)) c.totalStudents = parseInt(v, 10);
               } catch { /* ignore */ }
             }
-          }
-        }
-      }
 
-      dispatch({ type: "HYDRATE", platforms });
-    } catch (err) {
-      console.error("[ClassInsight] Hierarchy load error:", err);
-      dispatch({ type: "HYDRATE", platforms: DEFAULT_PLATFORMS });
-    }
-  }, []);
-
-  // ★ 사진·기수 순서 로드 — hydration 이후 APPLY_PHOTOS로 별도 적용 (race-condition 방지)
-  const photosLoadedRef = React.useRef(false);
-
-  useEffect(() => {
-    if (!state.hydrated || photosLoadedRef.current) return;
-    const hasInstructors = state.platforms.some((p) => p.instructors.length > 0);
-    if (!hasInstructors) return;
-
-    photosLoadedRef.current = true; // 1회만 실행
-
-    const loadPhotos = async () => {
-      // 1) 서버에서 앱 설정 fetch (최대 3회 재시도)
-      let instructorPhotos: Record<string, { photo?: string; photoPosition?: string; category?: string }> = {};
-      let cohortOrders: Record<string, string[]> = {};
-      let fetchOk = false;
-
-      for (let attempt = 0; attempt < 3; attempt++) {
-        try {
-          const res = await fetch("/api/app-settings", { cache: "no-store" });
-          if (res.ok) {
-            const json = await res.json();
-            instructorPhotos = json.instructorPhotos || {};
-            cohortOrders = json.cohortOrders || {};
-            fetchOk = true;
-            break;
-          }
-          console.warn(`[사진] attempt ${attempt + 1} failed: ${res.status}`);
-        } catch (err) {
-          console.warn(`[사진] attempt ${attempt + 1} error:`, err);
-        }
-        if (attempt < 2) await new Promise((r) => setTimeout(r, 2000));
-      }
-
-      if (!fetchOk) {
-        console.error("[사진] 3회 시도 모두 실패");
-        return;
-      }
-
-      const photoKeys = Object.keys(instructorPhotos);
-
-      // 2) APPLY_PHOTOS 디스패치 — reducer가 현재 state에서 사진만 머지
-      if (photoKeys.length > 0) {
-        const photosMap: Record<string, { photo: string; photoPosition: string; category: string }> = {};
-        for (const [key, val] of Object.entries(instructorPhotos)) {
-          if (val.photo) {
-            photosMap[key] = { photo: val.photo, photoPosition: val.photoPosition || "center 2%", category: val.category || "" };
-          }
-        }
-
-        // localStorage 폴백도 추가
-        if (typeof window !== "undefined") {
-          for (const p of state.platforms) {
-            for (const inst of p.instructors) {
-              const key = `instructor_photo:${p.name}:${inst.name}`;
-              if (!photosMap[key]) {
-                try {
-                  const raw = localStorage.getItem(`instructor-photo-${p.name}-${inst.name}`);
-                  if (raw) {
-                    const parsed = JSON.parse(raw);
-                    if (parsed.photo) {
-                      photosMap[key] = { photo: parsed.photo, photoPosition: parsed.photoPosition || "center 2%", category: parsed.category || "" };
-                    }
-                  }
-                } catch { /* ignore */ }
-              }
-            }
-          }
-        }
-
-        dispatch({ type: "APPLY_PHOTOS", photos: photosMap });
-      }
-
-      // 3) 기수 순서 localStorage 복원
-      if (typeof window !== "undefined") {
-        for (const p of state.platforms) {
-          for (const inst of p.instructors) {
+            // 기수 순서 localStorage 복원
             for (const course of inst.courses) {
               const keySuffix = course.name ? `:${course.name}` : "";
-              const key = `cohort_order:${p.name}:${inst.name}${keySuffix}`;
-              const labels = cohortOrders[key];
+              const orderKey = `cohort_order:${p.name}:${inst.name}${keySuffix}`;
+              const labels = cohortOrders[orderKey];
               if (Array.isArray(labels) && labels.length > 0) {
                 try {
                   const localKey = course.name
@@ -562,10 +509,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
           }
         }
       }
-    };
 
-    loadPhotos();
-  }, [state.hydrated, state.platforms]); // eslint-disable-line react-hooks/exhaustive-deps
+      dispatch({ type: "HYDRATE", platforms });
+    } catch (err) {
+      console.error("[ClassInsight] Hierarchy load error:", err);
+      dispatch({ type: "HYDRATE", platforms: DEFAULT_PLATFORMS });
+    }
+  }, []);
 
   const loadCohortData = useCallback(async (platformName: string, instructorName: string, courseName: string, cohortLabel: string) => {
     try {

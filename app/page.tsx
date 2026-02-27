@@ -201,9 +201,7 @@ function DashboardContent({ tabs, readOnly = false }: { tabs: typeof TABS_DATA; 
       i.courses.flatMap((cr) => cr.cohorts.map((co) => ({ inst: i, course: cr, cohort: co })))
     );
     const needsLoad = allPlatCohorts.filter(
-      ({ cohort: c }) =>
-        (c.preResponses.length > 0 && c.preResponses[0]?.name === "") ||
-        (c.postResponses.length > 0 && c.postResponses[0]?.name === "")
+      ({ cohort: c }) => !c.dataLoaded && (c.hasPreSurvey || c.hasPostSurvey)
     );
     if (needsLoad.length === 0) {
       setPlatDataLoading(false);
@@ -223,19 +221,14 @@ function DashboardContent({ tabs, readOnly = false }: { tabs: typeof TABS_DATA; 
     const loadData = async () => {
       setDataLoading(true);
       if (cohort) {
-        const needsLoad =
-          (cohort.preResponses.length > 0 && cohort.preResponses[0]?.name === "") ||
-          (cohort.postResponses.length > 0 && cohort.postResponses[0]?.name === "");
+        const needsLoad = !cohort.dataLoaded && (cohort.hasPreSurvey || cohort.hasPostSurvey);
         if (needsLoad) {
           const ownerCourse = inst.courses.find((c) => c.cohorts.some((co) => co.id === cohort.id));
           await loadCohortData(plat.name, inst.name, ownerCourse?.name || "", cohort.label);
         }
       } else {
         const promises = visibleCohorts
-          .filter((c) =>
-            (c.preResponses.length > 0 && c.preResponses[0]?.name === "") ||
-            (c.postResponses.length > 0 && c.postResponses[0]?.name === "")
-          )
+          .filter((c) => !c.dataLoaded && (c.hasPreSurvey || c.hasPostSurvey))
           .map((c) => {
             const ownerCourse = inst.courses.find((cr) => cr.cohorts.some((co) => co.id === c.id));
             return loadCohortData(plat.name, inst.name, ownerCourse?.name || "", c.label);

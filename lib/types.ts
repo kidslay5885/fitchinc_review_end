@@ -78,6 +78,11 @@ export interface Cohort {
   hasPreSurvey?: boolean;
   /** 후기설문 업로드 여부 (0건이라도 true) */
   hasPostSurvey?: boolean;
+  /** hierarchy에서 받은 응답 수 (lazy load 전 표시용) */
+  preCount?: number;
+  postCount?: number;
+  /** responses API 호출 완료 여부 */
+  dataLoaded?: boolean;
 }
 
 export interface Course {
@@ -156,8 +161,8 @@ export interface AnalyzeResult {
 // ===== 헬퍼 함수 =====
 
 export function autoStatus(c: Cohort): "완료" | "진행중" | "준비중" {
-  if (c.postResponses.length > 0) return "완료";
-  if (c.preResponses.length > 0) return "진행중";
+  if (c.hasPostSurvey || c.postResponses.length > 0) return "완료";
+  if (c.hasPreSurvey || c.preResponses.length > 0) return "진행중";
   return "준비중";
 }
 
