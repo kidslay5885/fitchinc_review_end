@@ -25,7 +25,8 @@ const COURSE_REGISTRY: CourseEntry[] = [
   { instructor: "부자꿈틀", platform: "핏크닉", course: "과일위탁판매", keywords: ["과일", "위탁"] },
   { instructor: "부자꿈틀", platform: "핏크닉", course: "AI 숏폼", keywords: ["숏폼", "숏", "AI숏"] },
   { instructor: "부자꿈틀", platform: "핏크닉", course: "삼삼엠투", keywords: ["삼삼", "엠투", "M2"] },
-  { instructor: "셀링남", platform: "핏크닉", course: "AI 로켓그로스" },
+  { instructor: "셀링남", platform: "핏크닉", course: "AI 로켓그로스", keywords: ["로켓", "그로스"] },
+  { instructor: "셀링남", platform: "핏크닉", course: "AI 브랜드 파이프 시크릿 로드맵", keywords: ["브랜드", "파이프"] },
   { instructor: "셀팜", platform: "핏크닉", course: "틱톡 커머스", keywords: ["틱톡"] },
   { instructor: "셀팜", platform: "핏크닉", course: "쿠팡 농수산물", keywords: ["쿠팡", "농수산"] },
   { instructor: "온백", platform: "핏크닉", course: "AI 브랜드 커넥터" },
@@ -43,7 +44,7 @@ const COURSE_REGISTRY: CourseEntry[] = [
 
   // ── 머니업클래스 ──
   { instructor: "돈버는형님들", platform: "머니업클래스", course: "대량등록(쇼핑몰)" },
-  { instructor: "셀링남", platform: "머니업클래스", course: "AI 브랜드 파이프" },
+  { instructor: "셀링남", platform: "머니업클래스", course: "AI 브랜드 파이프 시크릿 로드맵" },
   { instructor: "셀팜", platform: "머니업클래스", course: "AI 숏폼" },
   { instructor: "위그로", platform: "머니업클래스", course: "AI 로켓그로스" },
   { instructor: "페이지부스터", platform: "머니업클래스", course: "AI 상세페이지" },
