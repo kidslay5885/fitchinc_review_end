@@ -77,8 +77,33 @@ function findOrCreatePlatform(platforms: Platform[], name: string): Platform[] {
 
 function reducer(state: AppState, action: Action): AppState {
   switch (action.type) {
-    case "HYDRATE":
-      return { ...state, platforms: action.platforms, hydrated: true, loading: false };
+    case "HYDRATE": {
+      // 기존 state에서 사진 데이터를 보존 (refreshHierarchy 시 사진 소실 방지)
+      const existingPhotos = new Map<string, { photo: string; photoPosition: string; category: string }>();
+      for (const p of state.platforms) {
+        for (const inst of p.instructors) {
+          if (inst.photo) {
+            existingPhotos.set(`${p.name}:${inst.name}`, {
+              photo: inst.photo,
+              photoPosition: inst.photoPosition,
+              category: inst.category,
+            });
+          }
+        }
+      }
+      const hydratedPlatforms = action.platforms.map((p) => ({
+        ...p,
+        instructors: p.instructors.map((inst) => {
+          if (inst.photo) return inst;
+          const saved = existingPhotos.get(`${p.name}:${inst.name}`);
+          if (saved) {
+            return { ...inst, photo: saved.photo, photoPosition: saved.photoPosition, category: saved.category || inst.category };
+          }
+          return inst;
+        }),
+      }));
+      return { ...state, platforms: hydratedPlatforms, hydrated: true, loading: false };
+    }
 
     case "SELECT_PLATFORM":
       return {

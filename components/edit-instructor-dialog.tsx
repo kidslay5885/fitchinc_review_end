@@ -131,10 +131,12 @@ export function EditInstructorDialog({
     setSaving(true);
     try {
       // 1. 강의명 변경 처리
+      let hasRename = false;
       for (let i = 0; i < data.courses.length && i < instructor.courses.length; i++) {
         const oldName = instructor.courses[i].name;
         const newName = data.courses[i].name;
         if (oldName !== newName) {
+          hasRename = true;
           const res = await fetch("/api/rename-course", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -153,8 +155,10 @@ export function EditInstructorDialog({
       // 2. 사진/카테고리/기수 정보 저장
       onSave(data);
 
-      // 3. 서버에서 최신 데이터 반영
-      await onRefresh();
+      // 3. 강의명 변경이 있을 때만 hierarchy 새로고침 (사진만 변경 시 불필요한 전체 리로드 방지)
+      if (hasRename) {
+        await onRefresh();
+      }
 
       onClose();
     } catch (err: unknown) {
