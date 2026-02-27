@@ -330,6 +330,7 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
                       setStartDraft(cohort.date || "");
                       setEndDraft(cohort.endDate || "");
                       setEditingStart(true);
+                      setEditingEnd(true);
                     }}
                   >
                     <span className="text-muted-foreground font-medium">정규 강의 기간</span>
