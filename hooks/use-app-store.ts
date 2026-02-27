@@ -455,6 +455,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       // 사진 + localStorage 데이터 머지 (별도 dispatch 없이 한 번에)
+      const photosToSync: { platform: string; instructor: string; photo: string; photoPosition: string; category: string }[] = [];
+
       if (typeof window !== "undefined") {
         for (const p of platforms) {
           for (const inst of p.instructors) {
@@ -474,6 +476,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
                     inst.photo = parsed.photo;
                     inst.photoPosition = parsed.photoPosition || "center 2%";
                     if (parsed.category) inst.category = parsed.category;
+                    // ★ 서버에 없고 localStorage에만 있는 사진 → 동기화 대상
+                    photosToSync.push({
+                      platform: p.name,
+                      instructor: inst.name,
+                      photo: parsed.photo,
+                      photoPosition: parsed.photoPosition || "center 2%",
+                      category: parsed.category || "",
+                    });
                   }
                 }
               } catch { /* ignore */ }
@@ -511,6 +521,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
 
       dispatch({ type: "HYDRATE", platforms });
+
+      // ★ localStorage에만 있는 사진을 백그라운드로 서버에 동기화
+      if (photosToSync.length > 0) {
+        for (const item of photosToSync) {
+          fetch("/api/app-settings", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              type: "instructor_photo",
+              platform: item.platform,
+              instructor: item.instructor,
+              photo: item.photo,
+              photoPosition: item.photoPosition,
+              category: item.category,
+            }),
+          }).catch(() => { /* 백그라운드 동기화 실패 무시 */ });
+        }
+        console.info(`[사진 동기화] localStorage → 서버: ${photosToSync.map((s) => s.instructor).join(", ")}`);
+      }
     } catch (err) {
       console.error("[ClassInsight] Hierarchy load error:", err);
       dispatch({ type: "HYDRATE", platforms: DEFAULT_PLATFORMS });
