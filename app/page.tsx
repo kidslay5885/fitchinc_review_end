@@ -271,27 +271,30 @@ function DashboardContent({ tabs, readOnly = false }: { tabs: typeof TABS_DATA; 
                   JSON.stringify(payload)
                 );
               } catch {}
-              fetch("/api/app-settings", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  type: "instructor_photo",
-                  platform: plat.name,
-                  instructor: updated.name,
-                  photo: payload.photo,
-                  photoPosition: payload.photoPosition,
-                  category: payload.category,
-                }),
-              })
-                .then((res) => res.json())
-                .then((data) => {
-                  if (!data.ok) throw new Error("server returned ok:false");
+              const saveBody = JSON.stringify({
+                type: "instructor_photo",
+                platform: plat.name,
+                instructor: updated.name,
+                photo: payload.photo,
+                photoPosition: payload.photoPosition,
+                category: payload.category,
+              });
+              const tryPost = async (attempt: number): Promise<void> => {
+                try {
+                  const res = await fetch("/api/app-settings", { method: "POST", headers: { "Content-Type": "application/json" }, body: saveBody });
+                  const data = await res.json();
+                  if (!data.ok) throw new Error(data.error || "server returned ok:false");
                   toast.success("강사 정보 저장 완료");
-                })
-                .catch((err) => {
+                } catch (err) {
+                  if (attempt < 2) {
+                    await new Promise((r) => setTimeout(r, 1500));
+                    return tryPost(attempt + 1);
+                  }
                   console.error("강사 사진 서버 저장 실패:", err);
                   toast.error("서버 저장 실패 — 새로고침 시 사진이 사라질 수 있습니다");
-                });
+                }
+              };
+              tryPost(0);
             }
           }}
           onDelete={(id) => dispatch({ type: "DELETE_INSTRUCTOR", id })}
