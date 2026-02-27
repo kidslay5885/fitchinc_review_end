@@ -68,7 +68,8 @@ type Action =
   | { type: "DELETE_COHORT"; instructorId: string; cohortId: string }
   | { type: "SET_PLATFORMS"; platforms: Platform[] }
   | { type: "SET_LOADING"; loading: boolean }
-  | { type: "APPLY_PHOTOS"; photos: Record<string, { photo: string; photoPosition: string; category: string }> };
+  | { type: "APPLY_PHOTOS"; photos: Record<string, { photo: string; photoPosition: string; category: string }> }
+  | { type: "DELETE_COURSE"; instructorId: string; courseId: string };
 
 function findOrCreatePlatform(platforms: Platform[], name: string): Platform[] {
   if (platforms.find((p) => p.name === name)) return platforms;
@@ -306,6 +307,26 @@ function reducer(state: AppState, action: Action): AppState {
         ),
       }));
       return { ...state, platforms };
+    }
+
+    case "DELETE_COURSE": {
+      const platforms = state.platforms.map((p) => ({
+        ...p,
+        instructors: p.instructors.map((i) =>
+          i.id === action.instructorId
+            ? { ...i, courses: i.courses.filter((c) => c.id !== action.courseId) }
+            : i
+        ),
+      }));
+      // 삭제된 강의가 선택 중이면 초기화
+      const inst = platforms.flatMap((p) => p.instructors).find((i) => i.id === action.instructorId);
+      const deletedCourseWasSelected = state.selectedCourseId === action.courseId;
+      return {
+        ...state,
+        platforms,
+        selectedCourseId: deletedCourseWasSelected ? null : state.selectedCourseId,
+        selectedCohortId: deletedCourseWasSelected ? null : state.selectedCohortId,
+      };
     }
 
     case "SET_PLATFORMS":

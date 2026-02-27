@@ -291,6 +291,23 @@ function DashboardContent({ tabs, readOnly = false }: { tabs: typeof TABS_DATA; 
             }
           }}
           onDelete={(id) => dispatch({ type: "DELETE_INSTRUCTOR", id })}
+          onDeleteCourse={async (courseId, courseName) => {
+            if (!editInst || !plat) return;
+            const res = await fetch("/api/delete-course", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                platform: plat.name,
+                instructor: editInst.name,
+                course: courseName,
+              }),
+            });
+            const result = await res.json();
+            if (!res.ok) throw new Error(result.error || "강의 삭제 실패");
+            dispatch({ type: "DELETE_COURSE", instructorId: editInst.id, courseId });
+            await refreshHierarchy();
+            toast.success(result.message || "강의 삭제 완료");
+          }}
           onClose={() => setEditInst(null)}
           onRefresh={refreshHierarchy}
         />

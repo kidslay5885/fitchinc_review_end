@@ -11,6 +11,7 @@ interface EditInstructorDialogProps {
   platformName: string;
   onSave: (updated: Instructor) => void;
   onDelete: (id: string) => void;
+  onDeleteCourse: (courseId: string, courseName: string) => Promise<void>;
   onClose: () => void;
   onRefresh: () => Promise<void>;
 }
@@ -20,6 +21,7 @@ export function EditInstructorDialog({
   platformName,
   onSave,
   onDelete,
+  onDeleteCourse,
   onClose,
   onRefresh,
 }: EditInstructorDialogProps) {
@@ -40,6 +42,9 @@ export function EditInstructorDialog({
   // 강의명 편집 상태: courseIdx → 편집 중인 새 이름
   const [editingCourse, setEditingCourse] = useState<Record<number, string>>({});
   const [saving, setSaving] = useState(false);
+  // 강의 삭제 확인: courseIdx
+  const [confirmDelCourse, setConfirmDelCourse] = useState<number | null>(null);
+  const [deletingCourse, setDeletingCourse] = useState(false);
 
   const updateCohort = (courseIdx: number, cohortIdx: number, field: keyof Cohort, value: string | number) => {
     setData((prev) => ({
@@ -262,9 +267,14 @@ export function EditInstructorDialog({
         {/* Course management — 강의명 편집/병합 */}
         {data.courses.length > 0 && (
           <div className="mb-5">
-            <div className="text-[12px] font-bold text-muted-foreground mb-2">
+            <div className="text-[12px] font-bold text-muted-foreground mb-2 flex items-center gap-2">
               강의명 관리
-              {hasMultipleCourses && <span className="font-normal ml-2 text-[11px]">이름을 같게 바꾸면 자동 병합됩니다</span>}
+              {hasMultipleCourses && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-700 bg-blue-100 border border-blue-200 rounded-full px-2 py-0.5">
+                  <Merge className="w-3 h-3" />
+                  이름을 같게 바꾸면 자동 병합
+                </span>
+              )}
             </div>
             <div className="space-y-1.5">
               {data.courses.map((course, idx) => {
@@ -301,16 +311,23 @@ export function EditInstructorDialog({
                       </>
                     ) : (
                       <>
-                        <span className="flex-1 text-[13px] font-semibold truncate">
-                          {course.name || "(기본 과정)"}
-                          {isRenamed && <span className="text-[10px] text-amber-600 font-normal ml-1.5">변경됨</span>}
-                        </span>
                         <button
                           onClick={() => setEditingCourse((prev) => ({ ...prev, [idx]: course.name }))}
-                          className="text-muted-foreground hover:text-primary shrink-0"
-                          title="강의명 변경"
+                          className="flex-1 flex items-center gap-1.5 text-left cursor-pointer group/row hover:text-primary transition-colors"
+                          title="클릭하여 강의명 변경"
                         >
-                          <Pencil className="w-3.5 h-3.5" />
+                          <span className="text-[13px] font-semibold truncate">
+                            {course.name || "(기본 과정)"}
+                            {isRenamed && <span className="text-[10px] text-amber-600 font-normal ml-1.5">변경됨</span>}
+                          </span>
+                          <Pencil className="w-3 h-3 text-muted-foreground group-hover/row:text-primary shrink-0 transition-colors" />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setConfirmDelCourse(idx); }}
+                          className="text-muted-foreground hover:text-destructive shrink-0 transition-colors"
+                          title="강의 삭제"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </>
                     )}
@@ -318,6 +335,53 @@ export function EditInstructorDialog({
                 );
               })}
             </div>
+
+            {/* 강의 삭제 확인 */}
+            {confirmDelCourse !== null && data.courses[confirmDelCourse] && (
+              <div className="mt-2 p-3 bg-red-50 rounded-lg border border-destructive">
+                <div className="text-[13px] font-semibold text-destructive mb-1.5 flex items-center gap-1.5">
+                  <AlertTriangle className="w-4 h-4" />
+                  &apos;{data.courses[confirmDelCourse].name || "(기본 과정)"}&apos; 강의를 삭제합니까?
+                </div>
+                <div className="text-[12px] text-muted-foreground mb-2.5">
+                  모든 기수({data.courses[confirmDelCourse].cohorts.length}개)와 설문 데이터가 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <button
+                    onClick={() => setConfirmDelCourse(null)}
+                    disabled={deletingCourse}
+                    className="py-1.5 px-4 rounded-md border text-muted-foreground text-[12px] hover:bg-accent disabled:opacity-50"
+                  >
+                    취소
+                  </button>
+                  <button
+                    onClick={async () => {
+                      const courseToDelete = data.courses[confirmDelCourse];
+                      if (!courseToDelete) return;
+                      setDeletingCourse(true);
+                      try {
+                        await onDeleteCourse(courseToDelete.id, courseToDelete.name);
+                        // 로컬 상태에서도 제거
+                        setData((prev) => ({
+                          ...prev,
+                          courses: prev.courses.filter((_, i) => i !== confirmDelCourse),
+                        }));
+                        setConfirmDelCourse(null);
+                      } catch {
+                        // error handled by parent
+                      } finally {
+                        setDeletingCourse(false);
+                      }
+                    }}
+                    disabled={deletingCourse}
+                    className="py-1.5 px-4 rounded-md bg-destructive text-destructive-foreground text-[12px] font-bold flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    {deletingCourse && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    삭제
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
