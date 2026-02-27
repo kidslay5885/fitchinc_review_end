@@ -97,7 +97,11 @@ export function computeDemographics(responses: SurveyResponse[]): DemographicSta
 
   for (const r of responses) {
     if (r.gender) gender[r.gender] = (gender[r.gender] || 0) + 1;
-    if (r.age) age[r.age] = (age[r.age] || 0) + 1;
+    if (r.age) {
+      // "60대" → "60대 이상" 정규화 (차트 기본 카테고리와 일치)
+      const ageKey = /^60대$/.test(r.age.trim()) ? "60대 이상" : r.age;
+      age[ageKey] = (age[ageKey] || 0) + 1;
+    }
     if (r.job) job[r.job] = (job[r.job] || 0) + 1;
     if (r.hours) hours[r.hours] = (hours[r.hours] || 0) + 1;
     if (r.goal) goal[r.goal] = (goal[r.goal] || 0) + 1;

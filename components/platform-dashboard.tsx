@@ -15,8 +15,10 @@ import {
   HBarChart,
   RecDonut,
   toChartData,
+  toChartDataWithDefaults,
   toGenderData,
   pinItems,
+  AGE_GROUPS,
 } from "@/components/tab-overview";
 import { RingScore } from "@/components/ring-score";
 import { Loader2 } from "lucide-react";
@@ -59,7 +61,7 @@ export function PlatformDashboard({ platform, dataLoading }: PlatformDashboardPr
 
   // chart data
   const gender = toGenderData(demographics.gender);
-  const ageData = toChartData(demographics.age);
+  const ageData = toChartDataWithDefaults(demographics.age, AGE_GROUPS);
   const jobData = pinItems(toChartData(demographics.job), { bottom: ["기타"] });
   const hoursData = toChartData(demographics.hours);
   const channelData = pinItems(toChartData(demographics.channel), { top: ["SNS", "sns"] });
