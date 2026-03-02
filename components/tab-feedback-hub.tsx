@@ -252,8 +252,8 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
   const activeComments = useMemo(() => {
     return comments.filter((c) => {
       if (excludedFields.size > 0 && excludedFields.has(c.source_field)) return false;
-      if (!showHidden && hiddenIds.has(c.id)) return false;
-      return true;
+      if (showHidden) return hiddenIds.has(c.id);
+      return !hiddenIds.has(c.id);
     });
   }, [comments, excludedFields, hiddenIds, showHidden]);
 
