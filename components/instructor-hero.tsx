@@ -287,7 +287,7 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
                       }}
                       title={classifyMode ? "클릭하여 강의명 수정" : undefined}
                     >
-                      {c.name || "기본 과정"}
+                      {c.name}
                       {classifyMode && <Pencil className="w-2.5 h-2.5 inline ml-0.5 opacity-40" />}
                     </span>
                   )}
@@ -334,7 +334,7 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
             <div className="text-[22px] font-extrabold">
               {instructor.name}{" "}
               <span className="font-normal text-muted-foreground text-[16px]">
-                {showCourseName && <>· {course.name || "기본 과정"} </>}
+                {showCourseName && <>· {course.name} </>}
                 · {!cohort ? "전체" : cohort.label}
               </span>
             </div>

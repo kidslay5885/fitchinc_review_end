@@ -39,14 +39,6 @@ export function EditInstructorDialog({
   });
   const [confirmDel, setConfirmDel] = useState<null | "inst" | string>(null);
 
-  // 강의 표시명: courseIdx → 표시명
-  const [displayNames, setDisplayNames] = useState<Record<number, string>>(() => {
-    const init: Record<number, string> = {};
-    for (let i = 0; i < instructor.courses.length; i++) {
-      init[i] = instructor.courses[i].displayName || "";
-    }
-    return init;
-  });
   // 강의명 편집 상태: courseIdx → 편집 중인 새 이름
   const [editingCourse, setEditingCourse] = useState<Record<number, string>>({});
   const [saving, setSaving] = useState(false);
@@ -169,33 +161,10 @@ export function EditInstructorDialog({
         }
       }
 
-      // 2. 표시명(displayName) 변경 처리
-      const dnChanges: Record<string, string> = {};
-      let hasDnChange = false;
-      for (let i = 0; i < data.courses.length; i++) {
-        const courseName = data.courses[i].name;
-        const newDn = (displayNames[i] || "").trim();
-        const oldDn = (instructor.courses[i]?.displayName || "").trim();
-        if (newDn !== oldDn) {
-          hasDnChange = true;
-          const key = `${platformName}|${instructor.name}|${courseName}`;
-          dnChanges[key] = newDn;
-        }
-        // displayName을 data에 반영 (onSave에 전달)
-        data.courses[i] = { ...data.courses[i], displayName: newDn || undefined };
-      }
-      if (hasDnChange) {
-        await fetch("/api/app-settings", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ type: "course_display_names", names: dnChanges }),
-        });
-      }
-
-      // 3. 사진/카테고리/기수 정보 저장
+      // 2. 사진/카테고리/기수 정보 저장
       onSave(data);
 
-      // 4. 강의명 변경이 있을 때만 hierarchy 새로고침 (사진만 변경 시 불필요한 전체 리로드 방지)
+      // 3. 강의명 변경이 있을 때만 hierarchy 새로고침 (사진만 변경 시 불필요한 전체 리로드 방지)
       if (hasRename) {
         await onRefresh();
       }
@@ -350,7 +319,7 @@ export function EditInstructorDialog({
                             if (e.key === "Enter") applyCourseRename(idx, editValue);
                             if (e.key === "Escape") setEditingCourse((prev) => { const n = { ...prev }; delete n[idx]; return n; });
                           }}
-                          placeholder="강의명 (빈칸 = 기본 과정)"
+                          placeholder="강의명"
                           className="flex-1 py-1 px-2 rounded-md border text-[13px] bg-card"
                         />
                         <button
@@ -376,20 +345,11 @@ export function EditInstructorDialog({
                               title="클릭하여 강의명 변경"
                             >
                               <span className="text-[13px] font-semibold truncate">
-                                {course.name || "(기본 과정)"}
+                                {course.name}
                                 {isRenamed && <span className="text-[10px] text-amber-600 font-normal ml-1.5">변경됨</span>}
                               </span>
                               <Pencil className="w-3 h-3 text-muted-foreground group-hover/row:text-primary shrink-0 transition-colors" />
                             </button>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <span className="text-[10px] text-muted-foreground shrink-0">표시명</span>
-                            <input
-                              value={displayNames[idx] || ""}
-                              onChange={(e) => setDisplayNames((prev) => ({ ...prev, [idx]: e.target.value }))}
-                              placeholder="짧은 별칭 (선택)"
-                              className="flex-1 py-0.5 px-1.5 rounded border text-[11px] bg-card min-w-0"
-                            />
                           </div>
                         </div>
                         <span className="text-[10px] text-muted-foreground shrink-0">({surveyLabel})</span>
@@ -424,7 +384,7 @@ export function EditInstructorDialog({
                         onChange={() => setMergeTarget(idx)}
                         className="accent-blue-600"
                       />
-                      <span className="text-[13px]">{data.courses[idx]?.name || "(기본 과정)"}</span>
+                      <span className="text-[13px]">{data.courses[idx]?.name}</span>
                     </label>
                   ))}
                 </div>
@@ -485,7 +445,7 @@ export function EditInstructorDialog({
               <div className="mt-2 p-3 bg-red-50 rounded-lg border border-destructive">
                 <div className="text-[13px] font-semibold text-destructive mb-1.5 flex items-center gap-1.5">
                   <AlertTriangle className="w-4 h-4" />
-                  &apos;{data.courses[confirmDelCourse].name || "(기본 과정)"}&apos; 강의를 삭제합니까?
+                  &apos;{data.courses[confirmDelCourse].name}&apos; 강의를 삭제합니까?
                 </div>
                 <div className="text-[12px] text-muted-foreground mb-2.5">
                   모든 기수({data.courses[confirmDelCourse].cohorts.length}개)와 설문 데이터가 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
@@ -535,7 +495,7 @@ export function EditInstructorDialog({
           <div key={courseIdx} className="mb-4">
             {hasMultipleCourses && (
               <div className="text-[12px] font-bold text-primary mb-1.5 pl-1 flex items-center gap-1">
-                📚 {course.name || "기본 과정"}
+                📚 {course.name}
                 <span className="font-normal text-muted-foreground ml-1">({course.cohorts.length}기수)</span>
               </div>
             )}

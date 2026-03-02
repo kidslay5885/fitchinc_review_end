@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       deleted: surveyIds.length,
-      message: `'${course || "(기본 과정)"}' 강의 삭제 완료 (설문 ${surveyIds.length}건)`,
+      message: `'${course}' 강의 삭제 완료 (설문 ${surveyIds.length}건)`,
     });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "강의 삭제 실패";

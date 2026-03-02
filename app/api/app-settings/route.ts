@@ -13,7 +13,6 @@ function cohortOrderKey(platform: string, instructor: string, course: string = "
 
 const BLOCKLIST_KEY = "prevCourse_blocklist";
 const EXCLUDED_FIELDS_KEY = "excluded_source_fields";
-const DISPLAY_NAMES_KEY = "course_display_names";
 const HIDDEN_COMMENTS_KEY = "hidden_comments";
 
 /** GET: 모든 앱 설정 조회 (강사 사진, 기수 순서, 수강이력 블랙리스트) - 새 창/새로고침 시 복원용 */
@@ -31,7 +30,6 @@ export async function GET() {
     const cohortOrders: Record<string, string[]> = {};
     let prevCourseBlocklist: string[] = [];
     let excludedSourceFields: string[] = [];
-    let courseDisplayNames: Record<string, string> = {};
     let hiddenComments: string[] = [];
 
     for (const row of data || []) {
@@ -52,16 +50,11 @@ export async function GET() {
         excludedSourceFields = value.filter((x) => typeof x === "string");
       } else if (key === HIDDEN_COMMENTS_KEY && Array.isArray(value)) {
         hiddenComments = value.filter((x) => typeof x === "string");
-      } else if (key === DISPLAY_NAMES_KEY && value && typeof value === "object" && !Array.isArray(value)) {
-        const v = value as Record<string, unknown>;
-        for (const [k, val] of Object.entries(v)) {
-          if (typeof val === "string") courseDisplayNames[k] = val;
-        }
       }
     }
 
     return NextResponse.json(
-      { instructorPhotos, cohortOrders, prevCourseBlocklist, excludedSourceFields, courseDisplayNames, hiddenComments },
+      { instructorPhotos, cohortOrders, prevCourseBlocklist, excludedSourceFields, hiddenComments },
       { headers: { "Cache-Control": "no-store, max-age=0" } },
     );
   } catch (e) {
@@ -174,46 +167,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    if (body.type === "course_display_names") {
-      const { names } = body;
-      if (!names || typeof names !== "object") {
-        return NextResponse.json({ error: "names: Record<string, string> 필요" }, { status: 400 });
-      }
-      // names: Record<"플랫폼|강사|강의명", "표시명">
-      const value: Record<string, string> = {};
-      for (const [k, v] of Object.entries(names)) {
-        if (typeof v === "string" && v.trim()) value[k] = v.trim();
-      }
-
-      const supabase = getSupabase();
-      // 기존 값과 머지 (빈 값은 제거)
-      const { data: existing } = await supabase
-        .from(TABLE)
-        .select("value")
-        .eq("key", DISPLAY_NAMES_KEY)
-        .single();
-      const merged: Record<string, string> = (existing?.value && typeof existing.value === "object" && !Array.isArray(existing.value))
-        ? { ...(existing.value as Record<string, string>) }
-        : {};
-      for (const [k, v] of Object.entries(names)) {
-        if (typeof v === "string" && v.trim()) {
-          merged[k] = v.trim();
-        } else {
-          delete merged[k];
-        }
-      }
-
-      const { error } = await supabase.from(TABLE).upsert(
-        { key: DISPLAY_NAMES_KEY, value: merged, updated_at: new Date().toISOString() },
-        { onConflict: "key" }
-      );
-      if (error) {
-        console.warn("app_settings upsert course_display_names error:", error.message);
-        return NextResponse.json({ ok: false, error: error.message });
-      }
-      return NextResponse.json({ ok: true });
-    }
-
     if (body.type === "hidden_comments") {
       const { action, commentId } = body;
       if (!action || typeof commentId !== "string") {
@@ -248,7 +201,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, list });
     }
 
-    return NextResponse.json({ error: "type: instructor_photo | cohort_order | prevCourse_blocklist | excluded_source_fields | course_display_names | hidden_comments 필요" }, { status: 400 });
+    return NextResponse.json({ error: "type: instructor_photo | cohort_order | prevCourse_blocklist | excluded_source_fields | hidden_comments 필요" }, { status: 400 });
   } catch (e) {
     console.warn("app_settings POST error:", e);
     return NextResponse.json({ error: "저장 실패" }, { status: 500 });

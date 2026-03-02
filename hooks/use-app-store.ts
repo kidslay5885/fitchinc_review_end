@@ -453,13 +453,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // 사진/설정 파싱 (실패해도 계속 진행)
       let instructorPhotos: Record<string, { photo?: string; photoPosition?: string; category?: string }> = {};
       let cohortOrders: Record<string, string[]> = {};
-      let courseDisplayNames: Record<string, string> = {};
       if (settingsRes?.ok) {
         try {
           const json = await settingsRes.json();
           instructorPhotos = json.instructorPhotos || {};
           cohortOrders = json.cohortOrders || {};
-          courseDisplayNames = json.courseDisplayNames || {};
         } catch { /* ignore */ }
       }
 
@@ -510,14 +508,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
                   }
                 }
               } catch { /* ignore */ }
-            }
-
-            // 강의 표시명(displayName) 적용
-            for (const course of inst.courses) {
-              const dnKey = `${p.name}|${inst.name}|${course.name}`;
-              if (courseDisplayNames[dnKey]) {
-                course.displayName = courseDisplayNames[dnKey];
-              }
             }
 
             // 수강생 수 복원

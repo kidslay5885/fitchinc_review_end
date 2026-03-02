@@ -7,7 +7,7 @@ import { getSupabase } from "@/lib/supabase";
  * 같은 이름으로 변경하면 자동으로 병합됨
  *
  * Body: { platform, instructor, oldCourse, newCourse }
- * - oldCourse: 현재 강의명 ("" = 기본 과정)
+ * - oldCourse: 현재 강의명
  * - newCourse: 새 강의명
  */
 export async function POST(req: NextRequest) {
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       updated: data?.length || 0,
-      message: `'${oldCourse || "(기본 과정)"}' → '${newCourse || "(기본 과정)"}' ${data?.length || 0}건 변경`,
+      message: `'${oldCourse}' → '${newCourse}' ${data?.length || 0}건 변경`,
     });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "강의명 변경 실패";
