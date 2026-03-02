@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { Instructor, Cohort } from "@/lib/types";
 import { autoStatus, statusBg } from "@/lib/types";
-import { X, User, Trash2, AlertTriangle, Pencil, Merge, Loader2 } from "lucide-react";
+import { X, User, Trash2, AlertTriangle, Pencil, Merge, Loader2, Square, CheckSquare } from "lucide-react";
 import { toast } from "sonner";
 
 interface EditInstructorDialogProps {
@@ -45,6 +45,10 @@ export function EditInstructorDialog({
   // 강의 삭제 확인: courseIdx
   const [confirmDelCourse, setConfirmDelCourse] = useState<number | null>(null);
   const [deletingCourse, setDeletingCourse] = useState(false);
+  // 강의 병합: 체크된 인덱스 Set, 병합 대상 인덱스, 처리 중 플래그
+  const [mergeSelected, setMergeSelected] = useState<Set<number>>(new Set());
+  const [mergeTarget, setMergeTarget] = useState<number | null>(null);
+  const [merging, setMerging] = useState(false);
 
   const updateCohort = (courseIdx: number, cohortIdx: number, field: keyof Cohort, value: string | number) => {
     setData((prev) => ({
@@ -281,8 +285,30 @@ export function EditInstructorDialog({
                 const isEditing = editingCourse[idx] !== undefined;
                 const editValue = editingCourse[idx] ?? "";
                 const isRenamed = idx < instructor.courses.length && instructor.courses[idx].name !== course.name;
+                const isChecked = mergeSelected.has(idx);
+                const cohortCount = course.cohorts.length;
+                const preCount = course.cohorts.filter((c) => c.hasPreSurvey).length;
+                const postCount = course.cohorts.filter((c) => c.hasPostSurvey).length;
+                const surveyLabel = [preCount > 0 && `사전 ${preCount}건`, postCount > 0 && `후기 ${postCount}건`].filter(Boolean).join("+") || `${cohortCount}기수`;
                 return (
-                  <div key={idx} className={`flex items-center gap-2 py-1.5 px-3 rounded-lg border ${isRenamed ? "bg-amber-50 border-amber-300" : "bg-muted/50"}`}>
+                  <div key={idx} className={`flex items-center gap-2 py-1.5 px-3 rounded-lg border ${isRenamed ? "bg-amber-50 border-amber-300" : isChecked ? "bg-blue-50 border-blue-300" : "bg-muted/50"}`}>
+                    {hasMultipleCourses && !isEditing && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMergeSelected((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(idx)) { next.delete(idx); } else { next.add(idx); }
+                            return next;
+                          });
+                          setMergeTarget(null);
+                        }}
+                        className="shrink-0 text-muted-foreground hover:text-primary transition-colors"
+                        title="병합 선택"
+                      >
+                        {isChecked ? <CheckSquare className="w-4 h-4 text-blue-600" /> : <Square className="w-4 h-4" />}
+                      </button>
+                    )}
                     {isEditing ? (
                       <>
                         <input
@@ -322,6 +348,7 @@ export function EditInstructorDialog({
                           </span>
                           <Pencil className="w-3 h-3 text-muted-foreground group-hover/row:text-primary shrink-0 transition-colors" />
                         </button>
+                        <span className="text-[10px] text-muted-foreground shrink-0">({surveyLabel})</span>
                         <button
                           onClick={(e) => { e.stopPropagation(); setConfirmDelCourse(idx); }}
                           className="text-muted-foreground hover:text-destructive shrink-0 transition-colors"
@@ -335,6 +362,79 @@ export function EditInstructorDialog({
                 );
               })}
             </div>
+
+            {/* 강의 병합 패널 */}
+            {mergeSelected.size >= 2 && (
+              <div className="mt-2 p-3 bg-blue-50 rounded-lg border border-blue-300">
+                <div className="text-[13px] font-semibold text-blue-800 mb-2 flex items-center gap-1.5">
+                  <Merge className="w-4 h-4" />
+                  병합할 이름 선택 ({mergeSelected.size}개 강의)
+                </div>
+                <div className="space-y-1 mb-3">
+                  {Array.from(mergeSelected).map((idx) => (
+                    <label key={idx} className="flex items-center gap-2 cursor-pointer py-1 px-2 rounded-md hover:bg-blue-100 transition-colors">
+                      <input
+                        type="radio"
+                        name="merge-target"
+                        checked={mergeTarget === idx}
+                        onChange={() => setMergeTarget(idx)}
+                        className="accent-blue-600"
+                      />
+                      <span className="text-[13px]">{data.courses[idx]?.name || "(기본 과정)"}</span>
+                    </label>
+                  ))}
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <button
+                    onClick={() => { setMergeSelected(new Set()); setMergeTarget(null); }}
+                    disabled={merging}
+                    className="py-1.5 px-4 rounded-md border text-muted-foreground text-[12px] hover:bg-accent disabled:opacity-50"
+                  >
+                    취소
+                  </button>
+                  <button
+                    disabled={mergeTarget === null || merging}
+                    onClick={async () => {
+                      if (mergeTarget === null) return;
+                      setMerging(true);
+                      try {
+                        const targetName = data.courses[mergeTarget].name;
+                        const toRename = Array.from(mergeSelected).filter((idx) => idx !== mergeTarget);
+                        for (const idx of toRename) {
+                          const oldName = instructor.courses[idx]?.name ?? data.courses[idx].name;
+                          const res = await fetch("/api/rename-course", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              platform: platformName,
+                              instructor: instructor.name,
+                              oldCourse: oldName,
+                              newCourse: targetName,
+                            }),
+                          });
+                          const result = await res.json();
+                          if (!res.ok) throw new Error(result.error || "병합 실패");
+                        }
+                        toast.success(`${toRename.length}개 강의를 '${targetName}'(으)로 병합했습니다`);
+                        setMergeSelected(new Set());
+                        setMergeTarget(null);
+                        await onRefresh();
+                        onClose();
+                      } catch (err: unknown) {
+                        const msg = err instanceof Error ? err.message : "병합 실패";
+                        toast.error(msg);
+                      } finally {
+                        setMerging(false);
+                      }
+                    }}
+                    className="py-1.5 px-4 rounded-md bg-blue-600 text-white text-[12px] font-bold flex items-center gap-1.5 hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  >
+                    {merging && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    병합하기
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* 강의 삭제 확인 */}
             {confirmDelCourse !== null && data.courses[confirmDelCourse] && (

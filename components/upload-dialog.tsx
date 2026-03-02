@@ -274,6 +274,30 @@ export function UploadDialog({ onClose }: UploadDialogProps) {
                       {!hasCourse && (
                         <div className="text-[10px] text-amber-600 mt-0.5">강의명을 입력하세요</div>
                       )}
+                      {(() => {
+                        const matchPlatform = state.platforms.find((p) => p.name === f.platform);
+                        const matchInst = matchPlatform?.instructors.find((ins) => ins.name === f.inst);
+                        const existingCourses = matchInst?.courses
+                          .map((c) => c.name)
+                          .filter((name) => name && name !== f.course) ?? [];
+                        if (existingCourses.length === 0) return null;
+                        return (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            <span className="text-[10px] text-muted-foreground leading-[22px]">기존:</span>
+                            {existingCourses.map((name) => (
+                              <button
+                                key={name}
+                                type="button"
+                                onClick={() => updateFile(i, "course", name)}
+                                className="text-[10px] px-1.5 py-0.5 rounded-md border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors truncate max-w-[140px]"
+                                title={name}
+                              >
+                                {name}
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </div>
                     <div>
                       <label className="text-[10px] font-bold text-muted-foreground block mb-1">
