@@ -64,25 +64,28 @@ export async function POST() {
       const comments = parseXLSXToComments(buffer, isPre);
       const responses = parseBufferToResponses(buffer, isPre);
 
-      // 기존 설문 조회 (이전 응답 수 확인용)
+      // 기존 설문 조회 — filename 기반 중복 감지 (같은 파일이면 무조건 교체)
       let oldResponseCount: number | null = null;
       let replaced = false;
+      let existingCourse: string | null = null;
 
-      if (platform && instructor && cohort) {
-        const { data: existing } = await supabase
-          .from("surveys")
-          .select("id, response_count")
-          .match({ platform, instructor, course, cohort, survey_type: surveyType });
+      const { data: existing } = await supabase
+        .from("surveys")
+        .select("id, response_count, course")
+        .eq("filename", filename);
 
-        if (existing && existing.length > 0) {
-          oldResponseCount = existing[0].response_count;
-          const oldIds = existing.map((s) => s.id);
-          await supabase.from("survey_responses").delete().in("survey_id", oldIds);
-          await supabase.from("comments").delete().in("survey_id", oldIds);
-          await supabase.from("surveys").delete().in("id", oldIds);
-          replaced = true;
-        }
+      if (existing && existing.length > 0) {
+        oldResponseCount = existing[0].response_count;
+        existingCourse = existing[0].course;
+        const oldIds = existing.map((s) => s.id);
+        await supabase.from("survey_responses").delete().in("survey_id", oldIds);
+        await supabase.from("comments").delete().in("survey_id", oldIds);
+        await supabase.from("surveys").delete().in("id", oldIds);
+        replaced = true;
       }
+
+      // 기존 course 보존 (사용자가 수동 수정한 강의명 유지)
+      const finalCourse = existingCourse || course;
 
       // surveys 테이블에 저장
       const { data: survey, error: surveyError } = await supabase
@@ -91,7 +94,7 @@ export async function POST() {
           filename,
           platform,
           instructor,
-          course,
+          course: finalCourse,
           cohort,
           survey_type: surveyType,
           status: platform && instructor && cohort ? "classified" : "uploaded",

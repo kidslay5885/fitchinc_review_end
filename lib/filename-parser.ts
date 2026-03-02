@@ -161,6 +161,8 @@ export function parseFilename(
         courseName = courseName.replace(/\s*(수강생|설문지|사전|후기|만족도|피드백|post)\s*/gi, " ").trim();
         // 끝에 남은 괄호/공백 제거
         courseName = courseName.replace(/[(\s]+$/, "").trim();
+        // 닫히지 않은 괄호 제거: "AI 시니어 라디오(유튜브" → "AI 시니어 라디오"
+        courseName = courseName.replace(/\([^)]*$/, "").trim();
         if (courseName.length >= 2) {
           course = courseName;
         }
