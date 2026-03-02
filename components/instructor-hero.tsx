@@ -189,6 +189,18 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
     });
   }, [course, instructor]);
 
+  // 기수 → 소속 강의명 매핑 (전체 보기에서 강의명 구분용)
+  const cohortCourseMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of instructor.courses) {
+      for (const co of c.cohorts) {
+        map.set(co.id, c.name);
+      }
+    }
+    return map;
+  }, [instructor]);
+  const showCourseInTable = !course && instructor.courses.length > 1;
+
   useEffect(() => {
     if (cohort) {
       setTotalInput(cohort.totalStudents ? String(cohort.totalStudents) : "");
@@ -540,6 +552,7 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
           <table className="w-full text-[12px]">
             <thead>
               <tr className="text-[11px] text-muted-foreground font-bold border-b">
+                {showCourseInTable && <th className="py-1.5 px-1.5 text-left">강의</th>}
                 <th className="py-1.5 px-1.5 text-left">기수</th>
                 <th className="py-1.5 px-1.5 text-left">PM</th>
                 <th className="py-1.5 px-1.5 text-left">시작일</th>
@@ -552,6 +565,11 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
             <tbody>
               {visibleCohorts.map(c => (
                 <tr key={c.id} className="border-b last:border-0">
+                  {showCourseInTable && (
+                    <td className="py-1 px-1.5 text-[11px] text-muted-foreground max-w-[120px] truncate" title={cohortCourseMap.get(c.id) || ""}>
+                      {cohortCourseMap.get(c.id) || ""}
+                    </td>
+                  )}
                   <td className="py-1 px-1.5 font-semibold">{c.label}</td>
                   <td className="py-1 px-1">
                     <input
