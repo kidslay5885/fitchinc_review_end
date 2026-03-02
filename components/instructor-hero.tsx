@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import type { Instructor, Cohort, Course } from "@/lib/types";
 import { allCohorts } from "@/lib/types";
 import { computeScores } from "@/lib/analysis-engine";
@@ -105,6 +105,79 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
   };
 
   const origRef = useRef<Record<string, string>>({});
+
+  // 설문 없음 토글 로딩 상태
+  const [togglingCells, setTogglingCells] = useState<Set<string>>(new Set());
+
+  const toggleSurveyMark = useCallback(async (
+    targetCohort: Cohort,
+    surveyType: "사전" | "후기",
+  ) => {
+    if (!onUpdateCohort) return;
+
+    const isSurveyExists = surveyType === "사전" ? targetCohort.hasPreSurvey : targetCohort.hasPostSurvey;
+    const responseCount = surveyType === "사전"
+      ? (targetCohort.preResponses.length || (targetCohort.preCount || 0))
+      : (targetCohort.postResponses.length || (targetCohort.postCount || 0));
+
+    // 실제 응답이 있으면 토글 불가
+    if (responseCount > 0) return;
+
+    const cellKey = `${targetCohort.id}-${surveyType}`;
+    setTogglingCells(prev => new Set(prev).add(cellKey));
+
+    try {
+      const ownerCourse = instructor.courses.find(c => c.cohorts.some(co => co.id === targetCohort.id));
+      const payload = {
+        platform: platformName,
+        instructor: instructor.name,
+        course: ownerCourse?.name || "",
+        cohort: targetCohort.label,
+        surveyType,
+      };
+
+      if (isSurveyExists) {
+        // 플레이스홀더 삭제 → 회색으로 복원
+        const res = await fetch("/api/mark-no-data", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+
+        const updated = { ...targetCohort };
+        if (surveyType === "사전") updated.hasPreSurvey = false;
+        else updated.hasPostSurvey = false;
+        onUpdateCohort(updated);
+        toast.success(`${targetCohort.label} ${surveyType} → 미등록으로 복원`);
+      } else {
+        // 플레이스홀더 생성 → 노란 "없음"으로 전환
+        const res = await fetch("/api/mark-no-data", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+
+        const updated = { ...targetCohort };
+        if (surveyType === "사전") updated.hasPreSurvey = true;
+        else updated.hasPostSurvey = true;
+        onUpdateCohort(updated);
+        toast.success(`${targetCohort.label} ${surveyType} → "없음" 표시`);
+      }
+    } catch (err) {
+      console.error("설문 표시 토글 실패:", err);
+      toast.error("설문 표시 변경 실패");
+    } finally {
+      setTogglingCells(prev => {
+        const next = new Set(prev);
+        next.delete(cellKey);
+        return next;
+      });
+    }
+  }, [instructor, platformName, onUpdateCohort]);
 
   // 현재 보여줄 기수 목록: course가 선택되면 해당 course의 기수, 아니면 전체 (숫자 정렬)
   const visibleCohorts = useMemo(() => {
@@ -532,8 +605,56 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
                       placeholder="0"
                     />
                   </td>
-                  <td className={`py-1 px-1.5 text-center ${c.hasPreSurvey && c.preResponses.length === 0 ? "text-amber-500" : "text-muted-foreground"}`}>{c.hasPreSurvey && c.preResponses.length === 0 ? "없음" : c.preResponses.length}</td>
-                  <td className={`py-1 px-1.5 text-center ${c.hasPostSurvey && c.postResponses.length === 0 ? "text-amber-500" : "text-muted-foreground"}`}>{c.hasPostSurvey && c.postResponses.length === 0 ? "없음" : c.postResponses.length}</td>
+                  {/* 사전 설문 셀 */}
+                  {(() => {
+                    const preCount = c.preResponses.length || (c.preCount || 0);
+                    const hasReal = preCount > 0;
+                    const isNoData = c.hasPreSurvey && !hasReal;
+                    const isToggling = togglingCells.has(`${c.id}-사전`);
+                    return (
+                      <td className={`py-1 px-1.5 text-center ${hasReal ? "text-muted-foreground" : isNoData ? "text-amber-500" : "text-muted-foreground/40"}`}>
+                        {hasReal ? (
+                          preCount
+                        ) : (
+                          <label className="inline-flex items-center gap-1 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={isNoData}
+                              disabled={isToggling}
+                              onChange={() => toggleSurveyMark(c, "사전")}
+                              className="accent-amber-500 w-3.5 h-3.5 cursor-pointer"
+                            />
+                            <span className="text-[11px]">{isToggling ? "…" : isNoData ? "없음" : ""}</span>
+                          </label>
+                        )}
+                      </td>
+                    );
+                  })()}
+                  {/* 후기 설문 셀 */}
+                  {(() => {
+                    const postCount = c.postResponses.length || (c.postCount || 0);
+                    const hasReal = postCount > 0;
+                    const isNoData = c.hasPostSurvey && !hasReal;
+                    const isToggling = togglingCells.has(`${c.id}-후기`);
+                    return (
+                      <td className={`py-1 px-1.5 text-center ${hasReal ? "text-muted-foreground" : isNoData ? "text-amber-500" : "text-muted-foreground/40"}`}>
+                        {hasReal ? (
+                          postCount
+                        ) : (
+                          <label className="inline-flex items-center gap-1 cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={isNoData}
+                              disabled={isToggling}
+                              onChange={() => toggleSurveyMark(c, "후기")}
+                              className="accent-amber-500 w-3.5 h-3.5 cursor-pointer"
+                            />
+                            <span className="text-[11px]">{isToggling ? "…" : isNoData ? "없음" : ""}</span>
+                          </label>
+                        )}
+                      </td>
+                    );
+                  })()}
                 </tr>
               ))}
             </tbody>
