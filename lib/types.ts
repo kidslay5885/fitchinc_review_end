@@ -178,13 +178,19 @@ export function statusBg(s: string): string {
   return "bg-muted text-muted-foreground border-border";
 }
 
-/** 10점 만점 기준으로 반환 (원본 5점 이하면 ×2, 초과면 그대로, 상한 10) */
+/** 10점 만점 기준으로 반환 (개별 응답마다 환산 후 평균) */
 export function cohortAvgScore(c: Cohort): number {
   if (c.postResponses.length === 0) return 0;
-  const total = c.postResponses.reduce((a, r) => a + (r.ps1 + r.ps2) / 2, 0);
-  const raw = total / c.postResponses.length;
-  const outOf10 = raw <= 5 ? Math.min(10, raw * 2) : Math.min(10, raw);
-  return Math.round(outOf10 * 100) / 100;
+  const to10 = (v: number) => (v <= 5 ? Math.min(10, v * 2) : Math.min(10, v));
+  const total = c.postResponses.reduce((a, r) => {
+    const s1 = r.ps1 > 0 ? to10(r.ps1) : 0;
+    const s2 = r.ps2 > 0 ? to10(r.ps2) : 0;
+    const cnt = (r.ps1 > 0 ? 1 : 0) + (r.ps2 > 0 ? 1 : 0);
+    return a + (cnt > 0 ? (s1 + s2) / cnt : 0);
+  }, 0);
+  const withScore = c.postResponses.filter((r) => r.ps1 > 0 || r.ps2 > 0).length;
+  if (withScore === 0) return 0;
+  return Math.round((total / withScore) * 100) / 100;
 }
 
 export function generateId(): string {
