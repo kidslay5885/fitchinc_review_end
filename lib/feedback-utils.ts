@@ -2,18 +2,19 @@ import type { Comment } from "./types";
 
 export type TagValue = Comment["tag"];
 
-/** 네이버 폼(설문) 항목별 표시 라벨 — 검수·전달 시 PM이 구분하기 쉬운 이름 */
+/** 네이버 폼(설문) 항목별 표시 라벨 — 실제 설문 질문 + 출처 */
 export const FIELD_LABELS: Record<string, string> = {
-  hopePlatform: "플랫폼에 바라는 점",
-  hopeInstructor: "강사에게 바라는 점",
-  pFree: "자유 의견",
-  lowScoreReason: "커리큘럼 불만족 사유",
-  lowFeedbackRequest: "피드백 개선 요청",
-  prevExperience: "타 플랫폼 강의 수강 경험",
-  prevCourse: "핏크닉 다른 정규강의 수강 이력",
-  selectReason: "강사님 강의를 선택하신 이유",
-  expectedBenefit: "이번 강의 혜택 중 가장 기대되는 혜택",
-  satOther: "기타 만족 사유",
+  selectReason: "강사님 강의를 선택하신 이유 (사전 설문)",
+  hopePlatform: "플랫폼에 바라는 점 (사전 설문)",
+  hopeInstructor: "강사에게 바라는 점 (사전 설문)",
+  prevExperience: "타 플랫폼 강의 수강 경험 (사전 설문)",
+  prevCourse: "다른 정규강의 수강 이력 (사전 설문)",
+  expectedBenefit: "이번 강의 혜택 중 가장 기대되는 혜택 (사전 설문)",
+  satOther: "'기타' 선택 시 어떤 점이 만족스러웠나요 (후기 설문)",
+  lowScoreReason: "커리큘럼 만족도 2점 이하 선택 이유 (후기 설문)",
+  lowFeedbackRequest: "피드백 만족도 5점 이하 시 바라는 점 (후기 설문)",
+  pFree: "하고 싶은 말씀을 편하게 적어주세요 (후기 설문)",
+  pRec: "이 강의를 지인분들께 추천하실 것 같으신가요 (후기 설문)",
 };
 
 export const FIELD_ORDER = [
