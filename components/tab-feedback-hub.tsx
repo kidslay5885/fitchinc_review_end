@@ -5,6 +5,7 @@ import type { Instructor, Course, Cohort, Comment, Survey } from "@/lib/types";
 import {
   FIELD_LABELS,
   FIELD_ORDER,
+  DEFAULT_EXCLUDED_FIELDS,
   TAG_OPTIONS,
   getTagColor,
   getTagLabel,
@@ -40,8 +41,8 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
   const [sentimentFilter, setSentimentFilter] = useState<"all" | "positive" | "negative" | "neutral">("all");
   const [search, setSearch] = useState("");
 
-  // 제외 설문 항목
-  const [excludedFields, setExcludedFields] = useState<Set<string>>(new Set());
+  // 제외 설문 항목 (디폴트: prevCourse, expectedBenefit)
+  const [excludedFields, setExcludedFields] = useState<Set<string>>(new Set(DEFAULT_EXCLUDED_FIELDS));
   const [showFieldSettings, setShowFieldSettings] = useState(false);
 
   // 숨긴 댓글
