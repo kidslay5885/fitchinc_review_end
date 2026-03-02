@@ -19,6 +19,7 @@ import {
   User,
   CheckCircle2,
   EyeOff,
+  Eye,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -89,6 +90,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
 
   // 숨긴 댓글
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  const [showHidden, setShowHidden] = useState(false);
 
   // 상세 뷰 스크롤 ref
   const detailRef = useRef<HTMLDivElement>(null);
@@ -130,6 +132,23 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
       });
     } catch {
       toast.error("숨기기 저장 실패");
+    }
+  };
+
+  const restoreComment = async (commentId: string) => {
+    setHiddenIds((prev) => {
+      const next = new Set(prev);
+      next.delete(commentId);
+      return next;
+    });
+    try {
+      await fetch("/api/app-settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "hidden_comments", action: "remove", commentId }),
+      });
+    } catch {
+      toast.error("복원 저장 실패");
     }
   };
 
@@ -233,11 +252,16 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
     return Array.from(set).sort();
   }, [comments]);
 
+  // 숨긴 댓글 수
+  const hiddenCount = useMemo(() => {
+    return comments.filter((c) => hiddenIds.has(c.id)).length;
+  }, [comments, hiddenIds]);
+
   // 강사별 요약 카드 데이터 (항상 전체 댓글 기준, 확인완료 건수 포함)
   const instructorSummaries = useMemo(() => {
     const map = new Map<string, InstructorSummary>();
     for (const c of comments) {
-      if (hiddenIds.has(c.id)) continue;
+      if (showHidden ? !hiddenIds.has(c.id) : hiddenIds.has(c.id)) continue;
       if (platformFilter !== "all" && c._platform !== platformFilter) continue;
       const key = `${c._platform}|${c._instructor}`;
       if (!map.has(key)) {
@@ -271,7 +295,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
 
     result.sort((a, b) => b.total - a.total);
     return result;
-  }, [comments, platformFilter, search, confirmedIds, hiddenIds]);
+  }, [comments, platformFilter, search, confirmedIds, hiddenIds, showHidden]);
 
   const totalCount = useMemo(
     () => instructorSummaries.reduce((sum, s) => sum + s.total, 0),
@@ -434,6 +458,21 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
             ))}
           </div>
           <div className="flex-1" />
+          {hiddenCount > 0 && (
+            <button
+              type="button"
+              onClick={() => { setShowHidden((v) => !v); setSelectedInstructor(null); }}
+              className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-[13px] font-medium border transition-colors ${
+                showHidden
+                  ? "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100"
+                  : "bg-card hover:bg-muted/80 text-muted-foreground"
+              }`}
+              title={showHidden ? "숨긴 댓글 보기 해제" : "숨긴 댓글 보기"}
+            >
+              {showHidden ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+              숨긴 댓글 {hiddenCount}건
+            </button>
+          )}
           <span className="text-[13px] text-muted-foreground font-semibold">
             총 {totalCount}건
           </span>
@@ -728,26 +767,39 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
                             )}
                           </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => hideComment(comment.id)}
-                          title="이 댓글 숨기기"
-                          className="shrink-0 p-1 rounded text-muted-foreground/40 hover:text-rose-500 transition-colors"
-                        >
-                          <EyeOff className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => toggleConfirm(comment.id)}
-                          title={isConfirmed ? "확인 완료 해제" : "확인 완료"}
-                          className={`shrink-0 p-1 rounded transition-colors ${
-                            isConfirmed
-                              ? "text-emerald-600 hover:text-emerald-800"
-                              : "text-muted-foreground/40 hover:text-emerald-600"
-                          }`}
-                        >
-                          <CheckCircle2 className="w-4.5 h-4.5" />
-                        </button>
+                        {showHidden ? (
+                          <button
+                            type="button"
+                            onClick={() => restoreComment(comment.id)}
+                            title="이 댓글 복원"
+                            className="shrink-0 p-1 rounded text-amber-600 hover:text-emerald-600 transition-colors"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => hideComment(comment.id)}
+                              title="이 댓글 숨기기"
+                              className="shrink-0 p-1 rounded text-muted-foreground/40 hover:text-rose-500 transition-colors"
+                            >
+                              <EyeOff className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => toggleConfirm(comment.id)}
+                              title={isConfirmed ? "확인 완료 해제" : "확인 완료"}
+                              className={`shrink-0 p-1 rounded transition-colors ${
+                                isConfirmed
+                                  ? "text-emerald-600 hover:text-emerald-800"
+                                  : "text-muted-foreground/40 hover:text-emerald-600"
+                              }`}
+                            >
+                              <CheckCircle2 className="w-4.5 h-4.5" />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
                   );
