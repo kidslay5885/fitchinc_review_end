@@ -806,21 +806,21 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
               엑셀으로 내보내기
             </button>
             {/* 숨긴 댓글 토글 */}
-            {hiddenCount > 0 && (
-              <button
-                type="button"
-                onClick={() => setShowHidden((v) => !v)}
-                className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-[13px] font-medium border transition-colors ${
-                  showHidden
-                    ? "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100"
-                    : "bg-card hover:bg-muted/80 text-muted-foreground"
-                }`}
-                title={showHidden ? "숨긴 댓글 보기 해제" : "숨긴 댓글 보기"}
-              >
-                {showHidden ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                숨긴 댓글 {hiddenCount}건
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => hiddenCount > 0 && setShowHidden((v) => !v)}
+              className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-[13px] font-medium border transition-colors ${
+                showHidden
+                  ? "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100"
+                  : hiddenCount > 0
+                    ? "bg-card hover:bg-muted/80 text-muted-foreground"
+                    : "bg-card text-muted-foreground/50 cursor-default"
+              }`}
+              title={hiddenCount === 0 ? "숨긴 댓글 없음" : showHidden ? "숨긴 댓글 보기 해제" : "숨긴 댓글 보기"}
+            >
+              {showHidden ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+              숨긴 댓글 {hiddenCount}건
+            </button>
             {/* 설문 항목 제외 설정 */}
             {allSourceFieldsInData.length > 0 && (
               <div className="relative">
