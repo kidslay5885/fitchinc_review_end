@@ -148,14 +148,15 @@ export function parseBufferToResponses(
 
 // ===== 서버용: Buffer → 댓글 목록 =====
 
-// 세부 분류 대상 8개 문항만 포함
+// 세부 분류 대상 문항
 const TEXT_FIELDS = [
   "selectReason", "hopePlatform", "hopeInstructor",
   "satOther", "lowScoreReason", "lowFeedbackRequest", "pFree", "pRec",
+  "prevCourse", "prevExperience", "expectedBenefit",
 ] as const;
 
 // 사전 설문 전용 필드
-const PRE_FIELDS = new Set(["selectReason", "hopePlatform", "hopeInstructor"]);
+const PRE_FIELDS = new Set(["selectReason", "hopePlatform", "hopeInstructor", "prevCourse", "prevExperience", "expectedBenefit"]);
 // 후기 설문 전용 필드
 const POST_FIELDS = new Set(["satOther", "lowScoreReason", "lowFeedbackRequest", "pFree", "pRec"]);
 

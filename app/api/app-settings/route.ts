@@ -12,6 +12,7 @@ function cohortOrderKey(platform: string, instructor: string, course: string = "
 }
 
 const BLOCKLIST_KEY = "prevCourse_blocklist";
+const EXCLUDED_FIELDS_KEY = "excluded_source_fields";
 
 /** GET: 모든 앱 설정 조회 (강사 사진, 기수 순서, 수강이력 블랙리스트) - 새 창/새로고침 시 복원용 */
 export async function GET() {
@@ -21,12 +22,13 @@ export async function GET() {
 
     if (error) {
       console.error("app_settings GET error (table may not exist):", error.message, error.code);
-      return NextResponse.json({ instructorPhotos: {}, cohortOrders: {}, prevCourseBlocklist: [] });
+      return NextResponse.json({ instructorPhotos: {}, cohortOrders: {}, prevCourseBlocklist: [], excludedSourceFields: [] });
     }
 
     const instructorPhotos: Record<string, { photo: string; photoPosition: string; category?: string }> = {};
     const cohortOrders: Record<string, string[]> = {};
     let prevCourseBlocklist: string[] = [];
+    let excludedSourceFields: string[] = [];
 
     for (const row of data || []) {
       const key = row.key as string;
@@ -42,17 +44,19 @@ export async function GET() {
         cohortOrders[key] = value.filter((x) => typeof x === "string");
       } else if (key === BLOCKLIST_KEY && Array.isArray(value)) {
         prevCourseBlocklist = value.filter((x) => typeof x === "string");
+      } else if (key === EXCLUDED_FIELDS_KEY && Array.isArray(value)) {
+        excludedSourceFields = value.filter((x) => typeof x === "string");
       }
     }
 
     return NextResponse.json(
-      { instructorPhotos, cohortOrders, prevCourseBlocklist },
+      { instructorPhotos, cohortOrders, prevCourseBlocklist, excludedSourceFields },
       { headers: { "Cache-Control": "no-store, max-age=0" } },
     );
   } catch (e) {
     console.warn("app_settings GET error:", e);
     return NextResponse.json(
-      { instructorPhotos: {}, cohortOrders: {}, prevCourseBlocklist: [] },
+      { instructorPhotos: {}, cohortOrders: {}, prevCourseBlocklist: [], excludedSourceFields: [] },
       { headers: { "Cache-Control": "no-store, max-age=0" } },
     );
   }
@@ -140,7 +144,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, list });
     }
 
-    return NextResponse.json({ error: "type: instructor_photo | cohort_order | prevCourse_blocklist 필요" }, { status: 400 });
+    if (body.type === "excluded_source_fields") {
+      const { fields } = body;
+      if (!Array.isArray(fields)) {
+        return NextResponse.json({ error: "fields: string[] 필요" }, { status: 400 });
+      }
+      const value = fields.filter((x: unknown) => typeof x === "string");
+
+      const supabase = getSupabase();
+      const { error } = await supabase.from(TABLE).upsert(
+        { key: EXCLUDED_FIELDS_KEY, value, updated_at: new Date().toISOString() },
+        { onConflict: "key" }
+      );
+      if (error) {
+        console.warn("app_settings upsert excluded_source_fields error:", error.message);
+        return NextResponse.json({ ok: false, error: error.message });
+      }
+      return NextResponse.json({ ok: true });
+    }
+
+    return NextResponse.json({ error: "type: instructor_photo | cohort_order | prevCourse_blocklist | excluded_source_fields 필요" }, { status: 400 });
   } catch (e) {
     console.warn("app_settings POST error:", e);
     return NextResponse.json({ error: "저장 실패" }, { status: 500 });

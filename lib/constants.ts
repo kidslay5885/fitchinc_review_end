@@ -32,6 +32,9 @@ export const COLUMN_PATTERNS: Record<string, RegExp> = {
   pRec: /추천.*지인|지인.*추천|추천하실/i,
   lowScoreReason: /2점.*이하.*이유|이하.*이유.*무엇|커리큘럼.*불만/i,
   lowFeedbackRequest: /5점.*이하.*바라는|이하.*바라는.*점|피드백.*개선/i,
+  prevCourse: /다른.*정규강의|정규강의.*수강|핏크닉.*수강.*이력|머니업.*수강.*이력/i,
+  prevExperience: /타.*플랫폼.*수강|다른.*플랫폼.*경험|수강.*경험/i,
+  expectedBenefit: /기대되는.*혜택|혜택.*기대|강의.*혜택/i,
 };
 
 export const PLATFORM_NAMES = ["핏크닉", "머니업클래스"] as const;

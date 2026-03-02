@@ -15,7 +15,7 @@ import {
   type TagValue,
   type PlatformSub,
 } from "@/lib/feedback-utils";
-import { Loader2, Search, Copy, Check, X, FileText, Sparkles, Download } from "lucide-react";
+import { Loader2, Search, Copy, Check, X, FileText, Sparkles, Download, Settings2 } from "lucide-react";
 import { toast } from "sonner";
 
 type HubView = "untagged" | "instructor" | "platform" | "all";
@@ -39,6 +39,10 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
   const [sourceFieldFilter, setSourceFieldFilter] = useState<string>("all");
   const [sentimentFilter, setSentimentFilter] = useState<"all" | "positive" | "negative" | "neutral">("all");
   const [search, setSearch] = useState("");
+
+  // 제외 설문 항목
+  const [excludedFields, setExcludedFields] = useState<Set<string>>(new Set());
+  const [showFieldSettings, setShowFieldSettings] = useState(false);
 
   // 체크박스 선택 (미분류 뷰 일괄 태깅 + 강사 뷰 복사)
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -70,6 +74,18 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
   const courseName = course?.name ?? null;
   const abortRef = useRef<AbortController | null>(null);
 
+  // 제외 항목 초기 로드
+  useEffect(() => {
+    fetch("/api/app-settings")
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d.excludedSourceFields) && d.excludedSourceFields.length > 0) {
+          setExcludedFields(new Set(d.excludedSourceFields));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     loadComments();
     return () => { abortRef.current?.abort(); };
@@ -97,7 +113,7 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
   };
 
   const fetchAiSuggestions = async () => {
-    const untagged = comments.filter((c) => effectiveTag(c) === null);
+    const untagged = activeComments.filter((c) => effectiveTag(c) === null);
     if (untagged.length === 0) {
       toast.info("미분류 항목이 없습니다");
       return;
@@ -174,26 +190,54 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
     }
   };
 
+  // 제외 항목 토글
+  const toggleExcludedField = (field: string) => {
+    setExcludedFields((prev) => {
+      const next = new Set(prev);
+      if (next.has(field)) next.delete(field);
+      else next.add(field);
+      const arr = Array.from(next);
+      fetch("/api/app-settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "excluded_source_fields", fields: arr }),
+      }).catch(() => toast.error("설정 저장 실패"));
+      return next;
+    });
+  };
+
+  // 제외 필터 적용된 댓글
+  const activeComments = useMemo(() => {
+    if (excludedFields.size === 0) return comments;
+    return comments.filter((c) => !excludedFields.has(c.source_field));
+  }, [comments, excludedFields]);
+
   // 기수 목록
   const cohortLabels = useMemo(() => {
-    const labels = new Set(comments.map((c) => c.cohortLabel).filter(Boolean));
+    const labels = new Set(activeComments.map((c) => c.cohortLabel).filter(Boolean));
     return Array.from(labels).sort();
-  }, [comments]);
+  }, [activeComments]);
 
-  // 네이버 폼 출처 항목 (현재 데이터에 있는 source_field만, FIELD_ORDER 순)
-  const sourceFieldsInData = useMemo(() => {
+  // 네이버 폼 출처 항목 (현재 데이터에 있는 source_field만, FIELD_ORDER 순) — 제외 설정 UI용은 전체 comments 기준
+  const allSourceFieldsInData = useMemo(() => {
     const set = new Set(comments.map((c) => c.source_field));
     return FIELD_ORDER.filter((f) => set.has(f));
   }, [comments]);
 
+  // 필터 드롭다운용은 activeComments 기준
+  const sourceFieldsInData = useMemo(() => {
+    const set = new Set(activeComments.map((c) => c.source_field));
+    return FIELD_ORDER.filter((f) => set.has(f));
+  }, [activeComments]);
+
   // 태그별 카운트
-  const untaggedCount = comments.filter((c) => effectiveTag(c) === null).length;
-  const instructorCount = comments.filter((c) => effectiveTag(c) === "instructor").length;
-  const platformCount = comments.filter((c) => isPlatformTag(effectiveTag(c))).length;
+  const untaggedCount = activeComments.filter((c) => effectiveTag(c) === null).length;
+  const instructorCount = activeComments.filter((c) => effectiveTag(c) === "instructor").length;
+  const platformCount = activeComments.filter((c) => isPlatformTag(effectiveTag(c))).length;
 
   // 필터링
   const filtered = useMemo(() => {
-    return comments.filter((c) => {
+    return activeComments.filter((c) => {
 
       const et = effectiveTag(c);
 
@@ -222,7 +266,7 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
       }
       return true;
     });
-  }, [comments, hubView, platformSub, cohortFilter, sourceFieldFilter, sentimentFilter, search]);
+  }, [activeComments, hubView, platformSub, cohortFilter, sourceFieldFilter, sentimentFilter, search]);
 
   const exportToExcel = () => {
     if (filtered.length === 0) {
@@ -662,7 +706,7 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
           <div className="flex items-center gap-4 flex-wrap">
             <div className="flex gap-0.5 bg-muted rounded-lg p-0.5 border w-fit">
               {([
-                { id: "all" as HubView, label: `전체 ${comments.length}` },
+                { id: "all" as HubView, label: `전체 ${activeComments.length}` },
                 { id: "platform" as HubView, label: `플랫폼 ${platformCount}` },
                 { id: "instructor" as HubView, label: `강사 ${instructorCount}` },
                 ...(!readOnly ? [{ id: "untagged" as HubView, label: `미분류 ${untaggedCount}` }] : []),
@@ -693,6 +737,55 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
               <Download className="w-3.5 h-3.5" />
               엑셀으로 내보내기
             </button>
+            {/* 설문 항목 제외 설정 */}
+            {allSourceFieldsInData.length > 0 && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowFieldSettings((v) => !v)}
+                  className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-[13px] font-medium border transition-colors ${
+                    excludedFields.size > 0
+                      ? "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100"
+                      : "bg-card hover:bg-muted/80 text-foreground"
+                  }`}
+                  title="분류에서 제외할 설문 항목을 설정합니다"
+                >
+                  <Settings2 className="w-3.5 h-3.5" />
+                  설문 항목 설정
+                  {excludedFields.size > 0 && (
+                    <span className="ml-1 text-[11px] bg-amber-200 text-amber-900 rounded-full px-1.5 py-0.5 font-bold leading-none">
+                      {excludedFields.size}개 제외
+                    </span>
+                  )}
+                </button>
+                {showFieldSettings && (
+                  <div className="absolute top-full left-0 mt-1 z-50 bg-card rounded-xl border shadow-xl p-3 min-w-[240px]">
+                    <div className="text-[13px] font-bold mb-2">포함할 설문 항목</div>
+                    <div className="text-[11px] text-muted-foreground mb-2">체크 해제하면 해당 항목의 댓글이 분류에서 제외됩니다</div>
+                    <div className="grid gap-1">
+                      {allSourceFieldsInData.map((field) => (
+                        <label key={field} className="flex items-center gap-2 py-1 px-2 rounded-lg hover:bg-muted/50 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={!excludedFields.has(field)}
+                            onChange={() => toggleExcludedField(field)}
+                            className="w-3.5 h-3.5 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                          />
+                          <span className="text-[13px]">{FIELD_LABELS[field] || field}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowFieldSettings(false)}
+                      className="mt-2 w-full py-1.5 rounded-lg border text-[12px] text-muted-foreground hover:bg-muted transition-colors"
+                    >
+                      닫기
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -25,6 +25,9 @@ export const FIELD_ORDER = [
   "lowFeedbackRequest",
   "pFree",
   "pRec",
+  "prevExperience",
+  "prevCourse",
+  "expectedBenefit",
 ];
 
 export const NOISE_RE =
