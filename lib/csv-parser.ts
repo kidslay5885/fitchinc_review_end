@@ -161,7 +161,7 @@ const PRE_FIELDS = new Set(["selectReason", "hopePlatform", "hopeInstructor", "p
 const POST_FIELDS = new Set(["satOther", "lowScoreReason", "lowFeedbackRequest", "pFree", "pRec"]);
 
 // 피드백으로 의미 없는 짧은/일반적 응답 필터
-const NOISE_PATTERNS = /^(네|예|아니요|없습니다|없음|감사합니다|고맙습니다|좋습니다|좋았습니다|잘 모르겠습니다|모르겠습니다|특별히 없습니다|딱히 없습니다|아직 없습니다|글쎄요|x|X|-|강의 내용|커리큘럼|피드백|추천합니다|네 추천합니다|예 추천합니다|네 너무 좋습니다|[.\s]*)$/;
+const NOISE_PATTERNS = /^(네|예|아니요|없습니다|없음|감사합니다|고맙습니다|좋습니다|좋았습니다|잘 모르겠습니다|모르겠습니다|잘 모르겠어요|특별히 없습니다|딱히 없습니다|아직 없습니다|아직 없어요|별로 없습니다|별로 없어요|글쎄요|x|X|-|강의 내용|커리큘럼|피드백|추천합니다|네 추천합니다|예 추천합니다|네 너무 좋습니다|없어요|특별한 건 없습니다|특별한 건 없어요|없는 것 같습니다|없는 것 같아요|생각이 안 납니다|생각이 안 나요|[.\s]*)$/;
 
 export interface ParsedComment {
   respondent: string;

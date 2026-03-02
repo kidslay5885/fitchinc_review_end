@@ -18,6 +18,7 @@ import {
   ChevronUp,
   User,
   CheckCircle2,
+  EyeOff,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -86,6 +87,9 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
   const [confirmedIds, setConfirmedIds] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<"unconfirmed" | "confirmed">("unconfirmed");
 
+  // 숨긴 댓글
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+
   // 상세 뷰 스크롤 ref
   const detailRef = useRef<HTMLDivElement>(null);
 
@@ -97,6 +101,36 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
       const ids: string[] = await res.json();
       setConfirmedIds(new Set(ids));
     } catch { /* ignore */ }
+  };
+
+  // 숨긴 댓글 로드
+  const loadHiddenComments = async () => {
+    try {
+      const res = await fetch("/api/app-settings");
+      if (!res.ok) return;
+      const d = await res.json();
+      if (Array.isArray(d.hiddenComments) && d.hiddenComments.length > 0) {
+        setHiddenIds(new Set(d.hiddenComments));
+      }
+    } catch { /* ignore */ }
+  };
+
+  // 댓글 숨기기
+  const hideComment = async (commentId: string) => {
+    setHiddenIds((prev) => {
+      const next = new Set(prev);
+      next.add(commentId);
+      return next;
+    });
+    try {
+      await fetch("/api/app-settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "hidden_comments", action: "add", commentId }),
+      });
+    } catch {
+      toast.error("숨기기 저장 실패");
+    }
   };
 
   const toggleConfirm = async (commentId: string) => {
@@ -150,6 +184,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
     resetDetailFilters();
     loadComments(role);
     loadConfirmed();
+    loadHiddenComments();
   }, [role]);
 
   const resetDetailFilters = () => {
@@ -202,6 +237,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
   const instructorSummaries = useMemo(() => {
     const map = new Map<string, InstructorSummary>();
     for (const c of comments) {
+      if (hiddenIds.has(c.id)) continue;
       if (platformFilter !== "all" && c._platform !== platformFilter) continue;
       const key = `${c._platform}|${c._instructor}`;
       if (!map.has(key)) {
@@ -235,7 +271,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
 
     result.sort((a, b) => b.total - a.total);
     return result;
-  }, [comments, platformFilter, search, confirmedIds]);
+  }, [comments, platformFilter, search, confirmedIds, hiddenIds]);
 
   const totalCount = useMemo(
     () => instructorSummaries.reduce((sum, s) => sum + s.total, 0),
@@ -692,6 +728,14 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
                             )}
                           </div>
                         </div>
+                        <button
+                          type="button"
+                          onClick={() => hideComment(comment.id)}
+                          title="이 댓글 숨기기"
+                          className="shrink-0 p-1 rounded text-muted-foreground/40 hover:text-rose-500 transition-colors"
+                        >
+                          <EyeOff className="w-4 h-4" />
+                        </button>
                         <button
                           type="button"
                           onClick={() => toggleConfirm(comment.id)}

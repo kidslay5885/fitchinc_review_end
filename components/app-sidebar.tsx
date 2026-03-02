@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useAppStore, useSelectedPlatform } from "@/hooks/use-app-store";
 import { autoStatus, statusBg, allCohorts } from "@/lib/types";
 import { getOrderedCohorts, setCohortOrder } from "@/lib/cohort-order";
-import { Settings, Upload, ChevronDown, ChevronUp, User, GripVertical, BookOpen } from "lucide-react";
+import { Settings, Upload, ChevronDown, ChevronUp, User, GripVertical, BookOpen, Check, X as XIcon } from "lucide-react";
 import type { Instructor, Course } from "@/lib/types";
 
 interface AppSidebarProps {
@@ -18,6 +18,50 @@ export function AppSidebar({ onUpload, onEditInstructor, readOnly }: AppSidebarP
   const plat = useSelectedPlatform();
   const [orderKey, setOrderKey] = useState(0);
   const [zoomPhoto, setZoomPhoto] = useState<{ src: string; name: string; pos: string } | null>(null);
+
+  // 인라인 표시명 편집 상태
+  const [editingDN, setEditingDN] = useState<{ courseId: string; instructorId: string; value: string } | null>(null);
+  const dnInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editingDN && dnInputRef.current) {
+      dnInputRef.current.focus();
+      dnInputRef.current.select();
+    }
+  }, [editingDN]);
+
+  const saveDisplayName = useCallback(async (instructorId: string, courseId: string, newDisplayName: string) => {
+    if (!plat) return;
+    const inst = plat.instructors.find((i) => i.id === instructorId);
+    if (!inst) return;
+    const course = inst.courses.find((c) => c.id === courseId);
+    if (!course) return;
+
+    const trimmed = newDisplayName.trim();
+    // 변경 없으면 스킵
+    if (trimmed === (course.displayName || "")) {
+      setEditingDN(null);
+      return;
+    }
+
+    // 서버에 저장
+    const key = `${plat.name}|${inst.name}|${course.name}`;
+    fetch("/api/app-settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "course_display_names", names: { [key]: trimmed } }),
+    }).catch(() => {});
+
+    // 스토어 업데이트 (즉시 반영)
+    const updatedInstructor: Instructor = {
+      ...inst,
+      courses: inst.courses.map((c) =>
+        c.id === courseId ? { ...c, displayName: trimmed || undefined } : c
+      ),
+    };
+    dispatch({ type: "UPDATE_INSTRUCTOR", instructor: updatedInstructor });
+    setEditingDN(null);
+  }, [plat, dispatch]);
 
   const hasMultipleCourses = (inst: Instructor) => inst.courses.length > 1;
 
@@ -121,9 +165,9 @@ export function AppSidebar({ onUpload, onEditInstructor, readOnly }: AppSidebarP
                           </span>
                         )}
                       </div>
-                      <div className="text-[11px] text-muted-foreground">
+                      <div className="text-[11px] text-muted-foreground truncate" title={instructor.courses.map((c) => c.name || "기본 과정").join(" · ")}>
                         {instructor.courses.length > 0
-                          ? instructor.courses.map((c) => c.name || "기본 과정").join(" · ")
+                          ? instructor.courses.map((c) => c.displayName || c.name || "기본 과정").join(" · ")
                           : instructor.category || ""}
                       </div>
                     </div>
@@ -167,22 +211,60 @@ export function AppSidebar({ onUpload, onEditInstructor, readOnly }: AppSidebarP
                       </div>
                       {instructor.courses.map((course) => {
                         const isCourseSelected = state.selectedCourseId === course.id;
+                        const isEditingThis = editingDN?.courseId === course.id && editingDN?.instructorId === instructor.id;
                         return (
                           <div key={course.id}>
+                            {isEditingThis ? (
+                              <div className="py-1 px-2 rounded-md text-[12px] border-l-2 border-l-primary bg-primary/5 flex items-center gap-1">
+                                <BookOpen className="w-3 h-3 shrink-0 text-primary" />
+                                <input
+                                  ref={dnInputRef}
+                                  value={editingDN.value}
+                                  onChange={(e) => setEditingDN({ ...editingDN, value: e.target.value })}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") saveDisplayName(instructor.id, course.id, editingDN.value);
+                                    if (e.key === "Escape") setEditingDN(null);
+                                  }}
+                                  onBlur={() => saveDisplayName(instructor.id, course.id, editingDN.value)}
+                                  placeholder={course.name || "표시명 입력"}
+                                  className="flex-1 min-w-0 py-0.5 px-1.5 rounded border text-[12px] bg-card focus:outline-none focus:ring-1 focus:ring-primary"
+                                />
+                                <button
+                                  onMouseDown={(e) => { e.preventDefault(); saveDisplayName(instructor.id, course.id, editingDN.value); }}
+                                  className="shrink-0 text-primary hover:text-primary/80"
+                                  title="저장"
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onMouseDown={(e) => { e.preventDefault(); setEditingDN(null); }}
+                                  className="shrink-0 text-muted-foreground hover:text-foreground"
+                                  title="취소"
+                                >
+                                  <XIcon className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ) : (
                             <div
                               onClick={() => {
                                 dispatch({ type: "SELECT_COURSE", id: isCourseSelected ? null : course.id });
                                 dispatch({ type: "SELECT_COHORT", id: null });
                               }}
+                              onDoubleClick={!readOnly ? (e) => {
+                                e.stopPropagation();
+                                setEditingDN({ courseId: course.id, instructorId: instructor.id, value: course.displayName || "" });
+                              } : undefined}
                               className={`py-1.5 px-2.5 rounded-md text-[12px] border-l-2 min-h-[32px] flex items-center gap-1 cursor-pointer ${
                                 isCourseSelected
                                   ? "font-semibold text-primary bg-primary/5 border-l-primary"
                                   : "text-muted-foreground border-l-transparent hover:bg-accent"
                               }`}
+                              title={`${course.name || "기본 과정"}${!readOnly ? "\n더블클릭: 표시명 변경" : ""}`}
                             >
                               <BookOpen className="w-3 h-3 shrink-0" />
-                              <span className="truncate">{course.name || "기본 과정"}</span>
+                              <span className="truncate">{course.displayName || course.name || "기본 과정"}</span>
                             </div>
+                            )}
 
                             {/* 해당 강의의 기수 목록 */}
                             {isCourseSelected && (

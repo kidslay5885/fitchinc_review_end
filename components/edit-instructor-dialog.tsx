@@ -39,6 +39,14 @@ export function EditInstructorDialog({
   });
   const [confirmDel, setConfirmDel] = useState<null | "inst" | string>(null);
 
+  // 강의 표시명: courseIdx → 표시명
+  const [displayNames, setDisplayNames] = useState<Record<number, string>>(() => {
+    const init: Record<number, string> = {};
+    for (let i = 0; i < instructor.courses.length; i++) {
+      init[i] = instructor.courses[i].displayName || "";
+    }
+    return init;
+  });
   // 강의명 편집 상태: courseIdx → 편집 중인 새 이름
   const [editingCourse, setEditingCourse] = useState<Record<number, string>>({});
   const [saving, setSaving] = useState(false);
@@ -161,10 +169,33 @@ export function EditInstructorDialog({
         }
       }
 
-      // 2. 사진/카테고리/기수 정보 저장
+      // 2. 표시명(displayName) 변경 처리
+      const dnChanges: Record<string, string> = {};
+      let hasDnChange = false;
+      for (let i = 0; i < data.courses.length; i++) {
+        const courseName = data.courses[i].name;
+        const newDn = (displayNames[i] || "").trim();
+        const oldDn = (instructor.courses[i]?.displayName || "").trim();
+        if (newDn !== oldDn) {
+          hasDnChange = true;
+          const key = `${platformName}|${instructor.name}|${courseName}`;
+          dnChanges[key] = newDn;
+        }
+        // displayName을 data에 반영 (onSave에 전달)
+        data.courses[i] = { ...data.courses[i], displayName: newDn || undefined };
+      }
+      if (hasDnChange) {
+        await fetch("/api/app-settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ type: "course_display_names", names: dnChanges }),
+        });
+      }
+
+      // 3. 사진/카테고리/기수 정보 저장
       onSave(data);
 
-      // 3. 강의명 변경이 있을 때만 hierarchy 새로고침 (사진만 변경 시 불필요한 전체 리로드 방지)
+      // 4. 강의명 변경이 있을 때만 hierarchy 새로고침 (사진만 변경 시 불필요한 전체 리로드 방지)
       if (hasRename) {
         await onRefresh();
       }
@@ -337,17 +368,30 @@ export function EditInstructorDialog({
                       </>
                     ) : (
                       <>
-                        <button
-                          onClick={() => setEditingCourse((prev) => ({ ...prev, [idx]: course.name }))}
-                          className="flex-1 flex items-center gap-1.5 text-left cursor-pointer group/row hover:text-primary transition-colors"
-                          title="클릭하여 강의명 변경"
-                        >
-                          <span className="text-[13px] font-semibold truncate">
-                            {course.name || "(기본 과정)"}
-                            {isRenamed && <span className="text-[10px] text-amber-600 font-normal ml-1.5">변경됨</span>}
-                          </span>
-                          <Pencil className="w-3 h-3 text-muted-foreground group-hover/row:text-primary shrink-0 transition-colors" />
-                        </button>
+                        <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => setEditingCourse((prev) => ({ ...prev, [idx]: course.name }))}
+                              className="flex items-center gap-1 text-left cursor-pointer group/row hover:text-primary transition-colors min-w-0"
+                              title="클릭하여 강의명 변경"
+                            >
+                              <span className="text-[13px] font-semibold truncate">
+                                {course.name || "(기본 과정)"}
+                                {isRenamed && <span className="text-[10px] text-amber-600 font-normal ml-1.5">변경됨</span>}
+                              </span>
+                              <Pencil className="w-3 h-3 text-muted-foreground group-hover/row:text-primary shrink-0 transition-colors" />
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-muted-foreground shrink-0">표시명</span>
+                            <input
+                              value={displayNames[idx] || ""}
+                              onChange={(e) => setDisplayNames((prev) => ({ ...prev, [idx]: e.target.value }))}
+                              placeholder="짧은 별칭 (선택)"
+                              className="flex-1 py-0.5 px-1.5 rounded border text-[11px] bg-card min-w-0"
+                            />
+                          </div>
+                        </div>
                         <span className="text-[10px] text-muted-foreground shrink-0">({surveyLabel})</span>
                         <button
                           onClick={(e) => { e.stopPropagation(); setConfirmDelCourse(idx); }}

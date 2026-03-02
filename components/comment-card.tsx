@@ -1,6 +1,7 @@
 "use client";
 
 import type { Comment } from "@/lib/types";
+import { FIELD_LABELS } from "@/lib/feedback-utils";
 
 interface CommentCardProps {
   comment: Comment;
@@ -43,8 +44,8 @@ export function CommentCard({ comment, onToggleSentiment }: CommentCardProps) {
             <span className="text-[12px] font-bold text-foreground/80">
               {comment.respondent}
             </span>
-            <span className="text-[10px] text-muted-foreground">
-              {comment.source_field}
+            <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+              {FIELD_LABELS[comment.source_field] || comment.source_field}
             </span>
           </div>
           <p className="text-[13px] leading-relaxed">{comment.original_text}</p>

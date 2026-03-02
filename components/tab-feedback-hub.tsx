@@ -15,7 +15,7 @@ import {
   type TagValue,
   type PlatformSub,
 } from "@/lib/feedback-utils";
-import { Loader2, Search, Copy, Check, X, FileText, Sparkles, Download, Settings2 } from "lucide-react";
+import { Loader2, Search, Copy, Check, X, FileText, Sparkles, Download, Settings2, EyeOff, Eye } from "lucide-react";
 import { toast } from "sonner";
 
 type HubView = "untagged" | "instructor" | "platform" | "all";
@@ -43,6 +43,10 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
   // 제외 설문 항목
   const [excludedFields, setExcludedFields] = useState<Set<string>>(new Set());
   const [showFieldSettings, setShowFieldSettings] = useState(false);
+
+  // 숨긴 댓글
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
+  const [showHidden, setShowHidden] = useState(false);
 
   // 체크박스 선택 (미분류 뷰 일괄 태깅 + 강사 뷰 복사)
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -74,13 +78,16 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
   const courseName = course?.name ?? null;
   const abortRef = useRef<AbortController | null>(null);
 
-  // 제외 항목 초기 로드
+  // 제외 항목 + 숨긴 댓글 초기 로드
   useEffect(() => {
     fetch("/api/app-settings")
       .then((r) => r.json())
       .then((d) => {
         if (Array.isArray(d.excludedSourceFields) && d.excludedSourceFields.length > 0) {
           setExcludedFields(new Set(d.excludedSourceFields));
+        }
+        if (Array.isArray(d.hiddenComments) && d.hiddenComments.length > 0) {
+          setHiddenIds(new Set(d.hiddenComments));
         }
       })
       .catch(() => {});
@@ -206,11 +213,54 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
     });
   };
 
-  // 제외 필터 적용된 댓글
+  // 댓글 숨기기/복원
+  const hideComment = async (commentId: string) => {
+    setHiddenIds((prev) => {
+      const next = new Set(prev);
+      next.add(commentId);
+      return next;
+    });
+    try {
+      await fetch("/api/app-settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "hidden_comments", action: "add", commentId }),
+      });
+    } catch {
+      toast.error("숨기기 저장 실패");
+    }
+  };
+
+  const restoreComment = async (commentId: string) => {
+    setHiddenIds((prev) => {
+      const next = new Set(prev);
+      next.delete(commentId);
+      return next;
+    });
+    try {
+      await fetch("/api/app-settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "hidden_comments", action: "remove", commentId }),
+      });
+    } catch {
+      toast.error("복원 저장 실패");
+    }
+  };
+
+  // 제외 필터 + 숨긴 댓글 적용
   const activeComments = useMemo(() => {
-    if (excludedFields.size === 0) return comments;
-    return comments.filter((c) => !excludedFields.has(c.source_field));
-  }, [comments, excludedFields]);
+    return comments.filter((c) => {
+      if (excludedFields.size > 0 && excludedFields.has(c.source_field)) return false;
+      if (!showHidden && hiddenIds.has(c.id)) return false;
+      return true;
+    });
+  }, [comments, excludedFields, hiddenIds, showHidden]);
+
+  // 숨긴 댓글 수 (제외 필터 무관)
+  const hiddenCount = useMemo(() => {
+    return comments.filter((c) => hiddenIds.has(c.id)).length;
+  }, [comments, hiddenIds]);
 
   // 기수 목록
   const cohortLabels = useMemo(() => {
@@ -499,10 +549,28 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
                 {comment.respondent}
               </span>
               {comment.cohortLabel && <span>{comment.cohortLabel}</span>}
-              {hubView === "untagged" && (
-                <span className="text-[11px] bg-muted px-1.5 py-0.5 rounded">
-                  {FIELD_LABELS[comment.source_field] || comment.source_field}
-                </span>
+              <span className="text-[11px] bg-muted px-1.5 py-0.5 rounded">
+                {FIELD_LABELS[comment.source_field] || comment.source_field}
+              </span>
+              {!readOnly && !showHidden && (
+                <button
+                  type="button"
+                  onClick={() => hideComment(comment.id)}
+                  title="이 댓글 숨기기"
+                  className="p-0.5 rounded text-muted-foreground/40 hover:text-rose-500 transition-colors"
+                >
+                  <EyeOff className="w-3.5 h-3.5" />
+                </button>
+              )}
+              {showHidden && hiddenIds.has(comment.id) && (
+                <button
+                  type="button"
+                  onClick={() => restoreComment(comment.id)}
+                  title="이 댓글 복원"
+                  className="p-0.5 rounded text-amber-600 hover:text-emerald-600 transition-colors"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                </button>
               )}
             </div>
             {/* 미분류 + AI 분류 결과: 태그·감정 버튼 그룹으로 편집 가능 */}
@@ -737,6 +805,22 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
               <Download className="w-3.5 h-3.5" />
               엑셀으로 내보내기
             </button>
+            {/* 숨긴 댓글 토글 */}
+            {hiddenCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowHidden((v) => !v)}
+                className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-[13px] font-medium border transition-colors ${
+                  showHidden
+                    ? "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100"
+                    : "bg-card hover:bg-muted/80 text-muted-foreground"
+                }`}
+                title={showHidden ? "숨긴 댓글 보기 해제" : "숨긴 댓글 보기"}
+              >
+                {showHidden ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                숨긴 댓글 {hiddenCount}건
+              </button>
+            )}
             {/* 설문 항목 제외 설정 */}
             {allSourceFieldsInData.length > 0 && (
               <div className="relative">

@@ -88,6 +88,7 @@ export interface Cohort {
 export interface Course {
   id: string;
   name: string;
+  displayName?: string;
   cohorts: Cohort[];
 }
 
