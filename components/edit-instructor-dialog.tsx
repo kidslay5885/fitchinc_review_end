@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { Instructor, Cohort } from "@/lib/types";
 import { autoStatus, statusBg } from "@/lib/types";
-import { X, User, Trash2, AlertTriangle, Pencil, Merge, Loader2, Square, CheckSquare } from "lucide-react";
+import { X, User, Trash2, AlertTriangle, Pencil, Merge, Loader2, Square, CheckSquare, ArrowRightLeft } from "lucide-react";
 import { toast } from "sonner";
 
 interface EditInstructorDialogProps {
@@ -49,6 +49,10 @@ export function EditInstructorDialog({
   const [mergeSelected, setMergeSelected] = useState<Set<number>>(new Set());
   const [mergeTarget, setMergeTarget] = useState<number | null>(null);
   const [merging, setMerging] = useState(false);
+  // 플랫폼 이동: courseIdx
+  const [movingPlatformIdx, setMovingPlatformIdx] = useState<number | null>(null);
+  const [movingPlatform, setMovingPlatform] = useState(false);
+  const PLATFORMS = ["핏크닉", "머니업클래스"];
 
   const updateCohort = (courseIdx: number, cohortIdx: number, field: keyof Cohort, value: string | number) => {
     setData((prev) => ({
@@ -354,6 +358,13 @@ export function EditInstructorDialog({
                         </div>
                         <span className="text-[10px] text-muted-foreground shrink-0">({surveyLabel})</span>
                         <button
+                          onClick={(e) => { e.stopPropagation(); setMovingPlatformIdx(movingPlatformIdx === idx ? null : idx); }}
+                          className="text-muted-foreground hover:text-blue-600 shrink-0 transition-colors"
+                          title="플랫폼 이동"
+                        >
+                          <ArrowRightLeft className="w-3.5 h-3.5" />
+                        </button>
+                        <button
                           onClick={(e) => { e.stopPropagation(); setConfirmDelCourse(idx); }}
                           className="text-muted-foreground hover:text-destructive shrink-0 transition-colors"
                           title="강의 삭제"
@@ -435,6 +446,65 @@ export function EditInstructorDialog({
                   >
                     {merging && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                     병합하기
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 플랫폼 이동 패널 */}
+            {movingPlatformIdx !== null && data.courses[movingPlatformIdx] && (
+              <div className="mt-2 p-3 bg-indigo-50 rounded-lg border border-indigo-300">
+                <div className="text-[13px] font-semibold text-indigo-800 mb-2 flex items-center gap-1.5">
+                  <ArrowRightLeft className="w-4 h-4" />
+                  &apos;{data.courses[movingPlatformIdx].name}&apos; 플랫폼 이동
+                </div>
+                <div className="text-[12px] text-muted-foreground mb-2">
+                  현재: <span className="font-semibold text-foreground">{platformName}</span> → 이동할 플랫폼:
+                </div>
+                <div className="flex gap-2 mb-3">
+                  {PLATFORMS.filter((p) => p !== platformName).map((p) => (
+                    <button
+                      key={p}
+                      disabled={movingPlatform}
+                      onClick={async () => {
+                        setMovingPlatform(true);
+                        try {
+                          const courseName = data.courses[movingPlatformIdx].name;
+                          const res = await fetch("/api/move-platform", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              instructor: instructor.name,
+                              course: courseName,
+                              fromPlatform: platformName,
+                              toPlatform: p,
+                            }),
+                          });
+                          const result = await res.json();
+                          if (!res.ok) throw new Error(result.error || "이동 실패");
+                          toast.success(`'${courseName}' → ${p} 이동 완료 (${result.updated}건)`);
+                          setMovingPlatformIdx(null);
+                          await onRefresh();
+                          onClose();
+                        } catch (err: unknown) {
+                          const msg = err instanceof Error ? err.message : "이동 실패";
+                          toast.error(msg);
+                        } finally {
+                          setMovingPlatform(false);
+                        }
+                      }}
+                      className="py-1.5 px-4 rounded-md bg-indigo-600 text-white text-[12px] font-bold flex items-center gap-1.5 hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                    >
+                      {movingPlatform && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                      {p}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setMovingPlatformIdx(null)}
+                    disabled={movingPlatform}
+                    className="py-1.5 px-4 rounded-md border text-muted-foreground text-[12px] hover:bg-accent disabled:opacity-50"
+                  >
+                    취소
                   </button>
                 </div>
               </div>
