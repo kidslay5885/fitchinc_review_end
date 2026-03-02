@@ -1,6 +1,24 @@
 import type { SurveyResponse, Cohort } from "./types";
 import { COLUMN_PATTERNS } from "./constants";
 
+// ---- 표준 필드 → 한국어 라벨 매핑 (설문 질문 목록용) ----
+const STANDARD_LABELS: Record<string, string> = {
+  name: "수강생 이름",
+  gender: "성별",
+  age: "연령대",
+  job: "현재 하고 계신 일",
+  hours: "하루에 부업에 투자할 수 있는 시간",
+  channel: "알게 되신 경로",
+  computer: "컴퓨터 활용 능력",
+  goal: "목표 수익",
+  pSat: "수강 과정 중 만족스러웠던 점",
+  ps1: "전반적인 강의 커리큘럼 만족도",
+  ps2: "강사님의 피드백 만족도",
+  pFmt: "선호하는 강의 방식",
+  pFree: "하고 싶은 말",
+  pRec: "지인 추천 의향",
+};
+
 // ---- rawData 추출 패턴 ----
 // XLSX 컬럼명에 매칭되지 않아 rawData에 보관된 필드를 패턴으로 추출
 export const RAW_DATA_PATTERNS: Record<string, RegExp> = {
@@ -330,4 +348,42 @@ export function collectExtraQuestions(responses: SurveyResponse[]): ExtraQuestio
       total: Object.values(summary).reduce((a, b) => a + b, 0),
     }))
     .sort((a, b) => b.total - a.total);
+}
+
+/**
+ * 설문 응답 데이터에서 모든 질문(열 헤더)을 수집하여 리스트로 반환.
+ * - 매핑된 표준 필드: 한국어 라벨로 대체 (실제 값이 있는 필드만)
+ * - rawData 키: 원본 질문 텍스트 그대로 (SKIP_COL 제외)
+ */
+export function collectAllQuestions(responses: SurveyResponse[]): string[] {
+  const questions: string[] = [];
+  const usedFields = new Set<string>();
+
+  // 1) 표준 필드: 응답에 실제 값이 있는 필드만 한국어 라벨로 추가
+  for (const r of responses) {
+    for (const [field, label] of Object.entries(STANDARD_LABELS)) {
+      if (usedFields.has(field)) continue;
+      const val = r[field as keyof SurveyResponse];
+      if (val != null && String(val).trim() && String(val).trim() !== "0") {
+        questions.push(label);
+        usedFields.add(field);
+      }
+    }
+  }
+
+  // 2) rawData 키: 원본 질문 텍스트 (SKIP_COL 제외)
+  const rawKeys = new Set<string>();
+  for (const r of responses) {
+    if (!r.rawData) continue;
+    for (const key of Object.keys(r.rawData)) {
+      const k = key.trim();
+      if (SKIP_COL.test(k)) continue;
+      rawKeys.add(k);
+    }
+  }
+  for (const k of rawKeys) {
+    questions.push(k.replace(/\(\*\)\s*$/, "").trim());
+  }
+
+  return questions;
 }

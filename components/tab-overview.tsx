@@ -10,8 +10,9 @@ import {
   extractFromRawData,
   RAW_DATA_PATTERNS,
   collectExtraQuestions,
+  collectAllQuestions,
 } from "@/lib/analysis-engine";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, ClipboardList, X } from "lucide-react";
 import { toast } from "sonner";
 import { RingScore } from "@/components/ring-score";
 import {
@@ -475,6 +476,11 @@ export function TabOverview({ instructor, course, cohort, platformName, readOnly
   const extraPreQuestions = useMemo(() => collectExtraQuestions(preResponses), [preResponses]);
   const extraPostQuestions = useMemo(() => collectExtraQuestions(postResponses), [postResponses]);
 
+  // 설문 질문 보기 모달
+  const [questionsOpen, setQuestionsOpen] = useState(false);
+  const preQuestions = useMemo(() => collectAllQuestions(preResponses), [preResponses]);
+  const postQuestions = useMemo(() => collectAllQuestions(postResponses), [postResponses]);
+
   const noData = preResponses.length === 0 && postResponses.length === 0;
 
   if (noData) {
@@ -534,8 +540,70 @@ export function TabOverview({ instructor, course, cohort, platformName, readOnly
 
   return (
     <div className="space-y-6">
-      {/* scope label */}
-      <div className="text-[12px] text-muted-foreground">{platformName} · {scopeLabel}</div>
+      {/* scope label + 설문 질문 보기 */}
+      <div className="flex items-center gap-3 text-[12px] text-muted-foreground">
+        <span>{platformName} · {scopeLabel}</span>
+        <button
+          type="button"
+          onClick={() => setQuestionsOpen(true)}
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-[11px] font-medium text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
+        >
+          <ClipboardList className="w-3 h-3" />
+          설문 질문 보기
+        </button>
+      </div>
+
+      {/* 설문 질문 목록 모달 */}
+      {questionsOpen && (
+        <div
+          className="fixed inset-0 bg-black/20 z-[200] flex items-center justify-center"
+          onClick={() => setQuestionsOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-card rounded-[14px] p-7 shadow-xl border max-h-[80vh] overflow-y-auto"
+            style={{ width: 560 }}
+          >
+            <div className="flex justify-between items-center mb-5">
+              <h3 className="text-[17px] font-extrabold">설문 질문 목록</h3>
+              <button
+                onClick={() => setQuestionsOpen(false)}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* 사전 설문 */}
+            <div className="mb-5">
+              <div className="text-[13px] font-bold mb-2">📋 사전 설문</div>
+              {preQuestions.length > 0 ? (
+                <ol className="list-decimal list-inside space-y-1 text-[13px] text-foreground/80 pl-1">
+                  {preQuestions.map((q, i) => (
+                    <li key={i}>{q}</li>
+                  ))}
+                </ol>
+              ) : (
+                <div className="text-[12px] text-muted-foreground py-3">해당 설문 데이터 없음</div>
+              )}
+            </div>
+
+            {/* 후기 설문 */}
+            <div>
+              <div className="text-[13px] font-bold mb-2">📋 후기 설문</div>
+              {postQuestions.length > 0 ? (
+                <ol className="list-decimal list-inside space-y-1 text-[13px] text-foreground/80 pl-1">
+                  {postQuestions.map((q, i) => (
+                    <li key={i}>{q}</li>
+                  ))}
+                </ol>
+              ) : (
+                <div className="text-[12px] text-muted-foreground py-3">해당 설문 데이터 없음</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* summary cards */}
       <div className="grid grid-cols-4 gap-4">
