@@ -114,20 +114,31 @@ export function computeDemographics(responses: SurveyResponse[]): DemographicSta
   let computerSum = 0;
   let computerCount = 0;
 
+  // 안전한 문자열 변환 (객체가 올 경우 방어)
+  const s = (v: unknown): string => (typeof v === "string" ? v : v == null ? "" : typeof v === "object" ? "" : String(v));
+
   for (const r of responses) {
-    if (r.gender) gender[r.gender] = (gender[r.gender] || 0) + 1;
-    if (r.age) {
+    const genderVal = s(r.gender);
+    const ageVal = s(r.age);
+    const jobVal = s(r.job);
+    const hoursVal = s(r.hours);
+    const goalVal = s(r.goal);
+    const channelVal = s(r.channel);
+    const computerVal = Number(r.computer) || 0;
+
+    if (genderVal) gender[genderVal] = (gender[genderVal] || 0) + 1;
+    if (ageVal) {
       // "60대" → "60대 이상" 정규화 (차트 기본 카테고리와 일치)
-      const ageKey = /^60대$/.test(r.age.trim()) ? "60대 이상" : r.age;
+      const ageKey = /^60대$/.test(ageVal.trim()) ? "60대 이상" : ageVal;
       age[ageKey] = (age[ageKey] || 0) + 1;
     }
-    if (r.job) job[r.job] = (job[r.job] || 0) + 1;
-    if (r.hours) hours[r.hours] = (hours[r.hours] || 0) + 1;
-    if (r.goal) goal[r.goal] = (goal[r.goal] || 0) + 1;
-    if (r.channel) channel[r.channel] = (channel[r.channel] || 0) + 1;
-    if (r.computer > 0) {
-      computerDist[r.computer] = (computerDist[r.computer] || 0) + 1;
-      computerSum += r.computer;
+    if (jobVal) job[jobVal] = (job[jobVal] || 0) + 1;
+    if (hoursVal) hours[hoursVal] = (hours[hoursVal] || 0) + 1;
+    if (goalVal) goal[goalVal] = (goal[goalVal] || 0) + 1;
+    if (channelVal) channel[channelVal] = (channel[channelVal] || 0) + 1;
+    if (computerVal > 0) {
+      computerDist[computerVal] = (computerDist[computerVal] || 0) + 1;
+      computerSum += computerVal;
       computerCount++;
     }
 
@@ -207,15 +218,18 @@ export function computeScores(postResponses: SurveyResponse[]): ComputeScoresRes
   let ps2Count = 0;
 
   for (const r of postResponses) {
-    if (r.ps1 > 0) {
-      ps1Sum += to10(r.ps1);
+    const ps1 = Number(r.ps1) || 0;
+    const ps2 = Number(r.ps2) || 0;
+    const pRec = typeof r.pRec === "string" ? r.pRec : String(r.pRec ?? "");
+    if (ps1 > 0) {
+      ps1Sum += to10(ps1);
       ps1Count++;
     }
-    if (r.ps2 > 0) {
-      ps2Sum += to10(r.ps2);
+    if (ps2 > 0) {
+      ps2Sum += to10(ps2);
       ps2Count++;
     }
-    if (/네|넵|추천|강추|할|싶/i.test(r.pRec)) recCount++;
+    if (/네|넵|추천|강추|할|싶/i.test(pRec)) recCount++;
   }
 
   const n = postResponses.length;
@@ -269,7 +283,8 @@ export function getSatisfactionItems(postResponses: SurveyResponse[]) {
   const items: Record<string, number> = {};
   for (const r of postResponses) {
     if (!r.pSat) continue;
-    const parts = r.pSat.split("|").map((s) => s.trim());
+    const sat = typeof r.pSat === "string" ? r.pSat : String(r.pSat ?? "");
+    const parts = sat.split("|").map((s) => s.trim());
     for (const p of parts) {
       if (p) items[p] = (items[p] || 0) + 1;
     }

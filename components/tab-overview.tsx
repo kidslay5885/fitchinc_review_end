@@ -114,14 +114,32 @@ function pctLabel(value: number, total: number) {
   return `${Math.round((value / total) * 100)}%`;
 }
 
+// ---- helpers: safe rendering ----
+
+/** 차트 데이터의 name/value를 문자열/숫자로 강제 정규화 */
+function safeChartData(data: { name: string; value: number }[]): { name: string; value: number }[] {
+  return data.map((d) => ({
+    name: typeof d.name === "string" ? d.name : String(d.name ?? ""),
+    value: typeof d.value === "number" ? d.value : (Number(d.value) || 0),
+  }));
+}
+
+/** 값이 객체인 경우 안전하게 문자열로 변환 */
+function safe(v: unknown): string {
+  if (v == null) return "";
+  if (typeof v === "string") return v;
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  return "";
+}
+
 // ---- sub-components ----
 
 export function SummaryCard({ label, value, sub, tip }: { label: string; value: string | number; sub?: string; tip?: string }) {
   return (
     <div className={`rounded-xl border bg-card p-4 text-center ${tip ? "cursor-help" : "cursor-default"}`} title={tip}>
-      <div className="text-[12px] text-muted-foreground mb-1">{label}</div>
-      <div className="text-2xl font-extrabold">{value}</div>
-      {sub && <div className="text-[11px] text-muted-foreground mt-0.5">{sub}</div>}
+      <div className="text-[12px] text-muted-foreground mb-1">{safe(label)}</div>
+      <div className="text-2xl font-extrabold">{safe(value)}</div>
+      {sub && <div className="text-[11px] text-muted-foreground mt-0.5">{safe(sub)}</div>}
     </div>
   );
 }
@@ -139,7 +157,8 @@ export function ChartCard({ title, children, empty, tip }: { title: string; chil
   );
 }
 
-export function DonutChart({ data, colors }: { data: { name: string; value: number }[]; colors?: string[] }) {
+export function DonutChart({ data: rawData, colors }: { data: { name: string; value: number }[]; colors?: string[] }) {
+  const data = safeChartData(rawData);
   const total = data.reduce((s, d) => s + d.value, 0);
   const getColor = (i: number) => colors?.[i] ?? PIE_COLORS[i % PIE_COLORS.length];
   return (
@@ -165,13 +184,13 @@ export function DonutChart({ data, colors }: { data: { name: string; value: numb
       </ResponsiveContainer>
       <div className="flex flex-col gap-1.5 text-[12px]">
         {data.map((d, i) => (
-          <div key={d.name} className="flex items-center gap-2">
+          <div key={String(d.name)} className="flex items-center gap-2">
             <span
               className="inline-block w-2.5 h-2.5 rounded-full shrink-0"
               style={{ background: getColor(i) }}
             />
-            <span className="text-muted-foreground">{d.name}</span>
-            <span className="font-semibold">{d.value}명</span>
+            <span className="text-muted-foreground">{safe(d.name)}</span>
+            <span className="font-semibold">{safe(d.value)}명</span>
             <span className="text-muted-foreground">({pctLabel(d.value, total)})</span>
           </div>
         ))}
@@ -180,14 +199,16 @@ export function DonutChart({ data, colors }: { data: { name: string; value: numb
   );
 }
 
-export function HBarChart({ data }: { data: { name: string; value: number }[] }) {
+export function HBarChart({ data: rawData }: { data: { name: string; value: number }[] }) {
+  const data = safeChartData(rawData);
   const maxVal = Math.max(...data.map((d) => d.value), 1);
   const total = data.reduce((s, d) => s + d.value, 0);
   const renderLabel = (props: { x: number; y: number; width: number; height: number; value: number }) => {
-    const pct = total > 0 ? Math.round((props.value / total) * 100) : 0;
+    const v = Number(props.value) || 0;
+    const pct = total > 0 ? Math.round((v / total) * 100) : 0;
     return (
       <text x={props.x + props.width + 4} y={props.y + props.height / 2} dominantBaseline="central" fontSize={11} fill="#666">
-        {props.value}<tspan fontSize={9} fill="#999">({pct}%)</tspan>
+        {String(v)}<tspan fontSize={9} fill="#999">({String(pct)}%)</tspan>
       </text>
     );
   };
@@ -218,7 +239,7 @@ export function RecDonut({ postResponses }: { postResponses: SurveyResponse[] })
   let etcCount = 0;
 
   for (const r of postResponses) {
-    const v = (r.pRec || "").trim();
+    const v = safe(r.pRec).trim();
     if (!v) continue;
     if (/네|넵|추천|강추|할|싶/i.test(v)) yesCount++;
     else if (/아니|없|안|글쎄/i.test(v)) noCount++;
@@ -236,7 +257,8 @@ export function RecDonut({ postResponses }: { postResponses: SurveyResponse[] })
 }
 
 /** 긴 라벨용 세로 리스트 + 인라인 바 (expectedBenefit 등) */
-export function ListBar({ data }: { data: { name: string; value: number }[] }) {
+export function ListBar({ data: rawData }: { data: { name: string; value: number }[] }) {
+  const data = safeChartData(rawData);
   const maxVal = Math.max(...data.map((d) => d.value), 1);
   const total = data.reduce((s, d) => s + d.value, 0);
   return (
@@ -244,11 +266,11 @@ export function ListBar({ data }: { data: { name: string; value: number }[] }) {
       {data.map((d) => {
         const pct = total > 0 ? Math.round((d.value / total) * 100) : 0;
         return (
-          <div key={d.name}>
+          <div key={String(d.name)}>
             <div className="flex items-baseline justify-between gap-2 mb-0.5">
-              <span className="text-[12px] text-foreground leading-snug">{d.name}</span>
+              <span className="text-[12px] text-foreground leading-snug">{safe(d.name)}</span>
               <span className="text-[11px] text-muted-foreground whitespace-nowrap shrink-0">
-                {d.value}명 ({pct}%)
+                {safe(d.value)}명 ({String(pct)}%)
               </span>
             </div>
             <div className="h-2 rounded-full bg-muted overflow-hidden">
@@ -271,8 +293,8 @@ function CollapsibleTextList({ responses, pattern, emptyMsg }: { responses: Surv
     const result: { name: string; text: string }[] = [];
     for (const r of responses) {
       if (!r.rawData) continue;
-      const text = extractFromRawData(r.rawData, pattern).trim();
-      if (text.length > 1) result.push({ name: r.name, text });
+      const text = safe(extractFromRawData(r.rawData, pattern)).trim();
+      if (text.length > 1) result.push({ name: safe(r.name), text });
     }
     return result;
   }, [responses, pattern]);
@@ -293,8 +315,8 @@ function CollapsibleTextList({ responses, pattern, emptyMsg }: { responses: Surv
         <ul className="mt-2 space-y-1.5 max-h-[300px] overflow-y-auto">
           {items.map((item, i) => (
             <li key={i} className="text-[13px] pl-3 border-l-2 border-muted">
-              <span className="font-medium text-foreground/70">{item.name}</span>{" "}
-              <span className="text-muted-foreground">{item.text}</span>
+              <span className="font-medium text-foreground/70">{safe(item.name)}</span>{" "}
+              <span className="text-muted-foreground">{safe(item.text)}</span>
             </li>
           ))}
         </ul>
@@ -355,7 +377,7 @@ function YesNoDonutWithDetails({
                   }`}
                   title={onRemove ? "클릭하여 없음 처리" : undefined}
                 >
-                  {d}
+                  {safe(d)}
                 </li>
               ))}
             </ul>
@@ -388,7 +410,7 @@ function YesNoDonutWithDetails({
                     }`}
                     title={isBlocked ? "클릭하여 있음으로 되돌리기" : undefined}
                   >
-                    {d}
+                    {safe(d)}
                   </li>
                 );
               })}
@@ -529,8 +551,9 @@ export function TabOverview({ instructor, course, cohort, platformName, readOnly
   const fmtData = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const r of postResponses) {
-      if (!r.pFmt) continue;
-      const parts = r.pFmt.split("|").map((s) => s.trim());
+      const fmt = typeof r.pFmt === "string" ? r.pFmt : String(r.pFmt ?? "");
+      if (!fmt) continue;
+      const parts = fmt.split("|").map((s) => s.trim());
       for (const p of parts) {
         if (p) counts[p] = (counts[p] || 0) + 1;
       }
@@ -580,7 +603,7 @@ export function TabOverview({ instructor, course, cohort, platformName, readOnly
               {preQuestions.length > 0 ? (
                 <ol className="list-decimal list-inside space-y-1 text-[13px] text-foreground/80 pl-1">
                   {preQuestions.map((q, i) => (
-                    <li key={i}>{q}</li>
+                    <li key={i}>{safe(q)}</li>
                   ))}
                 </ol>
               ) : (
@@ -594,7 +617,7 @@ export function TabOverview({ instructor, course, cohort, platformName, readOnly
               {postQuestions.length > 0 ? (
                 <ol className="list-decimal list-inside space-y-1 text-[13px] text-foreground/80 pl-1">
                   {postQuestions.map((q, i) => (
-                    <li key={i}>{q}</li>
+                    <li key={i}>{safe(q)}</li>
                   ))}
                 </ol>
               ) : (

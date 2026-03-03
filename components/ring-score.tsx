@@ -59,7 +59,7 @@ function RingScoreContent({
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
           <span className="text-sm font-extrabold" style={{ color }}>
-            {score}
+            {String(score)}
           </span>
         </div>
       </div>
