@@ -434,22 +434,7 @@ interface TabOverviewProps {
 }
 
 export function TabOverview({ instructor, course, cohort, platformName, readOnly }: TabOverviewProps) {
-  // ★★★ 절대 최소 테스트: hooks 전부 제거, 순수 텍스트만 반환 ★★★
-  // 이것도 에러 나면 → 에러는 TabOverview 밖 (page.tsx, InstructorHero 등)
-  return (
-    <div className="p-6 bg-green-50 border-2 border-green-400 rounded-lg">
-      <div className="text-[16px] font-bold text-green-800 mb-2">
-        {"[NUCLEAR TEST] TabOverview 순수 텍스트"}
-      </div>
-      <div className="text-[13px]">{"instructor: " + String(instructor?.name ?? "?")}</div>
-      <div className="text-[13px]">{"platform: " + String(platformName ?? "?")}</div>
-      <div className="text-[13px]">{"course: " + String(course?.name ?? "전체")}</div>
-      <div className="text-[13px]">{"cohort: " + String(cohort?.label ?? "전체")}</div>
-    </div>
-  );
-
-  // ★★★ 아래 원본 코드 전부 비활성화 (unreachable) ★★★
-  // eslint-disable-next-line no-unreachable
+  // ★★★ HOOK 이진탐색: 모든 hooks 활성 + 텍스트만 렌더 ★★★
   const [blocklist, setBlocklist] = useState<string[]>([]);
 
   useEffect(() => {
@@ -520,6 +505,24 @@ export function TabOverview({ instructor, course, cohort, platformName, readOnly
   const postQuestions = useMemo(() => collectAllQuestions(postResponses), [postResponses]);
 
   const noData = preResponses.length === 0 && postResponses.length === 0;
+
+  // ★ HOOK TEST: 모든 hooks 실행 후, 순수 텍스트만 반환
+  // 에러 발생 시 → useMemo 중 하나가 React #300을 유발
+  return (
+    <div className="p-6 bg-blue-50 border-2 border-blue-400 rounded-lg text-[13px] space-y-1">
+      <div className="text-[16px] font-bold text-blue-800 mb-2">
+        {"[HOOK TEST] 모든 hooks 활성화 + 텍스트 렌더"}
+      </div>
+      <div>{"instructor: " + String(instructor?.name ?? "?")}</div>
+      <div>{"pre: " + String(preResponses.length) + " / post: " + String(postResponses.length)}</div>
+      <div>{"ps1Avg: " + String(scores.ps1Avg) + " / ps2Avg: " + String(scores.ps2Avg)}</div>
+      <div>{"recRate: " + String(scores.recRate)}</div>
+      <div>{"gender: " + String(JSON.stringify(demographics.gender))}</div>
+      <div>{"satItems: " + String(satItems.length)}</div>
+      <div>{"extraPre: " + String(extraPreQuestions.length) + " / extraPost: " + String(extraPostQuestions.length)}</div>
+      <div>{"preQ: " + String(preQuestions.length) + " / postQ: " + String(postQuestions.length)}</div>
+    </div>
+  );
 
   if (noData) {
     return (
