@@ -434,7 +434,6 @@ interface TabOverviewProps {
 }
 
 export function TabOverview({ instructor, course, cohort, platformName, readOnly }: TabOverviewProps) {
-  // ★★★ HOOK 이진탐색: 모든 hooks 활성 + 텍스트만 렌더 ★★★
   const [blocklist, setBlocklist] = useState<string[]>([]);
 
   useEffect(() => {
@@ -504,25 +503,37 @@ export function TabOverview({ instructor, course, cohort, platformName, readOnly
   const preQuestions = useMemo(() => collectAllQuestions(preResponses), [preResponses]);
   const postQuestions = useMemo(() => collectAllQuestions(postResponses), [postResponses]);
 
-  const noData = preResponses.length === 0 && postResponses.length === 0;
+  // 블랙리스트 적용 — 모든 hook은 early return 전에 호출
+  const { filteredPrevCourseData, filteredPrevCourseDetails, blockedPrevCourseItems } = useMemo(() => {
+    const blockedItems = demographics.prevCourseDetails.filter((d) => blocklist.includes(d));
+    const filteredDetails = demographics.prevCourseDetails.filter((d) => !blocklist.includes(d));
+    const adjustedPrevCourse = { ...demographics.prevCourse };
+    if (blockedItems.length > 0) {
+      adjustedPrevCourse["있음"] = Math.max(0, (adjustedPrevCourse["있음"] || 0) - blockedItems.length);
+      adjustedPrevCourse["없음"] = (adjustedPrevCourse["없음"] || 0) + blockedItems.length;
+    }
+    return {
+      filteredPrevCourseData: toChartData(adjustedPrevCourse),
+      filteredPrevCourseDetails: filteredDetails,
+      blockedPrevCourseItems: blockedItems,
+    };
+  }, [demographics.prevCourse, demographics.prevCourseDetails, blocklist]);
 
-  // ★ HOOK TEST: 모든 hooks 실행 후, 순수 텍스트만 반환
-  // 에러 발생 시 → useMemo 중 하나가 React #300을 유발
-  return (
-    <div className="p-6 bg-blue-50 border-2 border-blue-400 rounded-lg text-[13px] space-y-1">
-      <div className="text-[16px] font-bold text-blue-800 mb-2">
-        {"[HOOK TEST] 모든 hooks 활성화 + 텍스트 렌더"}
-      </div>
-      <div>{"instructor: " + String(instructor?.name ?? "?")}</div>
-      <div>{"pre: " + String(preResponses.length) + " / post: " + String(postResponses.length)}</div>
-      <div>{"ps1Avg: " + String(scores.ps1Avg) + " / ps2Avg: " + String(scores.ps2Avg)}</div>
-      <div>{"recRate: " + String(scores.recRate)}</div>
-      <div>{"gender: " + String(JSON.stringify(demographics.gender))}</div>
-      <div>{"satItems: " + String(satItems.length)}</div>
-      <div>{"extraPre: " + String(extraPreQuestions.length) + " / extraPost: " + String(extraPostQuestions.length)}</div>
-      <div>{"preQ: " + String(preQuestions.length) + " / postQ: " + String(postQuestions.length)}</div>
-    </div>
-  );
+  // 선호 강의 방식 (후기 설문 pFmt) — 모든 hook은 early return 전에 호출
+  const fmtData = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const r of postResponses) {
+      const fmt = typeof r.pFmt === "string" ? r.pFmt : String(r.pFmt ?? "");
+      if (!fmt) continue;
+      const parts = fmt.split("|").map((s) => s.trim());
+      for (const p of parts) {
+        if (p) counts[p] = (counts[p] || 0) + 1;
+      }
+    }
+    return toChartData(counts);
+  }, [postResponses]);
+
+  const noData = preResponses.length === 0 && postResponses.length === 0;
 
   if (noData) {
     return (
@@ -547,56 +558,13 @@ export function TabOverview({ instructor, course, cohort, platformName, readOnly
   const jobData = pinItems(toChartData(demographics.job), { bottom: ["기타"] });
   const hoursData = toChartData(demographics.hours);
   const channelData = toChartDataWithDefaults(demographics.channel, CHANNEL_GROUPS);
-  // 블랙리스트 적용: prevCourseDetails에서 제거 + 카운트 보정
-  const { filteredPrevCourseData, filteredPrevCourseDetails, blockedPrevCourseItems } = useMemo(() => {
-    const blockedItems = demographics.prevCourseDetails.filter((d) => blocklist.includes(d));
-    const filteredDetails = demographics.prevCourseDetails.filter((d) => !blocklist.includes(d));
-    const adjustedPrevCourse = { ...demographics.prevCourse };
-    if (blockedItems.length > 0) {
-      adjustedPrevCourse["있음"] = Math.max(0, (adjustedPrevCourse["있음"] || 0) - blockedItems.length);
-      adjustedPrevCourse["없음"] = (adjustedPrevCourse["없음"] || 0) + blockedItems.length;
-    }
-    return {
-      filteredPrevCourseData: toChartData(adjustedPrevCourse),
-      filteredPrevCourseDetails: filteredDetails,
-      blockedPrevCourseItems: blockedItems,
-    };
-  }, [demographics.prevCourse, demographics.prevCourseDetails, blocklist]);
   const prevCourseData = filteredPrevCourseData;
   const expectedBenefitData = pinItems(toChartData(demographics.expectedBenefit), { bottom: ["기타"] });
   const satData = satItems.map((s) => ({ name: s.label, value: s.count }));
 
-  // 선호 강의 방식 (후기 설문 pFmt)
-  const fmtData = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const r of postResponses) {
-      const fmt = typeof r.pFmt === "string" ? r.pFmt : String(r.pFmt ?? "");
-      if (!fmt) continue;
-      const parts = fmt.split("|").map((s) => s.trim());
-      for (const p of parts) {
-        if (p) counts[p] = (counts[p] || 0) + 1;
-      }
-    }
-    return toChartData(counts);
-  }, [postResponses]);
-
-  // ★ DEBUG: 최소 렌더링 모드 — 에러 위치 특정
   return (
     <div className="space-y-6">
-      {/* DEBUG: 최소 텍스트만 렌더링 */}
-      <div className="p-4 bg-yellow-50 border border-yellow-300 rounded-lg text-[13px]">
-        <div className="font-bold mb-2">[DEBUG MODE] 최소 렌더링 테스트</div>
-        <div>{"platformName: " + String(platformName)}</div>
-        <div>{"scopeLabel: " + String(scopeLabel)}</div>
-        <div>{"pre: " + String(preResponses.length) + " / post: " + String(postResponses.length)}</div>
-        <div>{"ps1: " + String(scores.ps1Avg) + " / ps2: " + String(scores.ps2Avg)}</div>
-        <div>{"recRate: " + String(scores.recRate)}</div>
-        <div>{"gender keys: " + String(Object.keys(demographics.gender).join(", "))}</div>
-        <div>{"extraPre: " + String(extraPreQuestions.length) + " / extraPost: " + String(extraPostQuestions.length)}</div>
-      </div>
-
-      {/* 아래 원본 코드 일시 비활성화 */}
-      {false && <div className="flex items-center gap-3 text-[12px] text-muted-foreground">
+      <div className="flex items-center gap-3 text-[12px] text-muted-foreground">
         <span>{platformName} · {scopeLabel}</span>
         <button
           type="button"
@@ -606,10 +574,10 @@ export function TabOverview({ instructor, course, cohort, platformName, readOnly
           <ClipboardList className="w-3 h-3" />
           설문 질문 보기
         </button>
-      </div>}
+      </div>
 
-      {/* 설문 질문 목록 모달 — DEBUG 비활성화 */}
-      {false && questionsOpen && (
+      {/* 설문 질문 목록 모달 */}
+      {questionsOpen && (
         <div
           className="fixed inset-0 bg-black/20 z-[200] flex items-center justify-center"
           onClick={() => setQuestionsOpen(false)}
@@ -660,8 +628,8 @@ export function TabOverview({ instructor, course, cohort, platformName, readOnly
         </div>
       )}
 
-      {/* summary cards — DEBUG 비활성화 */}
-      {false && <div className="grid grid-cols-4 gap-4">
+      {/* summary cards */}
+      <div className="grid grid-cols-4 gap-4">
         <SummaryCard label="사전 응답 수" value={`${preResponses.length}명`} tip="강의 시작 전 사전 설문에 참여한 총 응답자 수" />
         <SummaryCard label="후기 응답 수" value={`${postResponses.length}명`} tip="강의 종료 후 후기 설문에 참여한 총 응답자 수" />
         <SummaryCard
@@ -677,10 +645,10 @@ export function TabOverview({ instructor, course, cohort, platformName, readOnly
           value={postResponses.length > 0 ? `${scores.recRate}%` : "-"}
           tip="후기 설문 '이 강의를 지인분들께 추천하실 것 같으신가요?' 문항에서 긍정 응답을 한 비율입니다."
         />
-      </div>}
+      </div>
 
-      {/* charts — DEBUG 비활성화 */}
-      {false && <div className="grid grid-cols-2 gap-5">
+      {/* charts */}
+      <div className="grid grid-cols-2 gap-5">
         <ErrorBoundary name="차트:성별">
           <ChartCard title="성별" empty={gender.data.length === 0} tip="사전 설문 '성별' 항목 응답 분포">
             <DonutChart data={gender.data} colors={gender.colors} />
@@ -780,7 +748,7 @@ export function TabOverview({ instructor, course, cohort, platformName, readOnly
             </ChartCard>
           </ErrorBoundary>
         ))}
-      </div>}
+      </div>
     </div>
   );
 }
