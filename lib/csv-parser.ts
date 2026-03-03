@@ -67,10 +67,21 @@ function parseRow(
     return v == null ? "" : String(v).trim();
   };
 
+  // SurveyResponse 객체에서 실제로 사용하는 필드만 rawData에서 제외
+  // selectReason, prevCourse, expectedBenefit 등은 SurveyResponse에 없으므로
+  // rawData에 남겨야 computeDemographics()에서 추출 가능
+  const RESPONSE_FIELDS = new Set([
+    "name", "gender", "age", "job", "hours", "channel", "computer", "goal",
+    "hopePlatform", "hopeInstructor", "ps1", "ps2", "pSat", "pFmt", "pFree", "pRec",
+  ]);
   const rawData: Record<string, string> = {};
-  const mappedCols = new Set(Object.values(mapping));
+  const usedCols = new Set(
+    Object.entries(mapping)
+      .filter(([field]) => RESPONSE_FIELDS.has(field))
+      .map(([, col]) => col)
+  );
   for (const [k, v] of Object.entries(row)) {
-    if (!mappedCols.has(k) && v != null) {
+    if (!usedCols.has(k) && v != null) {
       const s = String(v).trim();
       if (s) rawData[k] = s;
     }
