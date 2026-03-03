@@ -1,5 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+// Supabase 1000행 제한 우회 — 페이지네이션으로 전체 조회
+async function fetchAll(
+  queryBuilder: ReturnType<ReturnType<SupabaseClient["from"]>["select"]>
+) {
+  const PAGE = 1000;
+  let all: any[] = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await queryBuilder.range(from, from + PAGE - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    all = all.concat(data);
+    if (data.length < PAGE) break;
+    from += PAGE;
+  }
+  return all;
+}
 
 // GET: 댓글 목록 조회 (surveyId 또는 platform+instructor 또는 tag 기반)
 export async function GET(req: NextRequest) {
@@ -15,15 +34,13 @@ export async function GET(req: NextRequest) {
 
     // 기존 방식: surveyId로 직접 조회
     if (surveyId) {
-      const { data, error } = await supabase
-        .from("comments")
-        .select("*")
-        .eq("survey_id", surveyId)
-        .order("created_at");
-
-      if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
-      }
+      const data = await fetchAll(
+        supabase
+          .from("comments")
+          .select("*")
+          .eq("survey_id", surveyId)
+          .order("created_at")
+      );
       return NextResponse.json(data);
     }
 
@@ -49,34 +66,39 @@ export async function GET(req: NextRequest) {
       const surveyIds = surveys.map((s) => s.id);
       const surveyMap = new Map(surveys.map((s) => [s.id, s]));
 
-      // tag에 맞는 comments 조회 (effectiveTag 로직 — tag 또는 source_field 기반)
-      // DB에서 tag가 직접 일치하는 것 조회
-      let commentsQuery = supabase
-        .from("comments")
-        .select("*")
-        .in("survey_id", surveyIds)
-        .order("created_at");
-
-      // tag가 직접 설정된 것 + source_field 기반 자동 태그도 포함
-      const { data: allComments, error: commentsError } = await commentsQuery;
-      if (commentsError) {
-        return NextResponse.json({ error: commentsError.message }, { status: 500 });
-      }
-
-      // effectiveTag 계산: tag ?? suggestTag(source_field)
-      const suggestTag = (sourceField: string) => {
-        if (sourceField === "hopePlatform") return "platform_general";
-        if (sourceField === "pFree") return "platform_etc";
-        if (
-          ["hopeInstructor", "selectReason", "satOther", "lowScoreReason", "lowFeedbackRequest"].includes(sourceField)
-        ) return "instructor";
-        return null;
+      // tag → auto-mapped source_fields 매핑
+      const AUTO_FIELDS: Record<string, string[]> = {
+        instructor: ["hopeInstructor", "selectReason", "satOther", "lowScoreReason", "lowFeedbackRequest"],
+        platform_general: ["hopePlatform"],
+        platform_etc: ["pFree"],
       };
 
-      const filtered = (allComments || []).filter((c) => {
-        const et = c.tag ?? suggestTag(c.source_field);
-        return et === tag;
-      });
+      // 1) tag가 직접 설정된 댓글 조회
+      const taggedComments = await fetchAll(
+        supabase
+          .from("comments")
+          .select("*")
+          .in("survey_id", surveyIds)
+          .eq("tag", tag)
+          .order("created_at")
+      );
+
+      // 2) tag가 null이지만 source_field로 자동 매핑되는 댓글 조회
+      const autoFields = AUTO_FIELDS[tag] || [];
+      let autoComments: any[] = [];
+      if (autoFields.length > 0) {
+        autoComments = await fetchAll(
+          supabase
+            .from("comments")
+            .select("*")
+            .in("survey_id", surveyIds)
+            .is("tag", null)
+            .in("source_field", autoFields)
+            .order("created_at")
+        );
+      }
+
+      const filtered = [...taggedComments, ...autoComments];
 
       // survey 메타 정보 추가
       const enriched = filtered.map((c) => {
@@ -118,15 +140,14 @@ export async function GET(req: NextRequest) {
       }
 
       const surveyIds = surveys.map((s) => s.id);
-      const { data, error } = await supabase
-        .from("comments")
-        .select("*")
-        .in("survey_id", surveyIds)
-        .order("created_at");
+      const data = await fetchAll(
+        supabase
+          .from("comments")
+          .select("*")
+          .in("survey_id", surveyIds)
+          .order("created_at")
+      );
 
-      if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
-      }
       return NextResponse.json(data);
     }
 
