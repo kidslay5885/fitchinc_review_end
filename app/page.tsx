@@ -190,7 +190,7 @@ function DashboardContent({ tabs, readOnly = false }: { tabs: typeof TABS_DATA; 
 
   const showPlatDash = plat && !inst;
   const platformName = plat?.name || "";
-  const visibleCohorts = inst ? (course ? course.cohorts : allCohorts(inst)) : [];
+  const visibleCohorts = inst ? (course ? (course.cohorts || []) : allCohorts(inst)) : [];
 
   const [platDataLoading, setPlatDataLoading] = useState(false);
 
@@ -223,14 +223,14 @@ function DashboardContent({ tabs, readOnly = false }: { tabs: typeof TABS_DATA; 
       if (cohort) {
         const needsLoad = !cohort.dataLoaded && (cohort.hasPreSurvey || cohort.hasPostSurvey);
         if (needsLoad) {
-          const ownerCourse = inst.courses.find((c) => c.cohorts.some((co) => co.id === cohort.id));
-          await loadCohortData(plat.name, inst.name, ownerCourse?.name || "", cohort.label);
+          const ownerCourse = (inst.courses || []).find((c) => (c.cohorts || []).some((co) => co.id === cohort.id));
+          await loadCohortData(plat.name, inst.name, ownerCourse?.name || "", cohort.label || "");
         }
       } else {
         const promises = visibleCohorts
           .filter((c) => !c.dataLoaded && (c.hasPreSurvey || c.hasPostSurvey))
           .map((c) => {
-            const ownerCourse = inst.courses.find((cr) => cr.cohorts.some((co) => co.id === c.id));
+            const ownerCourse = (inst.courses || []).find((cr) => (cr.cohorts || []).some((co) => co.id === c.id));
             return loadCohortData(plat.name, inst.name, ownerCourse?.name || "", c.label);
           });
         await Promise.all(promises);

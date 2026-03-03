@@ -130,7 +130,7 @@ function reducer(state: AppState, action: Action): AppState {
       const platforms = action.platforms || state.platforms;
       const plat = platforms.find((p) => p.id === state.selectedPlatformId);
       const inst = plat?.instructors.find((i) => i.id === action.id);
-      const autoSelectCourse = inst && inst.courses.length === 1 ? inst.courses[0].id : null;
+      const autoSelectCourse = inst && (inst.courses || []).length === 1 ? inst.courses[0].id : null;
 
       return {
         ...state,

@@ -458,11 +458,11 @@ export function TabOverview({ instructor, course, cohort, platformName, readOnly
     const cohorts = cohort
       ? [cohort]
       : course
-        ? course.cohorts
+        ? (course.cohorts || [])
         : allCohorts(instructor);
     return {
-      preResponses: cohorts.flatMap((c) => c.preResponses),
-      postResponses: cohorts.flatMap((c) => c.postResponses),
+      preResponses: cohorts.flatMap((c) => c.preResponses || []),
+      postResponses: cohorts.flatMap((c) => c.postResponses || []),
     };
   }, [instructor, course, cohort]);
 
