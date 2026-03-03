@@ -562,10 +562,23 @@ export function TabOverview({ instructor, course, cohort, platformName, readOnly
     return toChartData(counts);
   }, [postResponses]);
 
+  // ★ DEBUG: 최소 렌더링 모드 — 에러 위치 특정
   return (
     <div className="space-y-6">
-      {/* scope label + 설문 질문 보기 */}
-      <div className="flex items-center gap-3 text-[12px] text-muted-foreground">
+      {/* DEBUG: 최소 텍스트만 렌더링 */}
+      <div className="p-4 bg-yellow-50 border border-yellow-300 rounded-lg text-[13px]">
+        <div className="font-bold mb-2">[DEBUG MODE] 최소 렌더링 테스트</div>
+        <div>{"platformName: " + String(platformName)}</div>
+        <div>{"scopeLabel: " + String(scopeLabel)}</div>
+        <div>{"pre: " + String(preResponses.length) + " / post: " + String(postResponses.length)}</div>
+        <div>{"ps1: " + String(scores.ps1Avg) + " / ps2: " + String(scores.ps2Avg)}</div>
+        <div>{"recRate: " + String(scores.recRate)}</div>
+        <div>{"gender keys: " + String(Object.keys(demographics.gender).join(", "))}</div>
+        <div>{"extraPre: " + String(extraPreQuestions.length) + " / extraPost: " + String(extraPostQuestions.length)}</div>
+      </div>
+
+      {/* 아래 원본 코드 일시 비활성화 */}
+      {false && <div className="flex items-center gap-3 text-[12px] text-muted-foreground">
         <span>{platformName} · {scopeLabel}</span>
         <button
           type="button"
@@ -575,10 +588,10 @@ export function TabOverview({ instructor, course, cohort, platformName, readOnly
           <ClipboardList className="w-3 h-3" />
           설문 질문 보기
         </button>
-      </div>
+      </div>}
 
-      {/* 설문 질문 목록 모달 */}
-      {questionsOpen && (
+      {/* 설문 질문 목록 모달 — DEBUG 비활성화 */}
+      {false && questionsOpen && (
         <div
           className="fixed inset-0 bg-black/20 z-[200] flex items-center justify-center"
           onClick={() => setQuestionsOpen(false)}
@@ -629,8 +642,8 @@ export function TabOverview({ instructor, course, cohort, platformName, readOnly
         </div>
       )}
 
-      {/* summary cards */}
-      <div className="grid grid-cols-4 gap-4">
+      {/* summary cards — DEBUG 비활성화 */}
+      {false && <div className="grid grid-cols-4 gap-4">
         <SummaryCard label="사전 응답 수" value={`${preResponses.length}명`} tip="강의 시작 전 사전 설문에 참여한 총 응답자 수" />
         <SummaryCard label="후기 응답 수" value={`${postResponses.length}명`} tip="강의 종료 후 후기 설문에 참여한 총 응답자 수" />
         <SummaryCard
@@ -646,10 +659,10 @@ export function TabOverview({ instructor, course, cohort, platformName, readOnly
           value={postResponses.length > 0 ? `${scores.recRate}%` : "-"}
           tip="후기 설문 '이 강의를 지인분들께 추천하실 것 같으신가요?' 문항에서 긍정 응답을 한 비율입니다."
         />
-      </div>
+      </div>}
 
-      {/* charts — 각 차트를 ErrorBoundary로 감싸 어떤 차트가 #300 유발하는지 진단 */}
-      <div className="grid grid-cols-2 gap-5">
+      {/* charts — DEBUG 비활성화 */}
+      {false && <div className="grid grid-cols-2 gap-5">
         <ErrorBoundary name="차트:성별">
           <ChartCard title="성별" empty={gender.data.length === 0} tip="사전 설문 '성별' 항목 응답 분포">
             <DonutChart data={gender.data} colors={gender.colors} />
@@ -749,7 +762,7 @@ export function TabOverview({ instructor, course, cohort, platformName, readOnly
             </ChartCard>
           </ErrorBoundary>
         ))}
-      </div>
+      </div>}
     </div>
   );
 }
