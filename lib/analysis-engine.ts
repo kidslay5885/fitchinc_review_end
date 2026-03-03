@@ -29,10 +29,10 @@ export const RAW_DATA_PATTERNS: Record<string, RegExp> = {
   satOther: /기타.*선택.*어떤|기타.*만족/i,
 };
 
-/** rawData에서 패턴에 매칭되는 첫 번째 값 추출 */
+/** rawData에서 패턴에 매칭되는 첫 번째 값 추출 (비문자열 안전) */
 export function extractFromRawData(rawData: Record<string, string>, pattern: RegExp): string {
   for (const [key, value] of Object.entries(rawData)) {
-    if (pattern.test(key)) return value;
+    if (pattern.test(key)) return typeof value === "string" ? value : String(value ?? "");
   }
   return "";
 }
@@ -328,7 +328,9 @@ export function collectExtraQuestions(responses: SurveyResponse[]): ExtraQuestio
 
   for (const r of responses) {
     if (!r.rawData) continue;
-    for (const [key, value] of Object.entries(r.rawData)) {
+    for (const [key, rawValue] of Object.entries(r.rawData)) {
+      // 비문자열 값 안전 처리 (Supabase JSONB에서 객체/숫자가 올 수 있음)
+      const value = typeof rawValue === "string" ? rawValue : (rawValue == null ? "" : String(rawValue));
       if (!value || value.trim().length === 0) continue;
       const k = key.trim();
       if (SKIP_COL.test(k)) continue;
@@ -375,7 +377,7 @@ export function collectAllQuestions(responses: SurveyResponse[]): string[] {
   // 2) rawData 키: 원본 질문 텍스트 (SKIP_COL 제외)
   const rawKeys = new Set<string>();
   for (const r of responses) {
-    if (!r.rawData) continue;
+    if (!r.rawData || typeof r.rawData !== "object") continue;
     for (const key of Object.keys(r.rawData)) {
       const k = key.trim();
       if (SKIP_COL.test(k)) continue;

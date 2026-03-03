@@ -483,48 +483,6 @@ export function TabOverview({ instructor, course, cohort, platformName, readOnly
 
   const noData = preResponses.length === 0 && postResponses.length === 0;
 
-  // ★ DEBUG: 주언규 디버그 - 응답 데이터 내 객체 탐지
-  if (!noData && typeof window !== "undefined") {
-    try {
-      const checkVal = (label: string, v: unknown) => {
-        if (v !== null && v !== undefined && typeof v === "object" && !Array.isArray(v)) {
-          console.error(`[DEBUG] ${label} = OBJECT:`, JSON.stringify(v).slice(0, 300));
-        }
-      };
-      // 첫 번째 응답의 모든 필드 타입 체크
-      for (const r of preResponses.slice(0, 3)) {
-        for (const [k, v] of Object.entries(r)) {
-          if (k === "rawData") {
-            // rawData 내부 값 체크
-            if (v && typeof v === "object") {
-              for (const [rk, rv] of Object.entries(v as Record<string, unknown>)) {
-                checkVal(`pre.rawData["${rk}"]`, rv);
-              }
-            }
-          } else {
-            checkVal(`pre.${k}`, v);
-          }
-        }
-      }
-      for (const r of postResponses.slice(0, 3)) {
-        for (const [k, v] of Object.entries(r)) {
-          if (k === "rawData") {
-            if (v && typeof v === "object") {
-              for (const [rk, rv] of Object.entries(v as Record<string, unknown>)) {
-                checkVal(`post.rawData["${rk}"]`, rv);
-              }
-            }
-          } else {
-            checkVal(`post.${k}`, v);
-          }
-        }
-      }
-      console.log("[DEBUG] pre count:", preResponses.length, "post count:", postResponses.length);
-    } catch (e) {
-      console.error("[DEBUG] 디버그 코드 에러:", e);
-    }
-  }
-
   if (noData) {
     return (
       <div className="text-center py-16">

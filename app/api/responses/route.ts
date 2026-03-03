@@ -54,25 +54,40 @@ export async function GET(req: NextRequest) {
         .in("survey_id", ids)
         .order("created_at");
       if (error) throw error;
+      // rawData(JSONB) 값을 모두 문자열로 정규화 (객체/숫자/불린 → String)
+      const normalizeRawData = (raw: unknown): Record<string, string> => {
+        if (!raw || typeof raw !== "object") return {};
+        const result: Record<string, string> = {};
+        for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+          if (v == null) continue;
+          if (typeof v === "object") {
+            // 중첩 객체/배열 → JSON 문자열로 변환하지 않고 스킵
+            continue;
+          }
+          result[k] = String(v);
+        }
+        return result;
+      };
+
       return (data || []).map((r) => ({
         id: r.id,
-        name: r.name || "",
-        gender: r.gender || "",
-        age: r.age || "",
-        job: r.job || "",
-        hours: r.hours || "",
-        channel: r.channel || "",
-        computer: r.computer || 0,
-        goal: r.goal || "",
-        hopePlatform: r.hope_platform || "",
-        hopeInstructor: r.hope_instructor || "",
-        ps1: r.ps1 || 0,
-        ps2: r.ps2 || 0,
-        pSat: r.p_sat || "",
-        pFmt: r.p_fmt || "",
-        pFree: r.p_free || "",
-        pRec: r.p_rec || "",
-        rawData: r.raw_data || {},
+        name: String(r.name ?? ""),
+        gender: String(r.gender ?? ""),
+        age: String(r.age ?? ""),
+        job: String(r.job ?? ""),
+        hours: String(r.hours ?? ""),
+        channel: String(r.channel ?? ""),
+        computer: Number(r.computer) || 0,
+        goal: String(r.goal ?? ""),
+        hopePlatform: String(r.hope_platform ?? ""),
+        hopeInstructor: String(r.hope_instructor ?? ""),
+        ps1: Number(r.ps1) || 0,
+        ps2: Number(r.ps2) || 0,
+        pSat: String(r.p_sat ?? ""),
+        pFmt: String(r.p_fmt ?? ""),
+        pFree: String(r.p_free ?? ""),
+        pRec: String(r.p_rec ?? ""),
+        rawData: normalizeRawData(r.raw_data),
       }));
     };
 
