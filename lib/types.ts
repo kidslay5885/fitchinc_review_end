@@ -102,7 +102,7 @@ export interface Instructor {
 
 /** 강사의 모든 기수를 courses에서 flat하게 반환 */
 export function allCohorts(inst: Instructor): Cohort[] {
-  return inst.courses.flatMap((c) => c.cohorts);
+  return (inst.courses || []).flatMap((c) => c.cohorts || []);
 }
 
 export interface Platform {

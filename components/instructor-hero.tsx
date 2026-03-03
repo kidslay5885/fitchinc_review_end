@@ -84,7 +84,7 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
 
   // 기수별 스케줄 저장 (전체 테이블용)
   const saveScheduleForCohort = (targetCohort: Cohort, updates: { pm?: string; startDate?: string; endDate?: string }) => {
-    const ownerCourse = instructor.courses.find(c => c.cohorts.some(co => co.id === targetCohort.id));
+    const ownerCourse = (instructor.courses || []).find(c => (c.cohorts || []).some(co => co.id === targetCohort.id));
     fetch("/api/update-schedule", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -127,7 +127,7 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
     setTogglingCells(prev => new Set(prev).add(cellKey));
 
     try {
-      const ownerCourse = instructor.courses.find(c => c.cohorts.some(co => co.id === targetCohort.id));
+      const ownerCourse = (instructor.courses || []).find(c => (c.cohorts || []).some(co => co.id === targetCohort.id));
       const payload = {
         platform: platformName,
         instructor: instructor.name,
@@ -192,14 +192,14 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
   // 기수 → 소속 강의명 매핑 (전체 보기에서 강의명 구분용)
   const cohortCourseMap = useMemo(() => {
     const map = new Map<string, string>();
-    for (const c of instructor.courses) {
-      for (const co of c.cohorts) {
+    for (const c of (instructor.courses || [])) {
+      for (const co of (c.cohorts || [])) {
         map.set(co.id, c.name);
       }
     }
     return map;
   }, [instructor]);
-  const showCourseInTable = !course && instructor.courses.length > 1;
+  const showCourseInTable = !course && (instructor.courses || []).length > 1;
 
   useEffect(() => {
     if (cohort) {
@@ -231,18 +231,19 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
   const [photoOpen, setPhotoOpen] = useState(false);
 
   // 브레드크럼: 강사 · 강의명(2개+ 시) · 기수
-  const showCourseName = course && instructor.courses.length > 1;
+  const courses = instructor.courses || [];
+  const showCourseName = course && courses.length > 1;
 
   // 브레드크럼 인라인 편집 (classify 모드) — 강의별 개별 편집 지원
   const [editingCourseIdx, setEditingCourseIdx] = useState<number | null>(null);
   const [editingCategory, setEditingCategory] = useState(false);
   const [breadcrumbDraft, setBreadcrumbDraft] = useState("");
-  const hasCourses = instructor.courses.length > 0;
+  const hasCourses = courses.length > 0;
 
   const commitCourseRename = (idx: number) => {
     setEditingCourseIdx(null);
     const trimmed = breadcrumbDraft.trim();
-    const oldName = instructor.courses[idx]?.name || "";
+    const oldName = courses[idx]?.name || "";
     if (trimmed === oldName) return;
     fetch("/api/rename-course", {
       method: "POST",
@@ -277,7 +278,7 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
           <div className="text-[12px] font-extrabold text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
             {platformName} ·{" "}
             {hasCourses ? (
-              instructor.courses.map((c, idx) => (
+              courses.map((c, idx) => (
                 <span key={idx}>
                   {idx > 0 && <span className="mx-0.5">·</span>}
                   {classifyMode && editingCourseIdx === idx ? (

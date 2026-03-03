@@ -121,9 +121,9 @@ export function AppSidebar({ onUpload, onEditInstructor, readOnly }: AppSidebarP
                           </span>
                         )}
                       </div>
-                      <div className="text-[11px] text-muted-foreground truncate" title={instructor.courses.map((c) => c.name).join(" · ")}>
-                        {instructor.courses.length > 0
-                          ? instructor.courses.map((c) => c.name).join(" · ")
+                      <div className="text-[11px] text-muted-foreground truncate" title={(instructor.courses || []).map((c) => c.name).join(" · ")}>
+                        {(instructor.courses || []).length > 0
+                          ? (instructor.courses || []).map((c) => c.name).join(" · ")
                           : instructor.category || ""}
                       </div>
                     </div>
@@ -206,7 +206,7 @@ export function AppSidebar({ onUpload, onEditInstructor, readOnly }: AppSidebarP
                   )}
 
                   {/* 강의 1개: 기존과 동일 (Course 레이어 숨김, 바로 기수 표시) */}
-                  {isSel && plat && !multiCourse && instructor.courses.length === 1 && (
+                  {isSel && plat && !multiCourse && (instructor.courses || []).length === 1 && (
                     <CohortList
                       plat={plat}
                       instructor={instructor}
