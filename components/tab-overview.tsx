@@ -434,7 +434,22 @@ interface TabOverviewProps {
 }
 
 export function TabOverview({ instructor, course, cohort, platformName, readOnly }: TabOverviewProps) {
-  // 블랙리스트 state
+  // ★★★ 절대 최소 테스트: hooks 전부 제거, 순수 텍스트만 반환 ★★★
+  // 이것도 에러 나면 → 에러는 TabOverview 밖 (page.tsx, InstructorHero 등)
+  return (
+    <div className="p-6 bg-green-50 border-2 border-green-400 rounded-lg">
+      <div className="text-[16px] font-bold text-green-800 mb-2">
+        {"[NUCLEAR TEST] TabOverview 순수 텍스트"}
+      </div>
+      <div className="text-[13px]">{"instructor: " + String(instructor?.name ?? "?")}</div>
+      <div className="text-[13px]">{"platform: " + String(platformName ?? "?")}</div>
+      <div className="text-[13px]">{"course: " + String(course?.name ?? "전체")}</div>
+      <div className="text-[13px]">{"cohort: " + String(cohort?.label ?? "전체")}</div>
+    </div>
+  );
+
+  // ★★★ 아래 원본 코드 전부 비활성화 (unreachable) ★★★
+  // eslint-disable-next-line no-unreachable
   const [blocklist, setBlocklist] = useState<string[]>([]);
 
   useEffect(() => {
