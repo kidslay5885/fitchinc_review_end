@@ -26,6 +26,7 @@ import type { Instructor } from "@/lib/types";
 import { SuggestionsPanel } from "@/components/suggestions-panel";
 import { BarChart3, Loader2, Lock, MessageSquare, Tag, Send } from "lucide-react";
 import { toast } from "sonner";
+import { ErrorBoundary } from "@/components/error-boundary";
 
 type AppMode = "landing" | "data" | "role" | "classify";
 
@@ -316,11 +317,13 @@ function DashboardContent({ tabs, readOnly = false }: { tabs: typeof TABS_DATA; 
       {showUpload && <UploadDialog onClose={() => setShowUpload(false)} />}
 
       <div className="flex" style={{ height: "calc(100vh - 45px)" }}>
-        <AppSidebar
-          onUpload={() => setShowUpload(true)}
-          onEditInstructor={(inst) => setEditInst(inst)}
-          readOnly={readOnly}
-        />
+        <ErrorBoundary name="AppSidebar">
+          <AppSidebar
+            onUpload={() => setShowUpload(true)}
+            onEditInstructor={(inst) => setEditInst(inst)}
+            readOnly={readOnly}
+          />
+        </ErrorBoundary>
 
         <main className="flex-1 overflow-y-auto p-6 px-8 min-w-0">
           <div className="w-full max-w-[1400px]">
@@ -345,29 +348,31 @@ function DashboardContent({ tabs, readOnly = false }: { tabs: typeof TABS_DATA; 
 
             {inst && (
               <div>
-                <InstructorHero
-                  key={inst.id}
-                  platformName={platformName}
-                  instructor={inst}
-                  course={course}
-                  cohort={cohort}
-                  readOnly={readOnly}
-                  classifyMode={!readOnly}
-                  onUpdateCohort={
-                    !readOnly
-                      ? (c) => {
-                          dispatch({ type: "UPDATE_COHORT", instructorId: inst.id, cohort: c });
-                          if (plat)
-                            try {
-                              localStorage.setItem(
-                                `total-students-${plat.name}-${inst.name}-${c.label}`,
-                                String(c.totalStudents ?? 0)
-                              );
-                            } catch {}
-                        }
-                      : undefined
-                  }
-                />
+                <ErrorBoundary name="InstructorHero">
+                  <InstructorHero
+                    key={inst.id}
+                    platformName={platformName}
+                    instructor={inst}
+                    course={course}
+                    cohort={cohort}
+                    readOnly={readOnly}
+                    classifyMode={!readOnly}
+                    onUpdateCohort={
+                      !readOnly
+                        ? (c) => {
+                            dispatch({ type: "UPDATE_COHORT", instructorId: inst.id, cohort: c });
+                            if (plat)
+                              try {
+                                localStorage.setItem(
+                                  `total-students-${plat.name}-${inst.name}-${c.label}`,
+                                  String(c.totalStudents ?? 0)
+                                );
+                              } catch {}
+                          }
+                        : undefined
+                    }
+                  />
+                </ErrorBoundary>
 
                 {tabs.length > 1 && <div className="flex gap-0 border-b-2 border-border mb-5">
                   {tabs.filter((t) => !("onlyWhenAllCohorts" in t && t.onlyWhenAllCohorts) || !cohort).map((t) => {
@@ -397,44 +402,54 @@ function DashboardContent({ tabs, readOnly = false }: { tabs: typeof TABS_DATA; 
                 ) : (
                   <>
                     {state.activeTab === "overview" && (
-                      <TabOverview
-                        key={`overview-${inst.id}`}
-                        instructor={inst}
-                        course={course}
-                        cohort={cohort}
-                        platformName={platformName}
-                        readOnly={readOnly}
-                      />
+                      <ErrorBoundary name="TabOverview">
+                        <TabOverview
+                          key={`overview-${inst.id}`}
+                          instructor={inst}
+                          course={course}
+                          cohort={cohort}
+                          platformName={platformName}
+                          readOnly={readOnly}
+                        />
+                      </ErrorBoundary>
                     )}
                     {state.activeTab === "whole" && (
-                      <TabWhole
-                        instructor={inst}
-                        course={course}
-                        platformName={platformName}
-                        selectedCohort={cohort}
-                        onGoToQuality={() => dispatch({ type: "SET_TAB", tab: "quality" })}
-                      />
+                      <ErrorBoundary name="TabWhole">
+                        <TabWhole
+                          instructor={inst}
+                          course={course}
+                          platformName={platformName}
+                          selectedCohort={cohort}
+                          onGoToQuality={() => dispatch({ type: "SET_TAB", tab: "quality" })}
+                        />
+                      </ErrorBoundary>
                     )}
                     {state.activeTab === "feedback" && (
-                      <TabFeedbackHub
-                        instructor={inst}
-                        course={course}
-                        cohort={cohort}
-                        platformName={platformName}
-                        readOnly={readOnly}
-                      />
+                      <ErrorBoundary name="TabFeedbackHub">
+                        <TabFeedbackHub
+                          instructor={inst}
+                          course={course}
+                          cohort={cohort}
+                          platformName={platformName}
+                          readOnly={readOnly}
+                        />
+                      </ErrorBoundary>
                     )}
                     {state.activeTab === "insight" && (
-                      <TabAIInsight
-                        instructor={inst}
-                        course={course}
-                        cohort={cohort}
-                        platformName={platformName}
-                        isActive
-                      />
+                      <ErrorBoundary name="TabAIInsight">
+                        <TabAIInsight
+                          instructor={inst}
+                          course={course}
+                          cohort={cohort}
+                          platformName={platformName}
+                          isActive
+                        />
+                      </ErrorBoundary>
                     )}
                     {state.activeTab === "quality" && !cohort && (
-                      <TabQualityOverview instructor={inst} course={course} platformName={platformName} />
+                      <ErrorBoundary name="TabQualityOverview">
+                        <TabQualityOverview instructor={inst} course={course} platformName={platformName} />
+                      </ErrorBoundary>
                     )}
                   </>
                 )}
