@@ -538,6 +538,49 @@ export function TabOverview({ instructor, course, cohort, platformName, readOnly
     return toChartData(counts);
   }, [postResponses]);
 
+  // ★ DEBUG: 렌더링 전 모든 차트 데이터 타입 체크
+  if (typeof window !== "undefined") {
+    const debugCheck = (label: string, data: unknown) => {
+      if (data && typeof data === "object" && !Array.isArray(data)) {
+        console.error(`[TabOverview DEBUG] ${label} is an OBJECT:`, JSON.stringify(data).slice(0, 200));
+      }
+      if (Array.isArray(data)) {
+        data.forEach((item, i) => {
+          if (item && typeof item === "object") {
+            Object.entries(item).forEach(([k, v]) => {
+              if (v && typeof v === "object") {
+                console.error(`[TabOverview DEBUG] ${label}[${i}].${k} is an OBJECT:`, JSON.stringify(v).slice(0, 200));
+              }
+            });
+          }
+        });
+      }
+    };
+    debugCheck("gender.data", gender.data);
+    debugCheck("ageData", ageData);
+    debugCheck("jobData", jobData);
+    debugCheck("hoursData", hoursData);
+    debugCheck("channelData", channelData);
+    debugCheck("prevCourseData", prevCourseData);
+    debugCheck("expectedBenefitData", expectedBenefitData);
+    debugCheck("satData", satData);
+    debugCheck("fmtData", fmtData);
+    debugCheck("extraPreQuestions", extraPreQuestions);
+    debugCheck("extraPostQuestions", extraPostQuestions);
+    console.log("[TabOverview DEBUG] scopeLabel:", typeof scopeLabel, scopeLabel);
+    console.log("[TabOverview DEBUG] preResponses sample:", preResponses.length > 0 ? JSON.stringify(Object.entries(preResponses[0]).map(([k, v]) => [k, typeof v, typeof v === "object" && v !== null ? "OBJECT!" : ""]).filter(([,,flag]) => flag)).slice(0, 500) : "empty");
+    console.log("[TabOverview DEBUG] demographics keys:", Object.keys(demographics));
+    Object.entries(demographics).forEach(([k, v]) => {
+      if (v && typeof v === "object" && !Array.isArray(v)) {
+        Object.entries(v as Record<string, unknown>).forEach(([vk, vv]) => {
+          if (vv && typeof vv === "object") {
+            console.error(`[TabOverview DEBUG] demographics.${k}.${vk} is an OBJECT:`, JSON.stringify(vv).slice(0, 200));
+          }
+        });
+      }
+    });
+  }
+
   return (
     <div className="space-y-6">
       {/* scope label + 설문 질문 보기 */}
