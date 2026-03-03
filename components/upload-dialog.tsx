@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react";
 import { useAppStore } from "@/hooks/use-app-store";
 import { parseFilename } from "@/lib/filename-parser";
-import { X, FileSpreadsheet, Upload, Loader2, CheckCircle, AlertCircle } from "lucide-react";
+import { X, FileSpreadsheet, Upload, Loader2, CheckCircle, AlertCircle, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
 interface UploadDialogProps {
@@ -25,6 +25,10 @@ export function UploadDialog({ onClose }: UploadDialogProps) {
   const { state, refreshHierarchy } = useAppStore();
   const [files, setFiles] = useState<UploadFileState[]>([]);
   const [step, setStep] = useState<"upload" | "confirm" | "processing">("upload");
+  const [overwriteWarning, setOverwriteWarning] = useState<{
+    files: { idx: number; name: string; totalComments: number; classifiedComments: number }[];
+  } | null>(null);
+  const [checking, setChecking] = useState(false);
 
   const allInstructors = state.platforms.flatMap((p) => p.instructors);
   const allInstNames = [...new Set(allInstructors.map((i) => i.name))];
@@ -74,7 +78,46 @@ export function UploadDialog({ onClose }: UploadDialogProps) {
     if (files.length <= 1) setStep("upload");
   };
 
+  const checkBeforeUpload = async () => {
+    setChecking(true);
+    const warnings: { idx: number; name: string; totalComments: number; classifiedComments: number }[] = [];
+
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      if (!f.inst || !f.course || !f.cohort) continue;
+
+      try {
+        const params = new URLSearchParams({
+          platform: f.platform,
+          instructor: f.inst,
+          course: f.course,
+          cohort: f.cohort,
+          survey_type: f.type,
+        });
+        const res = await fetch(`/api/check-classified?${params}`);
+        const data = await res.json();
+        if (data.exists && data.totalComments > 0) {
+          warnings.push({
+            idx: i,
+            name: f.name,
+            totalComments: data.totalComments,
+            classifiedComments: data.classifiedComments,
+          });
+        }
+      } catch { /* 체크 실패 시 경고 없이 진행 */ }
+    }
+
+    setChecking(false);
+
+    if (warnings.length > 0) {
+      setOverwriteWarning({ files: warnings });
+    } else {
+      processUpload();
+    }
+  };
+
   const processUpload = async () => {
+    setOverwriteWarning(null);
     setStep("processing");
 
     for (let i = 0; i < files.length; i++) {
@@ -340,11 +383,18 @@ export function UploadDialog({ onClose }: UploadDialogProps) {
                 초기화
               </button>
               <button
-                onClick={processUpload}
-                disabled={hasInvalid}
+                onClick={checkBeforeUpload}
+                disabled={hasInvalid || checking}
                 className="flex-[2] py-2.5 rounded-lg bg-primary text-primary-foreground text-[14px] font-bold hover:opacity-90 disabled:opacity-50 transition-opacity"
               >
-                확인 후 업로드 ({files.length}개)
+                {checking ? (
+                  <span className="flex items-center justify-center gap-1.5">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    기존 데이터 확인 중...
+                  </span>
+                ) : (
+                  `확인 후 업로드 (${files.length}개)`
+                )}
               </button>
             </div>
           </div>
@@ -384,6 +434,52 @@ export function UploadDialog({ onClose }: UploadDialogProps) {
                 완료
               </button>
             )}
+          </div>
+        )}
+
+        {/* Overwrite warning modal */}
+        {overwriteWarning && (
+          <div className="fixed inset-0 bg-black/40 z-[210] flex items-center justify-center" onClick={() => setOverwriteWarning(null)}>
+            <div onClick={(e) => e.stopPropagation()} className="bg-card rounded-[14px] p-6 shadow-xl border max-w-[440px] w-full">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="p-2 rounded-full bg-amber-100 shrink-0">
+                  <AlertTriangle className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <h4 className="text-[15px] font-extrabold text-amber-800">기존 분류 데이터가 삭제됩니다</h4>
+                  <p className="text-[12px] text-muted-foreground mt-1">
+                    아래 파일의 기존 설문 데이터가 이미 존재합니다. 업로드하면 기존 댓글과 분류 작업이 모두 초기화됩니다.
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-2 mb-4">
+                {overwriteWarning.files.map((w) => (
+                  <div key={w.idx} className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                    <div className="text-[13px] font-semibold truncate">{w.name}</div>
+                    <div className="text-[12px] text-amber-700 mt-1">
+                      기존 댓글 {w.totalComments}건
+                      {w.classifiedComments > 0 && (
+                        <span className="font-bold text-red-600"> (분류 완료 {w.classifiedComments}건 삭제됨)</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setOverwriteWarning(null)}
+                  className="flex-1 py-2.5 rounded-lg border text-[13px] text-muted-foreground hover:bg-accent transition-colors"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={processUpload}
+                  className="flex-1 py-2.5 rounded-lg bg-red-600 text-white text-[13px] font-bold hover:bg-red-700 transition-colors"
+                >
+                  삭제하고 재업로드
+                </button>
+              </div>
+            </div>
           </div>
         )}
 

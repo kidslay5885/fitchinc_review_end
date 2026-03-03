@@ -28,6 +28,10 @@ export async function DELETE(req: NextRequest) {
     const { id } = await req.json();
     const supabase = getSupabase();
 
+    // 연관 데이터 먼저 삭제 (고아 레코드 방지)
+    await supabase.from("comments").delete().eq("survey_id", id);
+    await supabase.from("survey_responses").delete().eq("survey_id", id);
+
     const { error } = await supabase.from("surveys").delete().eq("id", id);
 
     if (error) {
