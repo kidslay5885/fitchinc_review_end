@@ -42,6 +42,7 @@ export const TAG_OPTIONS = [
   { value: "platform_pm" as const, label: "PM", color: "bg-blue-50 text-blue-700 border-blue-200" },
   { value: "platform_pd" as const, label: "PD", color: "bg-indigo-50 text-indigo-700 border-indigo-200" },
   { value: "platform_cs" as const, label: "CS", color: "bg-cyan-50 text-cyan-700 border-cyan-200" },
+  { value: "platform_general" as const, label: "플랫폼", color: "bg-purple-50 text-purple-700 border-purple-200" },
   { value: "platform_etc" as const, label: "기타", color: "bg-slate-50 text-slate-600 border-slate-200" },
   { value: "instructor" as const, label: "강사", color: "bg-orange-50 text-orange-700 border-orange-200" },
 ];
@@ -59,6 +60,7 @@ export function isPlatformTag(tag: TagValue): boolean {
     tag === "platform_pm" ||
     tag === "platform_pd" ||
     tag === "platform_cs" ||
+    tag === "platform_general" ||
     tag === "platform_etc"
   );
 }
@@ -72,7 +74,8 @@ export function isUsefulComment(c: { original_text: string; source_field: string
 
 // source_field 기반 자동 추천 태그 (tag가 null일 때 사용)
 export function suggestTag(sourceField: string): TagValue {
-  if (sourceField === "hopePlatform" || sourceField === "pFree") return "platform_etc";
+  if (sourceField === "hopePlatform") return "platform_general";
+  if (sourceField === "pFree") return "platform_etc";
   if (
     ["hopeInstructor", "selectReason", "satOther", "lowScoreReason", "lowFeedbackRequest"].includes(sourceField)
   ) return "instructor";
@@ -110,4 +113,4 @@ export interface CommentWithCohort extends Comment {
 }
 
 export type ViewMode = "all" | "platform" | "instructor" | "untagged";
-export type PlatformSub = "all" | "pm" | "pd" | "cs" | "etc";
+export type PlatformSub = "all" | "pm" | "pd" | "cs" | "platform" | "etc";

@@ -25,7 +25,7 @@ export interface Comment {
   sentiment: "positive" | "negative" | "neutral" | null;
   ai_summary: string | null;
   source_field: string;
-  tag: "platform_pm" | "platform_pd" | "platform_cs" | "platform_etc" | "instructor" | null;
+  tag: "platform_pm" | "platform_pd" | "platform_cs" | "platform_general" | "platform_etc" | "instructor" | null;
   ai_classified?: boolean;
   created_at: string;
 }

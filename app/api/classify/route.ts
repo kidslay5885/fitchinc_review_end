@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
 
       // effectiveTag 계산: tag ?? suggestTag(source_field)
       const suggestTag = (sourceField: string) => {
-        if (sourceField === "hopePlatform") return "platform_etc";
+        if (sourceField === "hopePlatform") return "platform_general";
         if (sourceField === "hopeInstructor") return "instructor";
         return null;
       };

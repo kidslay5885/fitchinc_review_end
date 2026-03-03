@@ -8,7 +8,7 @@ function getAI() {
   return new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 }
 
-const TAG_VALUES = ["platform_pm", "platform_pd", "platform_cs", "platform_etc", "instructor"] as const;
+const TAG_VALUES = ["platform_pm", "platform_pd", "platform_cs", "platform_general", "platform_etc", "instructor"] as const;
 const SENTIMENT_VALUES = ["positive", "negative", "neutral"] as const;
 
 // POST: 미분류 피드백에 대해 AI가 전달 대상(tag) + 긍정/부정(sentiment) 제안
@@ -29,7 +29,8 @@ export async function POST(req: NextRequest) {
 - platform_pm: 플랫폼 운영·기획 관련 (일정, 안내, 시스템)
 - platform_pd: 콘텐츠·커리큘럼·교재 관련
 - platform_cs: 고객 지원·문의 대응 관련
-- platform_etc: 플랫폼 관련이지만 PM/PD/CS로 구분 어려움
+- platform_general: 플랫폼 전반에 대한 피드백 (서비스, 브랜드, 플랫폼 자체에 대한 요청/의견)
+- platform_etc: 플랫폼 관련이지만 PM/PD/CS/플랫폼으로 구분 어려움
 - instructor: 강사 수업·강의 방식·강사本人 관련
 
 감성(sentiment): positive(긍정/칭찬), negative(불만/비판), neutral(중립/단순 의견)
@@ -40,7 +41,7 @@ ${items.map((item: { id: string; original_text: string }, i: number) => `[${i}] 
 다음 JSON만 출력 (다른 텍스트 없이):
 {
   "suggestions": [
-    { "commentId": "위 id와 동일", "tag": "platform_pm|platform_pd|platform_cs|platform_etc|instructor", "sentiment": "positive|negative|neutral" }
+    { "commentId": "위 id와 동일", "tag": "platform_pm|platform_pd|platform_cs|platform_general|platform_etc|instructor", "sentiment": "positive|negative|neutral" }
   ]
 }
 각 항목마다 반드시 한 개씩, commentId는 입력의 id와 정확히 일치해야 합니다.`;

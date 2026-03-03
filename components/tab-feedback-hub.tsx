@@ -304,6 +304,7 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
         if (platformSub === "pm" && et !== "platform_pm") return false;
         if (platformSub === "pd" && et !== "platform_pd") return false;
         if (platformSub === "cs" && et !== "platform_cs") return false;
+        if (platformSub === "platform" && et !== "platform_general") return false;
         if (platformSub === "etc" && et !== "platform_etc") return false;
       }
 
@@ -696,6 +697,7 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
                   <option value="platform_pm">PM</option>
                   <option value="platform_pd">PD</option>
                   <option value="platform_cs">CS</option>
+                  <option value="platform_general">플랫폼</option>
                   <option value="platform_etc">기타</option>
                 </optgroup>
                 <option value="instructor">강사</option>
@@ -733,6 +735,7 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
                 <option value="platform_pm">PM</option>
                 <option value="platform_pd">PD</option>
                 <option value="platform_cs">CS</option>
+                <option value="platform_general">플랫폼</option>
                 <option value="platform_etc">기타</option>
               </optgroup>
               <option value="instructor">강사</option>
@@ -891,6 +894,7 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
               { id: "pm" as const, label: "PM" },
               { id: "pd" as const, label: "PD" },
               { id: "cs" as const, label: "CS" },
+              { id: "platform" as const, label: "플랫폼" },
               { id: "etc" as const, label: "기타" },
             ]).map((f) => (
               <button
@@ -1042,6 +1046,7 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
                   { id: "platform_pm" as TagValue, label: "PM", cn: "bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100" },
                   { id: "platform_pd" as TagValue, label: "PD", cn: "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100" },
                   { id: "platform_cs" as TagValue, label: "CS", cn: "bg-cyan-50 text-cyan-700 border-cyan-200 hover:bg-cyan-100" },
+                  { id: "platform_general" as TagValue, label: "플랫폼", cn: "bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100" },
                   { id: "platform_etc" as TagValue, label: "기타", cn: "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100" },
                   { id: "instructor" as TagValue, label: "강사", cn: "bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100" },
                 ] as const

@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-type Role = "pm" | "pd" | "cs" | "instructor";
+type Role = "pm" | "pd" | "cs" | "platform" | "etc" | "instructor";
 
 interface EnrichedComment extends Comment {
   _platform: string;
@@ -50,6 +50,8 @@ const ROLE_TAGS: Record<Role, string> = {
   pm: "platform_pm",
   pd: "platform_pd",
   cs: "platform_cs",
+  platform: "platform_general",
+  etc: "platform_etc",
   instructor: "instructor",
 };
 
@@ -57,6 +59,8 @@ const ROLE_LABELS: Record<Role, string> = {
   pm: "PM",
   pd: "PD",
   cs: "CS",
+  platform: "플랫폼",
+  etc: "기타",
   instructor: "강사",
 };
 
@@ -443,7 +447,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
         <div className="flex items-center gap-4 mb-4 flex-wrap">
           <h1 className="text-[18px] font-extrabold">직무별 피드백</h1>
           <div className="flex gap-0.5 bg-muted rounded-lg p-0.5 border">
-            {(["pm", "pd", "cs", "instructor"] as Role[]).map((r) => (
+            {(["pm", "pd", "cs", "platform", "etc", "instructor"] as Role[]).map((r) => (
               <button
                 key={r}
                 onClick={() => setRole(r)}
