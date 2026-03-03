@@ -214,13 +214,14 @@ export function computeScores(postResponses: SurveyResponse[]): ComputeScoresRes
   let ps1Sum = 0;
   let ps2Sum = 0;
   let recCount = 0;
+  let recTotal = 0;
   let ps1Count = 0;
   let ps2Count = 0;
 
   for (const r of postResponses) {
     const ps1 = Number(r.ps1) || 0;
     const ps2 = Number(r.ps2) || 0;
-    const pRec = typeof r.pRec === "string" ? r.pRec : String(r.pRec ?? "");
+    const pRec = typeof r.pRec === "string" ? r.pRec.trim() : String(r.pRec ?? "").trim();
     if (ps1 > 0) {
       ps1Sum += to10(ps1);
       ps1Count++;
@@ -229,14 +230,17 @@ export function computeScores(postResponses: SurveyResponse[]): ComputeScoresRes
       ps2Sum += to10(ps2);
       ps2Count++;
     }
-    if (/네|넵|추천|강추|할|싶/i.test(pRec)) recCount++;
+    if (pRec.length > 0) {
+      recTotal++;
+      if (/네|넵|넹|넴|예|추천|강추|할|싶|당연|물론|그럼|무조건/i.test(pRec)) recCount++;
+    }
   }
 
   const n = postResponses.length;
   return {
     ps1Avg: ps1Count > 0 ? Math.round((ps1Sum / ps1Count) * 100) / 100 : 0,
     ps2Avg: ps2Count > 0 ? Math.round((ps2Sum / ps2Count) * 100) / 100 : 0,
-    recRate: Math.round((recCount / n) * 1000) / 10,
+    recRate: recTotal > 0 ? Math.round((recCount / recTotal) * 1000) / 10 : 0,
     ps1Excluded: n > 0 && ps1Count === 0,
     ps2Excluded: n > 0 && ps2Count === 0,
   };
