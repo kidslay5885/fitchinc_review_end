@@ -9,7 +9,8 @@ export function middleware(req: NextRequest) {
     pathname.startsWith("/share/") ||
     pathname.startsWith("/api/") ||
     pathname.startsWith("/_next/") ||
-    pathname === "/favicon.ico"
+    pathname === "/favicon.ico" ||
+    pathname.match(/\.\w+$/)
   ) {
     return NextResponse.next();
   }
