@@ -66,7 +66,10 @@ export async function GET(req: NextRequest) {
       // effectiveTag 계산: tag ?? suggestTag(source_field)
       const suggestTag = (sourceField: string) => {
         if (sourceField === "hopePlatform") return "platform_general";
-        if (sourceField === "hopeInstructor") return "instructor";
+        if (sourceField === "pFree") return "platform_etc";
+        if (
+          ["hopeInstructor", "selectReason", "satOther", "lowScoreReason", "lowFeedbackRequest"].includes(sourceField)
+        ) return "instructor";
         return null;
       };
 
