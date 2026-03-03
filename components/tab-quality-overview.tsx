@@ -14,12 +14,12 @@ interface TabQualityOverviewProps {
 }
 
 export function TabQualityOverview({ instructor, course, platformName }: TabQualityOverviewProps) {
-  const visibleCohorts = course ? course.cohorts : allCohorts(instructor);
+  const visibleCohorts = course ? (course.cohorts || []) : allCohorts(instructor);
   const ordered = getOrderedCohorts(platformName, instructor.name, course?.name || "", visibleCohorts);
   const rows = ordered.map((c) => {
-    const scores = computeScores(c.postResponses);
-    const preN = c.preResponses.length;
-    const postN = c.postResponses.length;
+    const scores = computeScores(Array.isArray(c.postResponses) ? c.postResponses : []);
+    const preN = Array.isArray(c.preResponses) ? c.preResponses.length : 0;
+    const postN = Array.isArray(c.postResponses) ? c.postResponses.length : 0;
     const totalStudents = c.totalStudents || 0;
     const postPreRate = preN > 0 ? Math.round((postN / preN) * 100) : 0;
     const overallRate = totalStudents > 0 ? Math.round((postN / totalStudents) * 100) : null;

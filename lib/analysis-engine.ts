@@ -289,9 +289,11 @@ export function aggregateInstructor(cohorts: Cohort[]) {
   const scores: number[] = [];
 
   for (const c of cohorts) {
-    totalPre += c.preResponses.length;
-    totalPost += c.postResponses.length;
-    const avg = computeScores(c.postResponses);
+    const pre = Array.isArray(c.preResponses) ? c.preResponses : [];
+    const post = Array.isArray(c.postResponses) ? c.postResponses : [];
+    totalPre += pre.length;
+    totalPost += post.length;
+    const avg = computeScores(post);
     if (avg.ps1Avg > 0) scores.push((avg.ps1Avg + avg.ps2Avg) / 2);
   }
 

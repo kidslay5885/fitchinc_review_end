@@ -37,8 +37,8 @@ export function PlatformDashboard({ platform, dataLoading }: PlatformDashboardPr
 
   const { preResponses, postResponses } = useMemo(() => {
     return {
-      preResponses: allPlatCohorts.flatMap((c) => c.preResponses),
-      postResponses: allPlatCohorts.flatMap((c) => c.postResponses),
+      preResponses: allPlatCohorts.flatMap((c) => Array.isArray(c.preResponses) ? c.preResponses : []),
+      postResponses: allPlatCohorts.flatMap((c) => Array.isArray(c.postResponses) ? c.postResponses : []),
     };
   }, [allPlatCohorts]);
 
@@ -52,7 +52,7 @@ export function PlatformDashboard({ platform, dataLoading }: PlatformDashboardPr
   const satItems = useMemo(() => getSatisfactionItems(postResponses), [postResponses]);
 
   // 헤더 통계
-  const doneCohorts = allPlatCohorts.filter((c) => c.postResponses.length > 0);
+  const doneCohorts = allPlatCohorts.filter((c) => (Array.isArray(c.postResponses) ? c.postResponses.length : 0) > 0);
   const allScores = doneCohorts.map((c) => cohortAvgScore(c)).filter((s) => s > 0);
   const avg =
     allScores.length > 0

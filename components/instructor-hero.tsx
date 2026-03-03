@@ -181,7 +181,7 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
 
   // 현재 보여줄 기수 목록: course가 선택되면 해당 course의 기수, 아니면 전체 (숫자 정렬)
   const visibleCohorts = useMemo(() => {
-    const cohorts = course ? course.cohorts : allCohorts(instructor);
+    const cohorts = course ? (course.cohorts || []) : allCohorts(instructor);
     return [...cohorts].sort((a, b) => {
       const numA = parseInt((a.label || "").replace(/\D/g, "")) || 0;
       const numB = parseInt((b.label || "").replace(/\D/g, "")) || 0;
@@ -219,11 +219,11 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
 
   // Aggregate responses
   const preResponses = cohort
-    ? cohort.preResponses
-    : visibleCohorts.flatMap((c) => c.preResponses);
+    ? (Array.isArray(cohort.preResponses) ? cohort.preResponses : [])
+    : visibleCohorts.flatMap((c) => Array.isArray(c.preResponses) ? c.preResponses : []);
   const postResponses = cohort
-    ? cohort.postResponses
-    : visibleCohorts.flatMap((c) => c.postResponses);
+    ? (Array.isArray(cohort.postResponses) ? cohort.postResponses : [])
+    : visibleCohorts.flatMap((c) => Array.isArray(c.postResponses) ? c.postResponses : []);
 
   const scores = computeScores(postResponses);
   const currentPM = cohort?.pm || visibleCohorts[0]?.pm || "-";
@@ -348,7 +348,7 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
               {instructor.name}{" "}
               <span className="font-normal text-muted-foreground text-[16px]">
                 {showCourseName && <>· {course.name} </>}
-                · {!cohort ? "전체" : cohort.label}
+                · {!cohort ? "전체" : String(cohort.label || "")}
               </span>
             </div>
           </div>
@@ -378,7 +378,7 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
                   }}
                 >
                   <span className="text-muted-foreground font-medium">PM</span>
-                  <span className="font-bold text-foreground">{currentPM}</span>
+                  <span className="font-bold text-foreground">{String(currentPM)}</span>
                   {canEdit && <Pencil className="w-2.5 h-2.5 text-muted-foreground/60" />}
                 </span>
               )}
@@ -422,7 +422,7 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
                     <span className="text-muted-foreground font-medium">정규 강의 기간</span>
                     {cohort.date ? (
                       <span className="font-bold text-foreground">
-                        {cohort.date.slice(2).replace(/-/g, ".")} ~ {cohort.endDate.slice(2).replace(/-/g, ".")}
+                        {(cohort.date || "").slice(2).replace(/-/g, ".")} ~ {(cohort.endDate || "").slice(2).replace(/-/g, ".")}
                       </span>
                     ) : (
                       <span className="text-muted-foreground/60">미설정</span>
@@ -571,7 +571,7 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
                       {cohortCourseMap.get(c.id) || ""}
                     </td>
                   )}
-                  <td className="py-1 px-1.5 font-semibold">{c.label}</td>
+                  <td className="py-1 px-1.5 font-semibold">{String(c.label || "")}</td>
                   <td className="py-1 px-1">
                     <input
                       value={c.pm || ""}
@@ -626,14 +626,14 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
                   </td>
                   {/* 사전 설문 셀 */}
                   {(() => {
-                    const preCount = c.preResponses.length || (c.preCount || 0);
+                    const preCount = Number(Array.isArray(c.preResponses) ? c.preResponses.length : 0) || Number(c.preCount || 0);
                     const hasReal = preCount > 0;
                     const isNoData = c.hasPreSurvey && !hasReal;
                     const isToggling = togglingCells.has(`${c.id}-사전`);
                     return (
                       <td className={`py-1 px-1.5 text-center ${hasReal ? "text-muted-foreground" : isNoData ? "text-amber-500" : "text-muted-foreground/40"}`}>
                         {hasReal ? (
-                          preCount
+                          String(preCount)
                         ) : (
                           <label className="inline-flex items-center gap-1 cursor-pointer select-none">
                             <input
@@ -651,14 +651,14 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
                   })()}
                   {/* 후기 설문 셀 */}
                   {(() => {
-                    const postCount = c.postResponses.length || (c.postCount || 0);
+                    const postCount = Number(Array.isArray(c.postResponses) ? c.postResponses.length : 0) || Number(c.postCount || 0);
                     const hasReal = postCount > 0;
                     const isNoData = c.hasPostSurvey && !hasReal;
                     const isToggling = togglingCells.has(`${c.id}-후기`);
                     return (
                       <td className={`py-1 px-1.5 text-center ${hasReal ? "text-muted-foreground" : isNoData ? "text-amber-500" : "text-muted-foreground/40"}`}>
                         {hasReal ? (
-                          postCount
+                          String(postCount)
                         ) : (
                           <label className="inline-flex items-center gap-1 cursor-pointer select-none">
                             <input

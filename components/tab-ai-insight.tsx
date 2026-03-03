@@ -28,26 +28,26 @@ export function TabAIInsight({ instructor, course, cohort, platformName, isActiv
   const [expandedComplaint, setExpandedComplaint] = useState<number | null>(null);
 
   // 현재 보여줄 기수 목록
-  const visibleCohorts = course ? course.cohorts : allCohorts(instructor);
+  const visibleCohorts = course ? (course.cohorts || []) : allCohorts(instructor);
 
   // 로컬 점수 계산
   const scores = useMemo(() => {
     const postResponses = cohort
-      ? cohort.postResponses
-      : visibleCohorts.flatMap((c) => c.postResponses);
+      ? (Array.isArray(cohort.postResponses) ? cohort.postResponses : [])
+      : visibleCohorts.flatMap((c) => Array.isArray(c.postResponses) ? c.postResponses : []);
     return computeScores(postResponses);
   }, [visibleCohorts, cohort]);
 
   const preCount = useMemo(() => {
     return cohort
-      ? cohort.preResponses.length
-      : visibleCohorts.reduce((a, c) => a + c.preResponses.length, 0);
+      ? (Array.isArray(cohort.preResponses) ? cohort.preResponses.length : 0)
+      : visibleCohorts.reduce((a, c) => a + (Array.isArray(c.preResponses) ? c.preResponses.length : 0), 0);
   }, [visibleCohorts, cohort]);
 
   const postCount = useMemo(() => {
     return cohort
-      ? cohort.postResponses.length
-      : visibleCohorts.reduce((a, c) => a + c.postResponses.length, 0);
+      ? (Array.isArray(cohort.postResponses) ? cohort.postResponses.length : 0)
+      : visibleCohorts.reduce((a, c) => a + (Array.isArray(c.postResponses) ? c.postResponses.length : 0), 0);
   }, [visibleCohorts, cohort]);
 
   // 캐시 확인 (기수/전체별로 분리 저장됨). 탭 포커스 시에도 재조회해 이탈 후 생성 완료된 결과 표시

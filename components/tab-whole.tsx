@@ -55,8 +55,8 @@ interface TabWholeProps {
 type TocEntry = { id: string; label: string };
 
 export function TabWhole({ instructor, course, platformName, selectedCohort, onGoToQuality }: TabWholeProps) {
-  const visibleCohorts = course ? course.cohorts : allCohorts(instructor);
-  const cohortsWithData = visibleCohorts.filter((c) => c.preResponses.length > 0 || c.postResponses.length > 0);
+  const visibleCohorts = course ? (course.cohorts || []) : allCohorts(instructor);
+  const cohortsWithData = visibleCohorts.filter((c) => (Array.isArray(c.preResponses) ? c.preResponses.length : 0) > 0 || (Array.isArray(c.postResponses) ? c.postResponses.length : 0) > 0);
   const orderedCohorts = useMemo(
     () => getOrderedCohorts(platformName, instructor.name, course?.name || "", cohortsWithData),
     [platformName, instructor.name, course?.name, cohortsWithData]
@@ -212,7 +212,7 @@ export function TabWhole({ instructor, course, platformName, selectedCohort, onG
                   isSelected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
                 }`}
               >
-                {c.label}
+                {String(c.label || "")}
               </button>
             );
           })}
@@ -286,7 +286,7 @@ export function TabWhole({ instructor, course, platformName, selectedCohort, onG
                             <div key={cohort.id}>
                               {safeCohorts.length > 1 && (
                                 <div className="text-[13px] font-bold text-blue-700 mb-2 pl-1 pb-1 border-b border-blue-100">
-                                  {cohort.label}
+                                  {String(cohort.label || "")}
                                 </div>
                               )}
                               <ul className="space-y-2 pl-1">
@@ -328,7 +328,7 @@ export function TabWhole({ instructor, course, platformName, selectedCohort, onG
                             <div key={cohort.id}>
                               {safeCohorts.length > 1 && (
                                 <div className="text-[13px] font-bold text-blue-700 mb-2 pl-1 pb-1 border-b border-blue-100">
-                                  {cohort.label}
+                                  {String(cohort.label || "")}
                                 </div>
                               )}
                               <ul className="space-y-2 pl-1">
@@ -370,7 +370,7 @@ export function TabWhole({ instructor, course, platformName, selectedCohort, onG
                             <div key={cohort.id}>
                               {safeCohorts.length > 1 && (
                                 <div className="text-[13px] font-bold text-blue-700 mb-2 pl-1 pb-1 border-b border-blue-100">
-                                  {cohort.label}
+                                  {String(cohort.label || "")}
                                 </div>
                               )}
                               <ul className="space-y-2 pl-1">
@@ -415,7 +415,7 @@ export function TabWhole({ instructor, course, platformName, selectedCohort, onG
                             <div key={cohort.id}>
                               {safeCohorts.length > 1 && (
                                 <div className="text-[13px] font-bold text-emerald-700 mb-2 pl-1 pb-1 border-b border-emerald-100">
-                                  {cohort.label}
+                                  {String(cohort.label || "")}
                                 </div>
                               )}
                               <ul className="space-y-2 pl-1">
@@ -457,7 +457,7 @@ export function TabWhole({ instructor, course, platformName, selectedCohort, onG
                             <div key={cohort.id}>
                               {safeCohorts.length > 1 && (
                                 <div className="text-[13px] font-bold text-emerald-700 mb-2 pl-1 pb-1 border-b border-emerald-100">
-                                  {cohort.label}
+                                  {String(cohort.label || "")}
                                 </div>
                               )}
                               <ul className="space-y-2 pl-1">
@@ -499,7 +499,7 @@ export function TabWhole({ instructor, course, platformName, selectedCohort, onG
                             <div key={cohort.id}>
                               {safeCohorts.length > 1 && (
                                 <div className="text-[13px] font-bold text-emerald-700 mb-2 pl-1 pb-1 border-b border-emerald-100">
-                                  {cohort.label}
+                                  {String(cohort.label || "")}
                                 </div>
                               )}
                               <ul className="space-y-2 pl-1">

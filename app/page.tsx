@@ -346,6 +346,7 @@ function DashboardContent({ tabs, readOnly = false }: { tabs: typeof TABS_DATA; 
             {inst && (
               <div>
                 <InstructorHero
+                  key={inst.id}
                   platformName={platformName}
                   instructor={inst}
                   course={course}
@@ -397,6 +398,7 @@ function DashboardContent({ tabs, readOnly = false }: { tabs: typeof TABS_DATA; 
                   <>
                     {state.activeTab === "overview" && (
                       <TabOverview
+                        key={`overview-${inst.id}`}
                         instructor={inst}
                         course={course}
                         cohort={cohort}
