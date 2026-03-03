@@ -15,6 +15,7 @@ import {
 import { ChevronDown, ChevronUp, ClipboardList, X } from "lucide-react";
 import { toast } from "sonner";
 import { RingScore } from "@/components/ring-score";
+import { ErrorBoundary } from "@/components/error-boundary";
 import {
   PieChart,
   Pie,
@@ -647,90 +648,106 @@ export function TabOverview({ instructor, course, cohort, platformName, readOnly
         />
       </div>
 
-      {/* charts */}
+      {/* charts — 각 차트를 ErrorBoundary로 감싸 어떤 차트가 #300 유발하는지 진단 */}
       <div className="grid grid-cols-2 gap-5">
-        {/* 성별 */}
-        <ChartCard title="성별" empty={gender.data.length === 0} tip="사전 설문 '성별' 항목 응답 분포">
-          <DonutChart data={gender.data} colors={gender.colors} />
-        </ChartCard>
+        <ErrorBoundary name="차트:성별">
+          <ChartCard title="성별" empty={gender.data.length === 0} tip="사전 설문 '성별' 항목 응답 분포">
+            <DonutChart data={gender.data} colors={gender.colors} />
+          </ChartCard>
+        </ErrorBoundary>
 
-        {/* 연령대 */}
-        <ChartCard title="연령대" empty={ageData.length === 0} tip="사전 설문 '연령대' 항목 응답 분포">
-          <HBarChart data={ageData} />
-        </ChartCard>
+        <ErrorBoundary name="차트:연령대">
+          <ChartCard title="연령대" empty={ageData.length === 0} tip="사전 설문 '연령대' 항목 응답 분포">
+            <HBarChart data={ageData} />
+          </ChartCard>
+        </ErrorBoundary>
 
-        {/* 직업 */}
-        <ChartCard title="현재 하고 계신 일" empty={jobData.length === 0} tip="사전 설문 '현재 하고 계신 일이 무엇인가요?' 항목 응답 분포">
-          <HBarChart data={jobData} />
-        </ChartCard>
+        <ErrorBoundary name="차트:직업">
+          <ChartCard title="현재 하고 계신 일" empty={jobData.length === 0} tip="사전 설문 '현재 하고 계신 일이 무엇인가요?' 항목 응답 분포">
+            <HBarChart data={jobData} />
+          </ChartCard>
+        </ErrorBoundary>
 
-        {/* 부업 투자 시간 */}
-        <ChartCard title="하루에 평균적으로 부업에 투자할 수 있는 시간" empty={hoursData.length === 0} tip="사전 설문 '하루에 평균적으로 부업에 투자할 수 있는 시간' 항목 응답 분포">
-          <HBarChart data={hoursData} />
-        </ChartCard>
+        <ErrorBoundary name="차트:부업시간">
+          <ChartCard title="하루에 평균적으로 부업에 투자할 수 있는 시간" empty={hoursData.length === 0} tip="사전 설문 '하루에 평균적으로 부업에 투자할 수 있는 시간' 항목 응답 분포">
+            <HBarChart data={hoursData} />
+          </ChartCard>
+        </ErrorBoundary>
 
-        {/* 유입 경로 */}
-        <ChartCard title="알게 되신 경로" empty={channelData.length === 0} tip="사전 설문 '핏크닉(머니업클래스)을 알게 되신 경로는?' 항목 응답 분포">
-          <HBarChart data={channelData} />
-        </ChartCard>
+        <ErrorBoundary name="차트:유입경로">
+          <ChartCard title="알게 되신 경로" empty={channelData.length === 0} tip="사전 설문 '핏크닉(머니업클래스)을 알게 되신 경로는?' 항목 응답 분포">
+            <HBarChart data={channelData} />
+          </ChartCard>
+        </ErrorBoundary>
 
-        {/* 핏크닉 다른 정규강의 수강 이력 */}
-        <ChartCard title="핏크닉 다른 정규강의 수강 이력" empty={prevCourseData.length === 0} tip="사전 설문 '핏크닉의 다른 정규강의를 수강하신 적이 있나요?' 항목 응답 분포">
-          <YesNoDonutWithDetails
-            data={prevCourseData}
-            details={filteredPrevCourseDetails}
-            noDetails={demographics.prevCourseNoDetails}
-            blockedItems={!readOnly ? blockedPrevCourseItems : undefined}
-            onRemove={!readOnly ? handleRemovePrevCourse : undefined}
-            onRestore={!readOnly ? handleRestorePrevCourse : undefined}
-          />
-        </ChartCard>
+        <ErrorBoundary name="차트:수강이력">
+          <ChartCard title="핏크닉 다른 정규강의 수강 이력" empty={prevCourseData.length === 0} tip="사전 설문 '핏크닉의 다른 정규강의를 수강하신 적이 있나요?' 항목 응답 분포">
+            <YesNoDonutWithDetails
+              data={prevCourseData}
+              details={filteredPrevCourseDetails}
+              noDetails={demographics.prevCourseNoDetails}
+              blockedItems={!readOnly ? blockedPrevCourseItems : undefined}
+              onRemove={!readOnly ? handleRemovePrevCourse : undefined}
+              onRestore={!readOnly ? handleRestorePrevCourse : undefined}
+            />
+          </ChartCard>
+        </ErrorBoundary>
 
-        {/* 강의 선택 이유 (자유 서술 → 텍스트 리스트) */}
-        <ChartCard title="강사님 강의를 선택하신 이유" empty={preResponses.length === 0} tip="사전 설문 '핏크닉의 강사님 강의를 선택하신 이유가 어떻게 되시나요?' (자유 서술)">
-          <CollapsibleTextList responses={preResponses} pattern={RAW_DATA_PATTERNS.selectReason} />
-        </ChartCard>
+        <ErrorBoundary name="차트:선택이유">
+          <ChartCard title="강사님 강의를 선택하신 이유" empty={preResponses.length === 0} tip="사전 설문 '핏크닉의 강사님 강의를 선택하신 이유가 어떻게 되시나요?' (자유 서술)">
+            <CollapsibleTextList responses={preResponses} pattern={RAW_DATA_PATTERNS.selectReason} />
+          </ChartCard>
+        </ErrorBoundary>
 
-        {/* 기대되는 혜택 (긴 라벨 → 인라인 바 리스트) */}
-        <ChartCard title="이번 강의 혜택 중 가장 기대되는 혜택" empty={expectedBenefitData.length === 0} tip="사전 설문 '이번 강의 혜택 중 가장 필요한(기대되는) 혜택은 무엇인가요?' 항목 응답 분포">
-          <ListBar data={expectedBenefitData} />
-        </ChartCard>
+        <ErrorBoundary name="차트:기대혜택">
+          <ChartCard title="이번 강의 혜택 중 가장 기대되는 혜택" empty={expectedBenefitData.length === 0} tip="사전 설문 '이번 강의 혜택 중 가장 필요한(기대되는) 혜택은 무엇인가요?' 항목 응답 분포">
+            <ListBar data={expectedBenefitData} />
+          </ChartCard>
+        </ErrorBoundary>
 
-        {/* 수강 과정 중 만족스러웠던 점 */}
-        <ChartCard title="수강 과정 중 만족스러웠던 점" empty={satData.length === 0} tip="후기 설문 '수강 과정 중 가장 만족스러웠던 점' 항목별 집계">
-          <HBarChart data={satData} />
-        </ChartCard>
+        <ErrorBoundary name="차트:만족스러웠던점">
+          <ChartCard title="수강 과정 중 만족스러웠던 점" empty={satData.length === 0} tip="후기 설문 '수강 과정 중 가장 만족스러웠던 점' 항목별 집계">
+            <HBarChart data={satData} />
+          </ChartCard>
+        </ErrorBoundary>
 
-        {/* 선호하는 강의 방식 */}
-        <ChartCard title="선호하는 강의 방식" empty={fmtData.length === 0} tip="후기 설문 '선호하는 강의 방식(형태)' 항목 응답 분포">
-          <ListBar data={fmtData} />
-        </ChartCard>
+        <ErrorBoundary name="차트:선호강의방식">
+          <ChartCard title="선호하는 강의 방식" empty={fmtData.length === 0} tip="후기 설문 '선호하는 강의 방식(형태)' 항목 응답 분포">
+            <ListBar data={fmtData} />
+          </ChartCard>
+        </ErrorBoundary>
 
-        {/* 커리큘럼 만족도 */}
-        <ChartCard title="전반적인 강의 커리큘럼 만족도" empty={postResponses.length === 0} tip="후기 설문 '전반적인 강의 커리큘럼 만족도는 몇 점이었나요?'와 '강사님의 피드백은 적절히 이루어졌나요?' 점수를 10점 만점으로 환산">
-          <div className="flex items-center justify-center gap-8 py-4">
-            <RingScore score={scores.ps1Avg} size={80} label="커리큘럼" excluded={scores.ps1Excluded} />
-            <RingScore score={scores.ps2Avg} size={80} label="피드백" excluded={scores.ps2Excluded} />
-          </div>
-        </ChartCard>
+        <ErrorBoundary name="차트:커리큘럼만족도">
+          <ChartCard title="전반적인 강의 커리큘럼 만족도" empty={postResponses.length === 0} tip="후기 설문 '전반적인 강의 커리큘럼 만족도는 몇 점이었나요?'와 '강사님의 피드백은 적절히 이루어졌나요?' 점수를 10점 만점으로 환산">
+            <div className="flex items-center justify-center gap-8 py-4">
+              <RingScore score={scores.ps1Avg} size={80} label="커리큘럼" excluded={scores.ps1Excluded} />
+              <RingScore score={scores.ps2Avg} size={80} label="피드백" excluded={scores.ps2Excluded} />
+            </div>
+          </ChartCard>
+        </ErrorBoundary>
 
-        {/* 추천 의향 */}
-        <ChartCard title="이 강의를 지인분들께 추천하실 것 같으신가요?" empty={postResponses.length === 0} tip="후기 설문 추천 의향 문항의 긍정/부정 응답 비율">
-          <RecDonut postResponses={postResponses} />
-        </ChartCard>
+        <ErrorBoundary name="차트:추천의향">
+          <ChartCard title="이 강의를 지인분들께 추천하실 것 같으신가요?" empty={postResponses.length === 0} tip="후기 설문 추천 의향 문항의 긍정/부정 응답 비율">
+            <RecDonut postResponses={postResponses} />
+          </ChartCard>
+        </ErrorBoundary>
 
         {/* 동적 사전 설문 질문 */}
         {extraPreQuestions.map((eq, i) => (
-          <ChartCard key={`pre-extra-${i}`} title={eq.question} tip={`사전 설문 '${eq.question}' 항목 응답 분포 (${eq.total}명)`}>
-            <ListBar data={toChartData(eq.summary)} />
-          </ChartCard>
+          <ErrorBoundary key={`pre-extra-${i}`} name={`차트:사전동적-${safe(eq.question).slice(0, 15)}`}>
+            <ChartCard title={safe(eq.question)} tip={`사전 설문 '${safe(eq.question)}' 항목 응답 분포 (${eq.total}명)`}>
+              <ListBar data={toChartData(eq.summary)} />
+            </ChartCard>
+          </ErrorBoundary>
         ))}
 
         {/* 동적 후기 설문 질문 */}
         {extraPostQuestions.map((eq, i) => (
-          <ChartCard key={`post-extra-${i}`} title={eq.question} tip={`후기 설문 '${eq.question}' 항목 응답 분포 (${eq.total}명)`}>
-            <ListBar data={toChartData(eq.summary)} />
-          </ChartCard>
+          <ErrorBoundary key={`post-extra-${i}`} name={`차트:후기동적-${safe(eq.question).slice(0, 15)}`}>
+            <ChartCard title={safe(eq.question)} tip={`후기 설문 '${safe(eq.question)}' 항목 응답 분포 (${eq.total}명)`}>
+              <ListBar data={toChartData(eq.summary)} />
+            </ChartCard>
+          </ErrorBoundary>
         ))}
       </div>
     </div>
