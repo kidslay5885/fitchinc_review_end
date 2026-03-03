@@ -183,8 +183,8 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
   const visibleCohorts = useMemo(() => {
     const cohorts = course ? course.cohorts : allCohorts(instructor);
     return [...cohorts].sort((a, b) => {
-      const numA = parseInt(a.label.replace(/\D/g, "")) || 0;
-      const numB = parseInt(b.label.replace(/\D/g, "")) || 0;
+      const numA = parseInt((a.label || "").replace(/\D/g, "")) || 0;
+      const numB = parseInt((b.label || "").replace(/\D/g, "")) || 0;
       return numA - numB;
     });
   }, [course, instructor]);

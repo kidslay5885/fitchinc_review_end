@@ -30,8 +30,8 @@ export function EditInstructorDialog({
     // 기수를 숫자 순으로 자동 정렬 (3기 → 4기 → 5기)
     for (const course of copy.courses) {
       course.cohorts.sort((a, b) => {
-        const numA = parseInt(a.label.replace(/\D/g, "")) || 0;
-        const numB = parseInt(b.label.replace(/\D/g, "")) || 0;
+        const numA = parseInt((a.label || "").replace(/\D/g, "")) || 0;
+        const numB = parseInt((b.label || "").replace(/\D/g, "")) || 0;
         return numA - numB;
       });
     }
