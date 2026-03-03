@@ -275,6 +275,11 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
     return FIELD_ORDER.filter((f) => set.has(f));
   }, [comments]);
 
+  // 데이터에 있는 항목 중 제외된 수 (배지 표시용)
+  const excludedInDataCount = useMemo(() => {
+    return allSourceFieldsInData.filter((f) => excludedFields.has(f)).length;
+  }, [allSourceFieldsInData, excludedFields]);
+
   // 필터 드롭다운용은 activeComments 기준
   const sourceFieldsInData = useMemo(() => {
     const set = new Set(activeComments.map((c) => c.source_field));
@@ -829,7 +834,7 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
                   type="button"
                   onClick={() => setShowFieldSettings((v) => !v)}
                   className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-[13px] font-medium border transition-colors ${
-                    excludedFields.size > 0
+                    excludedInDataCount > 0
                       ? "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100"
                       : "bg-card hover:bg-muted/80 text-foreground"
                   }`}
@@ -837,9 +842,9 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
                 >
                   <Settings2 className="w-3.5 h-3.5" />
                   설문 항목 설정
-                  {excludedFields.size > 0 && (
+                  {excludedInDataCount > 0 && (
                     <span className="ml-1 text-[11px] bg-amber-200 text-amber-900 rounded-full px-1.5 py-0.5 font-bold leading-none">
-                      {excludedFields.size}개 제외
+                      {excludedInDataCount}개 제외
                     </span>
                   )}
                 </button>
