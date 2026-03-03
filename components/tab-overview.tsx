@@ -483,6 +483,48 @@ export function TabOverview({ instructor, course, cohort, platformName, readOnly
 
   const noData = preResponses.length === 0 && postResponses.length === 0;
 
+  // ★ DEBUG: 주언규 디버그 - 응답 데이터 내 객체 탐지
+  if (!noData && typeof window !== "undefined") {
+    try {
+      const checkVal = (label: string, v: unknown) => {
+        if (v !== null && v !== undefined && typeof v === "object" && !Array.isArray(v)) {
+          console.error(`[DEBUG] ${label} = OBJECT:`, JSON.stringify(v).slice(0, 300));
+        }
+      };
+      // 첫 번째 응답의 모든 필드 타입 체크
+      for (const r of preResponses.slice(0, 3)) {
+        for (const [k, v] of Object.entries(r)) {
+          if (k === "rawData") {
+            // rawData 내부 값 체크
+            if (v && typeof v === "object") {
+              for (const [rk, rv] of Object.entries(v as Record<string, unknown>)) {
+                checkVal(`pre.rawData["${rk}"]`, rv);
+              }
+            }
+          } else {
+            checkVal(`pre.${k}`, v);
+          }
+        }
+      }
+      for (const r of postResponses.slice(0, 3)) {
+        for (const [k, v] of Object.entries(r)) {
+          if (k === "rawData") {
+            if (v && typeof v === "object") {
+              for (const [rk, rv] of Object.entries(v as Record<string, unknown>)) {
+                checkVal(`post.rawData["${rk}"]`, rv);
+              }
+            }
+          } else {
+            checkVal(`post.${k}`, v);
+          }
+        }
+      }
+      console.log("[DEBUG] pre count:", preResponses.length, "post count:", postResponses.length);
+    } catch (e) {
+      console.error("[DEBUG] 디버그 코드 에러:", e);
+    }
+  }
+
   if (noData) {
     return (
       <div className="text-center py-16">
@@ -537,49 +579,6 @@ export function TabOverview({ instructor, course, cohort, platformName, readOnly
     }
     return toChartData(counts);
   }, [postResponses]);
-
-  // ★ DEBUG: 렌더링 전 모든 차트 데이터 타입 체크
-  if (typeof window !== "undefined") {
-    const debugCheck = (label: string, data: unknown) => {
-      if (data && typeof data === "object" && !Array.isArray(data)) {
-        console.error(`[TabOverview DEBUG] ${label} is an OBJECT:`, JSON.stringify(data).slice(0, 200));
-      }
-      if (Array.isArray(data)) {
-        data.forEach((item, i) => {
-          if (item && typeof item === "object") {
-            Object.entries(item).forEach(([k, v]) => {
-              if (v && typeof v === "object") {
-                console.error(`[TabOverview DEBUG] ${label}[${i}].${k} is an OBJECT:`, JSON.stringify(v).slice(0, 200));
-              }
-            });
-          }
-        });
-      }
-    };
-    debugCheck("gender.data", gender.data);
-    debugCheck("ageData", ageData);
-    debugCheck("jobData", jobData);
-    debugCheck("hoursData", hoursData);
-    debugCheck("channelData", channelData);
-    debugCheck("prevCourseData", prevCourseData);
-    debugCheck("expectedBenefitData", expectedBenefitData);
-    debugCheck("satData", satData);
-    debugCheck("fmtData", fmtData);
-    debugCheck("extraPreQuestions", extraPreQuestions);
-    debugCheck("extraPostQuestions", extraPostQuestions);
-    console.log("[TabOverview DEBUG] scopeLabel:", typeof scopeLabel, scopeLabel);
-    console.log("[TabOverview DEBUG] preResponses sample:", preResponses.length > 0 ? JSON.stringify(Object.entries(preResponses[0]).map(([k, v]) => [k, typeof v, typeof v === "object" && v !== null ? "OBJECT!" : ""]).filter(([,,flag]) => flag)).slice(0, 500) : "empty");
-    console.log("[TabOverview DEBUG] demographics keys:", Object.keys(demographics));
-    Object.entries(demographics).forEach(([k, v]) => {
-      if (v && typeof v === "object" && !Array.isArray(v)) {
-        Object.entries(v as Record<string, unknown>).forEach(([vk, vv]) => {
-          if (vv && typeof vv === "object") {
-            console.error(`[TabOverview DEBUG] demographics.${k}.${vk} is an OBJECT:`, JSON.stringify(vv).slice(0, 200));
-          }
-        });
-      }
-    });
-  }
 
   return (
     <div className="space-y-6">
