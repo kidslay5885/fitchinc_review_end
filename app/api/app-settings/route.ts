@@ -15,6 +15,7 @@ const BLOCKLIST_KEY = "prevCourse_blocklist";
 const EXCLUDED_FIELDS_KEY = "excluded_source_fields";
 const HIDDEN_COMMENTS_KEY = "hidden_comments";
 const STARRED_COMMENTS_KEY = "starred_comments";
+const COMMENT_TRANSFERS_KEY = "comment_transfers";
 
 /** GET: 모든 앱 설정 조회 (강사 사진, 기수 순서, 수강이력 블랙리스트) - 새 창/새로고침 시 복원용 */
 export async function GET() {
@@ -24,7 +25,7 @@ export async function GET() {
 
     if (error) {
       console.error("app_settings GET error (table may not exist):", error.message, error.code);
-      return NextResponse.json({ instructorPhotos: {}, cohortOrders: {}, prevCourseBlocklist: [], excludedSourceFields: [], courseDisplayNames: {}, hiddenComments: [], starredComments: [] });
+      return NextResponse.json({ instructorPhotos: {}, cohortOrders: {}, prevCourseBlocklist: [], excludedSourceFields: [], courseDisplayNames: {}, hiddenComments: [], starredComments: [], transferOrigins: {} });
     }
 
     const instructorPhotos: Record<string, { photo: string; photoPosition: string; category?: string }> = {};
@@ -33,6 +34,7 @@ export async function GET() {
     let excludedSourceFields: string[] = [];
     let hiddenComments: string[] = [];
     let starredComments: string[] = [];
+    let transferOrigins: Record<string, string> = {};
 
     for (const row of data || []) {
       const key = row.key as string;
@@ -54,17 +56,19 @@ export async function GET() {
         hiddenComments = value.filter((x) => typeof x === "string");
       } else if (key === STARRED_COMMENTS_KEY && Array.isArray(value)) {
         starredComments = value.filter((x) => typeof x === "string");
+      } else if (key === COMMENT_TRANSFERS_KEY && value && typeof value === "object" && !Array.isArray(value)) {
+        transferOrigins = value as Record<string, string>;
       }
     }
 
     return NextResponse.json(
-      { instructorPhotos, cohortOrders, prevCourseBlocklist, excludedSourceFields, hiddenComments, starredComments },
+      { instructorPhotos, cohortOrders, prevCourseBlocklist, excludedSourceFields, hiddenComments, starredComments, transferOrigins },
       { headers: { "Cache-Control": "no-store, max-age=0" } },
     );
   } catch (e) {
     console.warn("app_settings GET error:", e);
     return NextResponse.json(
-      { instructorPhotos: {}, cohortOrders: {}, prevCourseBlocklist: [], excludedSourceFields: [], hiddenComments: [], starredComments: [] },
+      { instructorPhotos: {}, cohortOrders: {}, prevCourseBlocklist: [], excludedSourceFields: [], hiddenComments: [], starredComments: [], transferOrigins: {} },
       { headers: { "Cache-Control": "no-store, max-age=0" } },
     );
   }
@@ -239,7 +243,40 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, list });
     }
 
-    return NextResponse.json({ error: "type: instructor_photo | cohort_order | prevCourse_blocklist | excluded_source_fields | hidden_comments | starred_comments 필요" }, { status: 400 });
+    if (body.type === "comment_transfers") {
+      const { action, entries } = body;
+      if (action !== "add" || !entries || typeof entries !== "object") {
+        return NextResponse.json({ error: "action: 'add', entries: Record<string,string> 필요" }, { status: 400 });
+      }
+
+      const supabase = getSupabase();
+
+      const { data: existing } = await supabase
+        .from(TABLE)
+        .select("value")
+        .eq("key", COMMENT_TRANSFERS_KEY)
+        .single();
+      const map: Record<string, string> = (existing?.value && typeof existing.value === "object" && !Array.isArray(existing.value))
+        ? (existing.value as Record<string, string>)
+        : {};
+
+      // merge new entries
+      for (const [id, fromTag] of Object.entries(entries)) {
+        if (typeof fromTag === "string") map[id] = fromTag;
+      }
+
+      const { error } = await supabase.from(TABLE).upsert(
+        { key: COMMENT_TRANSFERS_KEY, value: map, updated_at: new Date().toISOString() },
+        { onConflict: "key" }
+      );
+      if (error) {
+        console.warn("app_settings upsert comment_transfers error:", error.message);
+        return NextResponse.json({ ok: false, error: error.message });
+      }
+      return NextResponse.json({ ok: true, map });
+    }
+
+    return NextResponse.json({ error: "type: instructor_photo | cohort_order | prevCourse_blocklist | excluded_source_fields | hidden_comments | starred_comments | comment_transfers 필요" }, { status: 400 });
   } catch (e) {
     console.warn("app_settings POST error:", e);
     return NextResponse.json({ error: "저장 실패" }, { status: 500 });

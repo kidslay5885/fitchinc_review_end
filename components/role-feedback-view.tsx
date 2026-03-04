@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef, } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import type { Comment } from "@/lib/types";
 import {
   FIELD_LABELS,
@@ -20,6 +20,7 @@ import {
   CheckCircle2,
   Share2,
   Star,
+  ArrowRightLeft,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ShareLinkDialog } from "@/components/share-link-dialog";
@@ -68,6 +69,11 @@ const ROLE_LABELS: Record<Role, string> = {
   instructor: "강사",
 };
 
+// tag → Role 역매핑
+const TAG_TO_ROLE: Record<string, Role> = Object.fromEntries(
+  Object.entries(ROLE_TAGS).map(([r, t]) => [t, r as Role])
+) as Record<string, Role>;
+
 const PLATFORM_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   핏크닉: { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200" },
   머니업클래스: { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200" },
@@ -106,6 +112,12 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
   // 중요 표시 (별표)
   const [starredIds, setStarredIds] = useState<Set<string>>(new Set());
 
+  // 이관 출처
+  const [transferOrigins, setTransferOrigins] = useState<Record<string, string>>({});
+  // 이관 드롭다운 (개별: commentId, 다중: "__bulk__")
+  const [transferDropdownId, setTransferDropdownId] = useState<string | null>(null);
+  const transferDropdownRef = useRef<HTMLDivElement>(null);
+
   // 공유 링크 다이얼로그
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [shareDialogTarget, setShareDialogTarget] = useState<{ platform: string; instructor: string } | null>(null);
@@ -134,6 +146,66 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
       }
     } catch { /* ignore */ }
   };
+
+  // 이관 출처 로드
+  const loadTransferOrigins = async () => {
+    try {
+      const res = await fetch("/api/app-settings");
+      if (!res.ok) return;
+      const d = await res.json();
+      if (d.transferOrigins && typeof d.transferOrigins === "object") {
+        setTransferOrigins(d.transferOrigins);
+      }
+    } catch { /* ignore */ }
+  };
+
+  // 이관 실행
+  const transferComments = useCallback(async (commentIds: string[], toRole: Role) => {
+    const fromTag = ROLE_TAGS[role];
+    const toTag = ROLE_TAGS[toRole];
+
+    // 1) 각 댓글의 tag 변경
+    const results = await Promise.allSettled(
+      commentIds.map((id) =>
+        fetch("/api/classify", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ commentId: id, tag: toTag }),
+        })
+      )
+    );
+    const succeeded = commentIds.filter((_, i) => results[i].status === "fulfilled");
+    if (succeeded.length === 0) {
+      toast.error("이관 실패");
+      return;
+    }
+
+    // 2) 이관 출처 저장
+    const entries = Object.fromEntries(succeeded.map((id) => [id, fromTag]));
+    await fetch("/api/app-settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "comment_transfers", action: "add", entries }),
+    }).catch(() => {});
+
+    // 3) 로컬 상태 업데이트
+    setComments((prev) => prev.filter((c) => !succeeded.includes(c.id)));
+    toast.success(`${succeeded.length}건을 ${ROLE_LABELS[toRole]}(으)로 이관했습니다`);
+    setSelected(new Set());
+    setTransferDropdownId(null);
+  }, [role]);
+
+  // 외부 클릭 시 이관 드롭다운 닫기
+  useEffect(() => {
+    if (!transferDropdownId) return;
+    const handleClick = (e: MouseEvent) => {
+      if (transferDropdownRef.current && !transferDropdownRef.current.contains(e.target as Node)) {
+        setTransferDropdownId(null);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [transferDropdownId]);
 
   // 중요 표시 토글 (별표 시 자동 확인완료 + 미확인 목록에서 제거)
   const toggleStar = async (commentId: string) => {
@@ -219,6 +291,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
     loadComments(role);
     loadConfirmed();
     loadStarredComments();
+    loadTransferOrigins();
   }, [role]);
 
   const resetDetailFilters = () => {
@@ -834,7 +907,41 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
                                 {comment.sentiment === "positive" ? "긍정" : comment.sentiment === "negative" ? "부정" : "미구분"}
                               </span>
                             )}
+                            {transferOrigins[comment.id] && (() => {
+                              const fromRole = TAG_TO_ROLE[transferOrigins[comment.id]];
+                              return fromRole ? (
+                                <span className="text-[11px] py-0.5 px-1.5 rounded font-semibold bg-violet-50 text-violet-700 border border-violet-200">
+                                  {ROLE_LABELS[fromRole]}에서 이관
+                                </span>
+                              ) : null;
+                            })()}
                           </div>
+                        </div>
+                        {/* 이관 버튼 */}
+                        <div className="relative shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setTransferDropdownId(transferDropdownId === comment.id ? null : comment.id)}
+                            title="다른 직무로 이관"
+                            className="p-1 rounded transition-colors text-muted-foreground/40 hover:text-violet-600"
+                          >
+                            <ArrowRightLeft className="w-4 h-4" />
+                          </button>
+                          {transferDropdownId === comment.id && (
+                            <div ref={transferDropdownRef} className="absolute right-0 top-full mt-1 z-50 bg-card border rounded-lg shadow-lg py-1 min-w-[120px]">
+                              {(Object.keys(ROLE_LABELS) as Role[])
+                                .filter((r) => r !== role)
+                                .map((r) => (
+                                  <button
+                                    key={r}
+                                    onClick={() => transferComments([comment.id], r)}
+                                    className="w-full text-left px-3 py-1.5 text-[13px] hover:bg-muted transition-colors"
+                                  >
+                                    {ROLE_LABELS[r]}
+                                  </button>
+                                ))}
+                            </div>
+                          )}
                         </div>
                         <button
                           type="button"
@@ -892,6 +999,31 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   확인 완료
                 </button>
+                {/* 다중 이관 */}
+                <div className="relative">
+                  <button
+                    onClick={() => setTransferDropdownId(transferDropdownId === "__bulk__" ? null : "__bulk__")}
+                    className="py-1 px-3 rounded-lg bg-violet-600 text-white text-[12px] font-bold flex items-center gap-1.5 hover:opacity-90 transition-opacity"
+                  >
+                    <ArrowRightLeft className="w-3.5 h-3.5" />
+                    이관
+                  </button>
+                  {transferDropdownId === "__bulk__" && (
+                    <div ref={transferDropdownRef} className="absolute bottom-full mb-1 right-0 z-50 bg-card border rounded-lg shadow-lg py-1 min-w-[120px]">
+                      {(Object.keys(ROLE_LABELS) as Role[])
+                        .filter((r) => r !== role)
+                        .map((r) => (
+                          <button
+                            key={r}
+                            onClick={() => transferComments(Array.from(selected), r)}
+                            className="w-full text-left px-3 py-1.5 text-[13px] hover:bg-muted transition-colors"
+                          >
+                            {ROLE_LABELS[r]}
+                          </button>
+                        ))}
+                    </div>
+                  )}
+                </div>
                 <button
                   onClick={copySelected}
                   className="py-1 px-3 rounded-lg bg-primary text-primary-foreground text-[12px] font-bold flex items-center gap-1.5 hover:opacity-90 transition-opacity"
