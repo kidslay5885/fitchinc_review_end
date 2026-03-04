@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
     if (tag) {
       let surveyQuery = supabase
         .from("surveys")
-        .select("id, platform, instructor, cohort");
+        .select("id, platform, instructor, course, cohort");
 
       if (platform) {
         surveyQuery = surveyQuery.eq("platform", platform);
@@ -107,6 +107,7 @@ export async function GET(req: NextRequest) {
           ...c,
           _platform: survey?.platform || "",
           _instructor: survey?.instructor || "",
+          _course: survey?.course || "",
           _cohort: survey?.cohort || "",
         };
       });

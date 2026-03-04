@@ -30,12 +30,14 @@ type Role = "pm" | "pd" | "cs" | "platform" | "etc" | "instructor";
 interface EnrichedComment extends Comment {
   _platform: string;
   _instructor: string;
+  _course: string;
   _cohort: string;
 }
 
 interface InstructorSummary {
   instructor: string;
   platform: string;
+  course: string;
   total: number;
   positive: number;
   negative: number;
@@ -276,11 +278,12 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
     for (const c of comments) {
       if (showHidden ? !hiddenIds.has(c.id) : hiddenIds.has(c.id)) continue;
       if (platformFilter !== "all" && c._platform !== platformFilter) continue;
-      const key = `${c._platform}|${c._instructor}`;
+      const key = `${c._platform}|${c._instructor}|${c._course}`;
       if (!map.has(key)) {
         map.set(key, {
           instructor: c._instructor,
           platform: c._platform,
+          course: c._course,
           total: 0,
           positive: 0,
           negative: 0,
@@ -302,7 +305,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
     if (search) {
       const q = search.toLowerCase();
       result = result.filter(
-        (s) => s.instructor.toLowerCase().includes(q) || s.platform.toLowerCase().includes(q)
+        (s) => s.instructor.toLowerCase().includes(q) || s.platform.toLowerCase().includes(q) || s.course.toLowerCase().includes(q)
       );
     }
 
@@ -317,7 +320,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
 
   // 선택된 강사의 상세 데이터
   const selectedSummary = useMemo(
-    () => instructorSummaries.find((s) => `${s.platform}|${s.instructor}` === selectedInstructor) || null,
+    () => instructorSummaries.find((s) => `${s.platform}|${s.instructor}|${s.course}` === selectedInstructor) || null,
     [instructorSummaries, selectedInstructor]
   );
 
@@ -560,10 +563,10 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
         {loaded && instructorSummaries.length > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 mb-5">
             {instructorSummaries.map((s) => {
-              const key = `${s.platform}|${s.instructor}`;
+              const key = `${s.platform}|${s.instructor}|${s.course}`;
               const isActive = selectedInstructor === key;
               const pct = positivePercent(s);
-              const photo = photoMap.get(key);
+              const photo = photoMap.get(`${s.platform}|${s.instructor}`);
               return (
                 <button
                   key={key}
@@ -588,6 +591,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
                     )}
                   </div>
                   <span className="text-[15px] font-bold truncate w-full">{s.instructor}</span>
+                  {s.course && <span className="text-[12px] text-muted-foreground truncate w-full">{s.course}</span>}
                   <span className="text-[12px] text-muted-foreground mt-0.5">{s.platform}</span>
                   <div className="flex items-center gap-1.5 mt-2.5 w-full">
                     <span className="text-[20px] font-extrabold text-primary">{s.total}</span>
@@ -649,6 +653,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
             {/* 상세 헤더 */}
             <div className="flex items-center gap-3 py-3 px-5 bg-primary/5 border-b">
               <span className="text-[16px] font-extrabold">{selectedSummary.instructor}</span>
+              {selectedSummary.course && <span className="text-[13px] text-muted-foreground">{selectedSummary.course}</span>}
               <span className="text-[13px] text-muted-foreground">{selectedSummary.platform}</span>
               <span className="text-[13px] font-bold text-primary">{detailFiltered.length}건</span>
               <div className="flex-1" />
