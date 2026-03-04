@@ -42,6 +42,12 @@ interface ShareComment {
   original_text: string;
   sentiment: "positive" | "negative" | "neutral" | null;
   source_field: string;
+  cohort: string;
+}
+
+// SurveyResponse + cohort
+interface ShareResponse extends SurveyResponse {
+  cohort: string;
 }
 
 interface InstructorPhoto {
@@ -93,8 +99,8 @@ const SECTION_THEME = {
 } as const;
 
 export function ShareInstructorView({ token, title, filters }: ShareInstructorViewProps) {
-  const [preResponses, setPreResponses] = useState<SurveyResponse[]>([]);
-  const [postResponses, setPostResponses] = useState<SurveyResponse[]>([]);
+  const [preResponses, setPreResponses] = useState<ShareResponse[]>([]);
+  const [postResponses, setPostResponses] = useState<ShareResponse[]>([]);
   const [comments, setComments] = useState<ShareComment[]>([]);
   const [instructorPhoto, setInstructorPhoto] = useState<InstructorPhoto | null>(null);
   const [cohorts, setCohorts] = useState<string[]>([]);
@@ -130,21 +136,35 @@ export function ShareInstructorView({ token, title, filters }: ShareInstructorVi
     fetchData();
   }, [token]);
 
+  // 기수 필터 적용된 데이터
+  const filteredPre = useMemo(
+    () => selectedCohort === "all" ? preResponses : preResponses.filter((r) => r.cohort === selectedCohort),
+    [preResponses, selectedCohort],
+  );
+  const filteredPost = useMemo(
+    () => selectedCohort === "all" ? postResponses : postResponses.filter((r) => r.cohort === selectedCohort),
+    [postResponses, selectedCohort],
+  );
+  const filteredComments = useMemo(
+    () => selectedCohort === "all" ? comments : comments.filter((c) => c.cohort === selectedCohort),
+    [comments, selectedCohort],
+  );
+
   const allResponses = useMemo(
-    () => [...preResponses, ...postResponses],
-    [preResponses, postResponses],
+    () => [...filteredPre, ...filteredPost],
+    [filteredPre, filteredPost],
   );
 
   const demographics = useMemo(() => computeDemographics(allResponses), [allResponses]);
-  const scores = useMemo(() => computeScores(postResponses), [postResponses]);
-  const satItems = useMemo(() => getSatisfactionItems(postResponses), [postResponses]);
-  const extraPreQuestions = useMemo(() => collectExtraQuestions(preResponses), [preResponses]);
-  const extraPostQuestions = useMemo(() => collectExtraQuestions(postResponses), [postResponses]);
+  const scores = useMemo(() => computeScores(filteredPost), [filteredPost]);
+  const satItems = useMemo(() => getSatisfactionItems(filteredPost), [filteredPost]);
+  const extraPreQuestions = useMemo(() => collectExtraQuestions(filteredPre), [filteredPre]);
+  const extraPostQuestions = useMemo(() => collectExtraQuestions(filteredPost), [filteredPost]);
 
   // 선호 강의 방식
   const fmtData = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const r of postResponses) {
+    for (const r of filteredPost) {
       const fmt = typeof r.pFmt === "string" ? r.pFmt : String(r.pFmt ?? "");
       if (!fmt) continue;
       for (const p of fmt.split("|").map((s) => s.trim())) {
@@ -152,12 +172,12 @@ export function ShareInstructorView({ token, title, filters }: ShareInstructorVi
       }
     }
     return toChartData(counts);
-  }, [postResponses]);
+  }, [filteredPost]);
 
   // 댓글: 문항(source_field)별 그룹핑 + 각 그룹 내 감정 정렬
   const allGroups = useMemo(() => {
     const groups: Record<string, ShareComment[]> = {};
-    for (const c of comments) {
+    for (const c of filteredComments) {
       if (c.source_field === "hopePlatform") continue; // 플랫폼 피드백 제외
       const key = c.source_field || "_unknown";
       if (!groups[key]) groups[key] = [];
@@ -173,7 +193,7 @@ export function ShareInstructorView({ token, title, filters }: ShareInstructorVi
       label: shortLabel(field),
       items: [...items].sort(sentimentSort),
     }));
-  }, [comments]);
+  }, [filteredComments]);
 
   // 사전/후기 분리 + 감정 필터 + 보기 모드 적용
   const applyFilters = (groups: typeof allGroups) => {
@@ -206,11 +226,11 @@ export function ShareInstructorView({ token, title, filters }: ShareInstructorVi
 
   // 감정별 카운트
   const sentimentCounts = useMemo(() => ({
-    total: comments.length,
-    positive: comments.filter((c) => c.sentiment === "positive").length,
-    negative: comments.filter((c) => c.sentiment === "negative").length,
-    neutral: comments.filter((c) => c.sentiment === "neutral" || c.sentiment === null).length,
-  }), [comments]);
+    total: filteredComments.length,
+    positive: filteredComments.filter((c) => c.sentiment === "positive").length,
+    negative: filteredComments.filter((c) => c.sentiment === "negative").length,
+    neutral: filteredComments.filter((c) => c.sentiment === "neutral" || c.sentiment === null).length,
+  }), [filteredComments]);
 
   const toggleCollapse = (key: string) => {
     setCollapsedSections((prev) => {
@@ -306,7 +326,7 @@ export function ShareInstructorView({ token, title, filters }: ShareInstructorVi
     );
   }
 
-  const noData = preResponses.length === 0 && postResponses.length === 0;
+  const noData = filteredPre.length === 0 && filteredPost.length === 0;
 
   return (
     <div className="min-h-screen bg-background">
@@ -382,7 +402,7 @@ export function ShareInstructorView({ token, title, filters }: ShareInstructorVi
         {/* 기수 필터 미사용 시 마진 */}
         {!showCohortFilter && <div className="mb-6" />}
 
-        {noData && comments.length === 0 && (
+        {noData && filteredComments.length === 0 && (
           <div className="text-center py-16 text-muted-foreground">
             <div className="text-lg font-bold mb-1">표시할 데이터가 없습니다</div>
             <div className="text-sm">아직 설문 응답이 등록되지 않았습니다.</div>
@@ -393,8 +413,8 @@ export function ShareInstructorView({ token, title, filters }: ShareInstructorVi
         {!noData && (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
-              <SummaryCard label="사전 응답 수" value={`${preResponses.length}명`} tip="강의 시작 전 사전 설문에 참여한 총 응답자 수입니다." />
-              <SummaryCard label="후기 응답 수" value={`${postResponses.length}명`} tip="강의 종료 후 후기 설문에 참여한 총 응답자 수입니다." />
+              <SummaryCard label="사전 응답 수" value={`${filteredPre.length}명`} tip="강의 시작 전 사전 설문에 참여한 총 응답자 수입니다." />
+              <SummaryCard label="후기 응답 수" value={`${filteredPost.length}명`} tip="강의 종료 후 후기 설문에 참여한 총 응답자 수입니다." />
               <SummaryCard
                 label="만족도 점수"
                 value={
@@ -407,7 +427,7 @@ export function ShareInstructorView({ token, title, filters }: ShareInstructorVi
               />
               <SummaryCard
                 label="추천률"
-                value={postResponses.length > 0 ? `${scores.recRate}%` : "-"}
+                value={filteredPost.length > 0 ? `${scores.recRate}%` : "-"}
                 tip="후기 설문 '이 강의를 지인분들께 추천하실 것 같으신가요?' 문항에서 긍정 응답('네', '예' 등)을 한 비율입니다. 아래 '지인 추천 의향' 차트에서 세부 분포를 확인할 수 있습니다."
               />
             </div>
@@ -478,7 +498,7 @@ export function ShareInstructorView({ token, title, filters }: ShareInstructorVi
               </ErrorBoundary>
 
               <ErrorBoundary name="커리큘럼만족도">
-                <ChartCard title="커리큘럼 / 피드백 만족도" empty={postResponses.length === 0}>
+                <ChartCard title="커리큘럼 / 피드백 만족도" empty={filteredPost.length === 0}>
                   <div className="flex items-center justify-center gap-8 py-4">
                     <RingScore score={scores.ps1Avg} size={80} label="커리큘럼" excluded={scores.ps1Excluded} />
                     <RingScore score={scores.ps2Avg} size={80} label="피드백" excluded={scores.ps2Excluded} />
@@ -487,8 +507,8 @@ export function ShareInstructorView({ token, title, filters }: ShareInstructorVi
               </ErrorBoundary>
 
               <ErrorBoundary name="추천의향">
-                <ChartCard title="지인 추천 의향" empty={postResponses.length === 0}>
-                  <RecDonut postResponses={postResponses} />
+                <ChartCard title="지인 추천 의향" empty={filteredPost.length === 0}>
+                  <RecDonut postResponses={filteredPost} />
                 </ChartCard>
               </ErrorBoundary>
 
@@ -514,7 +534,7 @@ export function ShareInstructorView({ token, title, filters }: ShareInstructorVi
         )}
 
         {/* 수강생 피드백 섹션 */}
-        {comments.length > 0 && (
+        {filteredComments.length > 0 && (
           <div className="border-t pt-6 sm:pt-8">
             {/* 제목 + 다운로드 */}
             <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
@@ -523,8 +543,8 @@ export function ShareInstructorView({ token, title, filters }: ShareInstructorVi
                 type="button"
                 onClick={() => {
                   const target = viewMode === "starred"
-                    ? comments.filter((c) => starredIds.has(c.id))
-                    : comments;
+                    ? filteredComments.filter((c) => starredIds.has(c.id))
+                    : filteredComments;
                   downloadExcel(target, `${filters.instructor || "피드백"}_수강생피드백`);
                 }}
                 className="flex items-center gap-1.5 py-1.5 px-3 rounded-lg border text-[12px] font-semibold text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"

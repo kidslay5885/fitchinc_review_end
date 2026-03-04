@@ -71,6 +71,12 @@ export async function GET(req: NextRequest) {
       return numA - numB;
     });
 
+    // survey_id → cohort 매핑 (응답/댓글에 기수 정보 부착용)
+    const surveyIdToCohort: Record<string, string> = {};
+    for (const s of surveys) {
+      surveyIdToCohort[s.id] = s.cohort || "";
+    }
+
     // rawData 정규화
     const normalizeRawData = (raw: unknown): Record<string, string> => {
       if (!raw || typeof raw !== "object") return {};
@@ -111,6 +117,7 @@ export async function GET(req: NextRequest) {
         pFree: String(r.p_free ?? ""),
         pRec: String(r.p_rec ?? ""),
         rawData: normalizeRawData(r.raw_data),
+        cohort: surveyIdToCohort[r.survey_id] || "",
       }));
     };
 
@@ -153,7 +160,7 @@ export async function GET(req: NextRequest) {
       if (allSurveyIds.length === 0) return [];
       const { data, error } = await supabase
         .from("comments")
-        .select("id, original_text, sentiment, source_field, tag")
+        .select("id, survey_id, original_text, sentiment, source_field, tag")
         .in("survey_id", allSurveyIds)
         .eq("tag", "instructor")
         .neq("source_field", "hopePlatform") // 플랫폼 피드백 제외
@@ -164,6 +171,7 @@ export async function GET(req: NextRequest) {
         original_text: c.original_text,
         sentiment: c.sentiment,
         source_field: c.source_field,
+        cohort: surveyIdToCohort[c.survey_id] || "",
       }));
     };
 
