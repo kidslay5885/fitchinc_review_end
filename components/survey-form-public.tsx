@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import type { SurveyForm, FormField } from "@/lib/types";
-import { Loader2, CheckCircle2, ChevronDown } from "lucide-react";
+import { Loader2, CheckCircle2, ChevronDown, ImagePlus, X, Upload } from "lucide-react";
 
 interface Props {
   form: SurveyForm;
@@ -55,6 +55,125 @@ function ScaleInput({
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+// ===== 이미지 업로드 필드 =====
+
+function ImageUploadField({
+  value,
+  onChange,
+  error,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  error?: boolean;
+}) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+
+  const handleFile = useCallback(async (file: File) => {
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      alert("JPG, PNG, WebP 형식만 업로드 가능합니다");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert("이미지는 5MB 이하만 업로드 가능합니다");
+      return;
+    }
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/survey-images", { method: "POST", body: fd });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        onChange(data.url);
+      } else {
+        alert(data.error || "업로드에 실패했습니다");
+      }
+    } catch {
+      alert("업로드 중 오류가 발생했습니다");
+    } finally {
+      setUploading(false);
+    }
+  }, [onChange]);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleFile(file);
+  }, [handleFile]);
+
+  if (value) {
+    return (
+      <div className="relative inline-block">
+        <img
+          src={value}
+          alt="업로드된 이미지"
+          className="max-w-full max-h-60 rounded-2xl border-2 border-gray-200 object-contain"
+        />
+        <button
+          type="button"
+          onClick={() => onChange("")}
+          className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 text-white flex items-center justify-center shadow hover:bg-black/70 transition-colors"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={handleDrop}
+      className={`flex flex-col items-center justify-center gap-3 py-8 px-4 rounded-2xl border-2 border-dashed transition-all ${
+        error ? "border-red-300 bg-red-50/50" :
+        dragOver ? "border-blue-400 bg-blue-50" :
+        "border-gray-300 bg-gray-50 hover:border-blue-300 hover:bg-blue-50/50"
+      }`}
+    >
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleFile(file);
+          if (fileRef.current) fileRef.current.value = "";
+        }}
+      />
+
+      {uploading ? (
+        <>
+          <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+          <span className="text-[14px] text-gray-500">업로드 중...</span>
+        </>
+      ) : (
+        <>
+          <div className="w-14 h-14 rounded-full bg-blue-100 flex items-center justify-center">
+            <ImagePlus className="w-7 h-7 text-blue-500" />
+          </div>
+          <div className="text-center">
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="text-[15px] font-semibold text-blue-600 hover:text-blue-700 transition-colors"
+            >
+              사진 선택
+            </button>
+            <p className="text-[12px] text-gray-400 mt-1">
+              또는 여기에 드래그 &amp; 드롭 (최대 5MB)
+            </p>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -170,6 +289,9 @@ function FieldRenderer({
 
     case "scale":
       return <ScaleInput field={field} value={value} onChange={onChange} />;
+
+    case "image":
+      return <ImageUploadField value={value} onChange={onChange} error={error} />;
 
     default:
       return null;
@@ -387,6 +509,13 @@ export function SurveyFormPublic({ form }: Props) {
                     {field.label}
                     {field.required && <span className="text-red-500 ml-0.5">*</span>}
                   </label>
+                  {field.descriptionImage && (
+                    <img
+                      src={field.descriptionImage}
+                      alt="설명 이미지"
+                      className="max-w-full max-h-48 rounded-xl border border-gray-200 object-contain mb-3"
+                    />
+                  )}
                   <FieldRenderer
                     field={field}
                     value={answers[field.key] || ""}

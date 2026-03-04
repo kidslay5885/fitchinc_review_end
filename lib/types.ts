@@ -204,7 +204,7 @@ export function generateId(): string {
 export interface FormField {
   key: string;
   label: string;
-  type: "text" | "textarea" | "select" | "number" | "radio" | "scale";
+  type: "text" | "textarea" | "select" | "number" | "radio" | "scale" | "image";
   required: boolean;
   enabled: boolean;
   order: number;
@@ -213,6 +213,8 @@ export interface FormField {
   scaleMax?: number;
   placeholder?: string;
   section?: "demographics" | "scores" | "freetext";
+  /** 질문 설명용 이미지 URL */
+  descriptionImage?: string;
 }
 
 export interface SurveyForm {

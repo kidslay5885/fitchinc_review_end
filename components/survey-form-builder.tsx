@@ -21,6 +21,9 @@ import {
   Type,
   Hash,
   Calendar,
+  ArrowLeft,
+  ImagePlus,
+  Upload,
 } from "lucide-react";
 
 // ===== 질문 유형 정의 =====
@@ -32,6 +35,7 @@ const FIELD_TYPES = [
   { value: "textarea" as const, label: "주관식 서술형", icon: <AlignLeft className="w-4 h-4" />, desc: "긴 텍스트" },
   { value: "scale" as const, label: "척도형", icon: <Star className="w-4 h-4" />, desc: "점수 선택" },
   { value: "number" as const, label: "숫자", icon: <Hash className="w-4 h-4" />, desc: "숫자 입력" },
+  { value: "image" as const, label: "이미지 업로드", icon: <ImagePlus className="w-4 h-4" />, desc: "사진 첨부" },
 ] as const;
 
 function getTypeLabel(type: string) {
@@ -73,6 +77,8 @@ function QuestionCard({
   const [typeOpen, setTypeOpen] = useState(false);
   const hasOptions = field.type === "radio" || field.type === "select";
   const handleRef = useRef<HTMLDivElement>(null);
+  const descImgRef = useRef<HTMLInputElement>(null);
+  const [uploadingDescImg, setUploadingDescImg] = useState(false);
 
   const addOption = () => {
     const current = field.options || [];
@@ -189,7 +195,84 @@ function QuestionCard({
           placeholder="설명 입력 (선택)"
           className="w-full text-[12px] text-muted-foreground bg-transparent outline-none py-1 mt-0.5"
         />
+
+        {/* 설명 이미지 첨부 */}
+        <div className="mt-2">
+          {field.descriptionImage ? (
+            <div className="relative inline-block">
+              <img
+                src={field.descriptionImage}
+                alt="설명 이미지"
+                className="max-h-32 rounded-lg border object-cover"
+              />
+              <button
+                type="button"
+                onClick={() => onUpdate({ descriptionImage: undefined })}
+                className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center shadow hover:bg-red-600"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          ) : (
+            <>
+              <input
+                ref={descImgRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  if (file.size > 5 * 1024 * 1024) {
+                    alert("이미지는 5MB 이하만 업로드 가능합니다");
+                    return;
+                  }
+                  setUploadingDescImg(true);
+                  try {
+                    const fd = new FormData();
+                    fd.append("file", file);
+                    const res = await fetch("/api/survey-images", { method: "POST", body: fd });
+                    const data = await res.json();
+                    if (res.ok && data.url) {
+                      onUpdate({ descriptionImage: data.url });
+                    } else {
+                      alert(data.error || "업로드 실패");
+                    }
+                  } catch {
+                    alert("업로드 중 오류가 발생했습니다");
+                  } finally {
+                    setUploadingDescImg(false);
+                    if (descImgRef.current) descImgRef.current.value = "";
+                  }
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => descImgRef.current?.click()}
+                disabled={uploadingDescImg}
+                className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+              >
+                {uploadingDescImg ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Upload className="w-3.5 h-3.5" />
+                )}
+                설명 이미지 첨부
+              </button>
+            </>
+          )}
+        </div>
       </div>
+
+      {/* 이미지 업로드 타입 안내 */}
+      {field.type === "image" && (
+        <div className="px-4 pb-2">
+          <div className="flex items-center gap-2 py-3 px-4 rounded-xl bg-blue-50 border border-blue-200 text-[12px] text-blue-700">
+            <ImagePlus className="w-4 h-4 flex-shrink-0" />
+            응답자가 이미지(사진/스크린샷)를 업로드할 수 있습니다. (최대 5MB, JPG/PNG/WebP)
+          </div>
+        </div>
+      )}
 
       {/* 옵션 목록 (객관식) */}
       {hasOptions && (
@@ -541,9 +624,18 @@ export function SurveyFormBuilder({ editForm, onSaved, onCancel }: Props) {
   return (
     <div className="max-w-2xl mx-auto pb-8">
       <div className="flex items-center justify-between mb-5">
-        <h2 className="text-[16px] font-bold">
-          {isEditing ? "설문 폼 수정" : "새 설문 폼 만들기"}
-        </h2>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onCancel}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
+            title="목록으로 돌아가기"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          <h2 className="text-[16px] font-bold">
+            {isEditing ? "설문 폼 수정" : "새 설문 폼 만들기"}
+          </h2>
+        </div>
         <button
           onClick={onCancel}
           className="text-[13px] text-muted-foreground hover:text-foreground transition-colors"
