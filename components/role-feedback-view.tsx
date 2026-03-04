@@ -26,6 +26,7 @@ import { toast } from "sonner";
 import { ShareLinkDialog } from "@/components/share-link-dialog";
 
 type Role = "pm" | "pd" | "cs" | "platform" | "etc" | "instructor";
+type ViewRole = Role | "all";
 
 interface EnrichedComment extends Comment {
   _platform: string;
@@ -69,6 +70,13 @@ const ROLE_LABELS: Record<Role, string> = {
   instructor: "강사",
 };
 
+const VIEW_ROLE_LABELS: Record<ViewRole, string> = {
+  ...ROLE_LABELS,
+  all: "전체",
+};
+
+const ALL_ROLES: Role[] = ["pm", "pd", "cs", "platform", "etc", "instructor"];
+
 // tag → Role 역매핑
 const TAG_TO_ROLE: Record<string, Role> = Object.fromEntries(
   Object.entries(ROLE_TAGS).map(([r, t]) => [t, r as Role])
@@ -82,7 +90,7 @@ const DEFAULT_PLATFORM_COLOR = { bg: "bg-muted", text: "text-foreground", border
 
 export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) {
   const { state } = useAppStore();
-  const [role, setRole] = useState<Role>(initialRole);
+  const [role, setRole] = useState<ViewRole>(initialRole);
   const [comments, setComments] = useState<EnrichedComment[]>([]);
   const [loading, setLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
@@ -93,6 +101,9 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
 
   // 선택된 강사 (카드 클릭 → 상세)
   const [selectedInstructor, setSelectedInstructor] = useState<string | null>(null);
+
+  // 완료 강사 숨김 토글
+  const [showCompleted, setShowCompleted] = useState(false);
 
   // 상세 뷰 내 필터
   const [courseFilter, setCourseFilter] = useState<string>("all");
@@ -161,6 +172,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
 
   // 이관 실행
   const transferComments = useCallback(async (commentIds: string[], toRole: Role) => {
+    if (role === "all") return;
     const fromTag = ROLE_TAGS[role];
     const toTag = ROLE_TAGS[toRole];
 
@@ -304,15 +316,31 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
     setViewMode("unconfirmed");
   };
 
-  const loadComments = async (r: Role) => {
+  const loadComments = async (r: ViewRole) => {
     setLoading(true);
     try {
-      const tag = ROLE_TAGS[r];
-      const res = await fetch(`/api/classify?tag=${tag}`);
-      if (!res.ok) throw new Error();
-      const data: EnrichedComment[] = await res.json();
-      const useful = data.filter(isUsefulComment);
-      setComments(useful);
+      if (r === "all") {
+        const results = await Promise.all(
+          ALL_ROLES.map(role =>
+            fetch(`/api/classify?tag=${ROLE_TAGS[role]}`)
+              .then(res => { if (!res.ok) throw new Error(); return res.json(); })
+          )
+        );
+        const all: EnrichedComment[] = results.flat();
+        const seen = new Set<string>();
+        const unique = all.filter(c => {
+          if (seen.has(c.id)) return false;
+          seen.add(c.id);
+          return true;
+        });
+        setComments(unique.filter(isUsefulComment));
+      } else {
+        const tag = ROLE_TAGS[r];
+        const res = await fetch(`/api/classify?tag=${tag}`);
+        if (!res.ok) throw new Error();
+        const data: EnrichedComment[] = await res.json();
+        setComments(data.filter(isUsefulComment));
+      }
       setLoaded(true);
     } catch {
       toast.error("피드백 로드 실패");
@@ -389,6 +417,18 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
     return result;
   }, [comments, platformFilter, search, confirmedIds, starredIds]);
 
+  // 완료 강사 수 + 표시 목록
+  const completedInstructorCount = useMemo(() =>
+    instructorSummaries.filter(s => s.total > 0 && s.confirmed >= s.total).length,
+    [instructorSummaries]
+  );
+  const visibleSummaries = useMemo(() =>
+    showCompleted
+      ? instructorSummaries
+      : instructorSummaries.filter(s => s.total === 0 || s.confirmed < s.total),
+    [instructorSummaries, showCompleted]
+  );
+
   const totalCount = useMemo(
     () => instructorSummaries.reduce((sum, s) => sum + s.total, 0),
     [instructorSummaries]
@@ -459,6 +499,15 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
     return selectedSummary.total - confirmedCount - starredCount;
   }, [selectedSummary, confirmedCount, starredCount]);
 
+  // showCompleted OFF → 선택된 강사가 완료 강사면 해제
+  useEffect(() => {
+    if (showCompleted || !selectedInstructor) return;
+    const summary = instructorSummaries.find(s => `${s.platform}|${s.instructor}` === selectedInstructor);
+    if (summary && summary.total > 0 && summary.confirmed >= summary.total) {
+      setSelectedInstructor(null);
+    }
+  }, [showCompleted, selectedInstructor, instructorSummaries]);
+
   const handleCardClick = (key: string) => {
     if (selectedInstructor === key) {
       setSelectedInstructor(null);
@@ -499,8 +548,8 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    const instName = selectedSummary?.instructor || ROLE_LABELS[role];
-    a.download = `${instName}_${ROLE_LABELS[role]}_피드백_${new Date().toISOString().slice(0, 10)}.csv`;
+    const instName = selectedSummary?.instructor || VIEW_ROLE_LABELS[role];
+    a.download = `${instName}_${VIEW_ROLE_LABELS[role]}_피드백_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success(`${data.length}건 엑셀(CSV)로 내보냈습니다`);
@@ -548,7 +597,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
         <div className="flex items-center gap-4 mb-4 flex-wrap">
           <h1 className="text-[18px] font-extrabold">직무별 피드백</h1>
           <div className="flex gap-0.5 bg-muted rounded-lg p-0.5 border">
-            {(["pm", "pd", "cs", "platform", "etc", "instructor"] as Role[]).map((r) => (
+            {(["all", "pm", "pd", "cs", "platform", "etc", "instructor"] as ViewRole[]).map((r) => (
               <button
                 key={r}
                 onClick={() => setRole(r)}
@@ -558,11 +607,24 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {ROLE_LABELS[r]}
+                {VIEW_ROLE_LABELS[r]}
               </button>
             ))}
           </div>
           <div className="flex-1" />
+          {completedInstructorCount > 0 && (
+            <button
+              onClick={() => setShowCompleted(prev => !prev)}
+              className={`flex items-center gap-1 py-1 px-2.5 rounded-lg border text-[12px] font-semibold transition-colors ${
+                showCompleted
+                  ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                  : "text-muted-foreground bg-muted border-border"
+              }`}
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              완료 {completedInstructorCount}명 {showCompleted ? "숨기기" : "보기"}
+            </button>
+          )}
           <span className="text-[13px] text-muted-foreground font-semibold">
             총 {totalCount}건
           </span>
@@ -597,7 +659,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
         {loading && (
           <div className="text-center py-12">
             <Loader2 className="w-6 h-6 animate-spin text-primary mx-auto mb-2" />
-            <div className="text-[14px] text-muted-foreground">{ROLE_LABELS[role]} 피드백을 불러오는 중입니다...</div>
+            <div className="text-[14px] text-muted-foreground">{VIEW_ROLE_LABELS[role]} 피드백을 불러오는 중입니다...</div>
             <div className="text-[13px] text-muted-foreground/60 mt-1">잠시만 기다려주세요</div>
           </div>
         )}
@@ -606,22 +668,23 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
         {!loading && loaded && comments.length === 0 && (
           <div className="text-center py-12 text-muted-foreground">
             <div className="text-[30px] opacity-25 mb-2">💬</div>
-            <div className="text-[14px] font-bold">{ROLE_LABELS[role]} 피드백이 없습니다</div>
+            <div className="text-[14px] font-bold">{VIEW_ROLE_LABELS[role]} 피드백이 없습니다</div>
             <div className="text-[13px] mt-1">
-              분류작업에서 {ROLE_LABELS[role]} 태그를 지정하면 여기에 표시됩니다
+              분류작업에서 {role === "all" ? "직무" : VIEW_ROLE_LABELS[role]} 태그를 지정하면 여기에 표시됩니다
             </div>
           </div>
         )}
 
         {/* 강사 요약 카드 그리드 */}
-        {loaded && instructorSummaries.length > 0 && (
+        {loaded && visibleSummaries.length > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 mb-5">
-            {instructorSummaries.map((s) => {
+            {visibleSummaries.map((s) => {
               const key = `${s.platform}|${s.instructor}`;
               const isActive = selectedInstructor === key;
               const pct = positivePercent(s);
               const photo = photoMap.get(key);
               const pColor = PLATFORM_COLORS[s.platform] || DEFAULT_PLATFORM_COLOR;
+              const isCompleted = s.total > 0 && s.confirmed >= s.total;
               return (
                 <button
                   key={key}
@@ -630,8 +693,14 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
                     isActive
                       ? "border-primary bg-primary/5 shadow-md"
                       : "border-border bg-card hover:border-primary/40 hover:shadow-sm"
-                  }`}
+                  } ${isCompleted ? "opacity-60" : ""}`}
                 >
+                  {/* 완료 뱃지 */}
+                  {isCompleted && (
+                    <span className="absolute top-1.5 left-1.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold px-1.5 py-0.5 rounded">
+                      ✓ 완료
+                    </span>
+                  )}
                   {/* 강사 프로필 사진 */}
                   <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center overflow-hidden shrink-0 ring-2 ring-border/40 mb-2">
                     {photo?.photo ? (
@@ -704,7 +773,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
         )}
 
         {/* 검색 결과 없음 */}
-        {loaded && comments.length > 0 && instructorSummaries.length === 0 && (
+        {loaded && comments.length > 0 && visibleSummaries.length === 0 && (
           <div className="text-center py-8 text-muted-foreground text-[14px]">
             해당 조건의 강사가 없습니다
           </div>
@@ -721,7 +790,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
               ); })()}
               <span className="text-[13px] font-bold text-primary">{detailFiltered.length}건</span>
               <div className="flex-1" />
-              {role === "instructor" && (
+              {(role === "instructor" || role === "all") && (
                 <button
                   onClick={() => {
                     setShareDialogTarget({ platform: selectedSummary.platform, instructor: selectedSummary.instructor });
@@ -907,6 +976,11 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
                                 {comment.sentiment === "positive" ? "긍정" : comment.sentiment === "negative" ? "부정" : "미구분"}
                               </span>
                             )}
+                            {role === "all" && comment.tag && TAG_TO_ROLE[comment.tag] && (
+                              <span className="text-[11px] py-0.5 px-1.5 rounded font-semibold bg-sky-50 text-sky-700 border border-sky-200">
+                                {ROLE_LABELS[TAG_TO_ROLE[comment.tag]]}
+                              </span>
+                            )}
                             {transferOrigins[comment.id] && (() => {
                               const fromRole = TAG_TO_ROLE[transferOrigins[comment.id]];
                               return fromRole ? (
@@ -917,7 +991,8 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
                             })()}
                           </div>
                         </div>
-                        {/* 이관 버튼 */}
+                        {/* 이관 버튼 (전체 보기에서는 숨김) */}
+                        {role !== "all" && (
                         <div className="relative shrink-0">
                           <button
                             type="button"
@@ -943,6 +1018,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
                             </div>
                           )}
                         </div>
+                        )}
                         <button
                           type="button"
                           onClick={() => toggleStar(comment.id)}
@@ -999,7 +1075,8 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   확인 완료
                 </button>
-                {/* 다중 이관 */}
+                {/* 다중 이관 (전체 보기에서는 숨김) */}
+                {role !== "all" && (
                 <div className="relative">
                   <button
                     onClick={() => setTransferDropdownId(transferDropdownId === "__bulk__" ? null : "__bulk__")}
@@ -1024,6 +1101,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
                     </div>
                   )}
                 </div>
+                )}
                 <button
                   onClick={copySelected}
                   className="py-1 px-3 rounded-lg bg-primary text-primary-foreground text-[12px] font-bold flex items-center gap-1.5 hover:opacity-90 transition-opacity"
