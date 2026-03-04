@@ -198,3 +198,35 @@ export function cohortAvgScore(c: Cohort): number {
 export function generateId(): string {
   return Math.random().toString(36).slice(2, 10);
 }
+
+// ===== 웹 설문 폼 타입 =====
+
+export interface FormField {
+  key: string;
+  label: string;
+  type: "text" | "textarea" | "select" | "number" | "radio" | "scale";
+  required: boolean;
+  enabled: boolean;
+  order: number;
+  options?: string[];
+  scaleMin?: number;
+  scaleMax?: number;
+  placeholder?: string;
+  section?: "demographics" | "scores" | "freetext";
+}
+
+export interface SurveyForm {
+  id: string;
+  platform: string;
+  instructor: string;
+  course: string;
+  cohort: string;
+  survey_type: "사전" | "후기";
+  title: string;
+  description: string;
+  fields: FormField[];
+  is_active: boolean;
+  token: string;
+  created_at: string;
+  updated_at: string;
+}

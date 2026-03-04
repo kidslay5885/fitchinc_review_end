@@ -55,3 +55,14 @@
     opacity: 1;
   }
 }
+
+/* 모바일 safe area (노치/다이나믹 아일랜드 대응) */
+.safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}

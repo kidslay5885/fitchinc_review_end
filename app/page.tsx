@@ -27,8 +27,11 @@ import { SuggestionsPanel } from "@/components/suggestions-panel";
 import { BarChart3, Loader2, Lock, MessageSquare, Tag, Send } from "lucide-react";
 import { toast } from "sonner";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { SurveyFormBuilder } from "@/components/survey-form-builder";
+import { SurveyFormList } from "@/components/survey-form-list";
+import type { SurveyForm } from "@/lib/types";
 
-type AppMode = "landing" | "data" | "role" | "classify";
+type AppMode = "landing" | "data" | "role" | "classify" | "form";
 
 const TABS_DATA = [
   { id: "overview", icon: "📈", label: "전체" },
@@ -91,6 +94,14 @@ function LandingScreen({
       bg: "hover:border-violet-300 hover:bg-violet-50/50",
     },
     {
+      mode: "form" as AppMode,
+      icon: <Send className="w-8 h-8" />,
+      title: "설문 폼 관리",
+      desc: "웹 설문 폼\n생성 및 관리",
+      color: "text-emerald-600",
+      bg: "hover:border-emerald-300 hover:bg-emerald-50/50",
+    },
+    {
       mode: "classify" as AppMode,
       icon: <Tag className="w-8 h-8" />,
       title: "분류 작업",
@@ -104,7 +115,7 @@ function LandingScreen({
   return (
     <>
       <div className="flex-1 flex items-center justify-center p-8">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 max-w-[720px] w-full">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 max-w-[960px] w-full">
           {cards.map((card) => (
             <button
               key={card.mode}
@@ -547,6 +558,42 @@ function SuggestionFab() {
   );
 }
 
+function FormManagementView({ onHome }: { onHome: () => void }) {
+  const [view, setView] = useState<"list" | "new" | "edit">("list");
+  const [editTarget, setEditTarget] = useState<SurveyForm | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  return (
+    <div className="flex-1 overflow-y-auto p-6 px-8">
+      {view === "list" && (
+        <SurveyFormList
+          onEdit={(form) => {
+            setEditTarget(form);
+            setView("edit");
+          }}
+          onNew={() => {
+            setEditTarget(null);
+            setView("new");
+          }}
+          refreshKey={refreshKey}
+        />
+      )}
+      {(view === "new" || view === "edit") && (
+        <SurveyFormBuilder
+          editForm={view === "edit" ? editTarget : null}
+          onSaved={() => {
+            setRefreshKey((k) => k + 1);
+          }}
+          onCancel={() => {
+            setView("list");
+            setRefreshKey((k) => k + 1);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
 function MainContent() {
   const { state } = useAppStore();
   const [appMode, setAppMode] = useState<AppMode>("landing");
@@ -596,6 +643,8 @@ function MainContent() {
       {appMode === "classify" && <DashboardContent tabs={TABS_CLASSIFY} />}
 
       {appMode === "role" && <RoleFeedbackView />}
+
+      {appMode === "form" && <FormManagementView onHome={handleGoHome} />}
 
       {showFab && <SuggestionFab />}
     </div>

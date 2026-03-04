@@ -1,9 +1,9 @@
 "use client";
 
 import { useAuth } from "@/hooks/use-auth";
-import { LogOut, BarChart3, MessageSquare } from "lucide-react";
+import { LogOut, BarChart3, MessageSquare, FileText } from "lucide-react";
 
-type AppMode = "landing" | "data" | "role" | "classify";
+type AppMode = "landing" | "data" | "role" | "classify" | "form";
 
 interface NavHeaderProps {
   onHome?: () => void;
@@ -14,6 +14,7 @@ interface NavHeaderProps {
 const MODE_TABS: { mode: AppMode; label: string; icon: React.ReactNode }[] = [
   { mode: "data", label: "전체 설문 정보", icon: <BarChart3 className="w-3.5 h-3.5" /> },
   { mode: "role", label: "직무별 피드백", icon: <MessageSquare className="w-3.5 h-3.5" /> },
+  { mode: "form", label: "설문 폼 관리", icon: <FileText className="w-3.5 h-3.5" /> },
 ];
 
 export function NavHeader({ onHome, appMode, onChangeMode }: NavHeaderProps) {
