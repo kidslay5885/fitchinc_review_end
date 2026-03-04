@@ -12,7 +12,6 @@ import React, {
 import type {
   Platform,
   Instructor,
-  Course,
   Cohort,
   SurveyResponse,
 } from "@/lib/types";
@@ -319,7 +318,6 @@ function reducer(state: AppState, action: Action): AppState {
         ),
       }));
       // 삭제된 강의가 선택 중이면 초기화
-      const inst = platforms.flatMap((p) => p.instructors).find((i) => i.id === action.instructorId);
       const deletedCourseWasSelected = state.selectedCourseId === action.courseId;
       return {
         ...state,

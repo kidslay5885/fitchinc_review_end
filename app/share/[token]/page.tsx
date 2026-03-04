@@ -1,5 +1,6 @@
 import { getSupabase } from "@/lib/supabase";
 import { notFound } from "next/navigation";
+import { ShareInstructorView } from "@/components/share-instructor-view";
 
 interface SharePageProps {
   params: Promise<{ token: string }>;
@@ -34,6 +35,24 @@ export default async function SharePage({ params }: SharePageProps) {
     );
   }
 
+  // ---- 강사 공유 페이지 ----
+  if (shareLink.share_type === "instructor") {
+    return (
+      <ShareInstructorView
+        token={token}
+        title={shareLink.title}
+        filters={{
+          platform: shareLink.filter_platform,
+          instructor: shareLink.filter_instructor,
+          cohort: shareLink.filter_cohort,
+          course: shareLink.filter_course,
+        }}
+      />
+    );
+  }
+
+  // ---- 기존 댓글 공유 페이지 ----
+
   // 필터 조건으로 설문 조회
   let surveyQuery = supabase.from("surveys").select("id");
   if (shareLink.filter_platform) {
@@ -50,7 +69,7 @@ export default async function SharePage({ params }: SharePageProps) {
   const surveyIds = surveys?.map((s) => s.id) || [];
 
   // 댓글 조회
-  let comments: any[] = [];
+  let comments: Record<string, unknown>[] = [];
   if (surveyIds.length > 0) {
     let commentQuery = supabase
       .from("comments")
@@ -134,23 +153,23 @@ export default async function SharePage({ params }: SharePageProps) {
               긍정 피드백 ({positiveComments.length})
             </h2>
             <div className="space-y-2">
-              {positiveComments.map((c) => (
+              {positiveComments.map((c: Record<string, unknown>) => (
                 <div
-                  key={c.id}
+                  key={String(c.id)}
                   className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200"
                 >
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-xs font-bold text-emerald-700">
-                      {c.respondent}
+                      {String(c.respondent ?? "")}
                     </span>
-                    {c.ai_summary && (
+                    {c.ai_summary ? (
                       <span className="text-[10px] text-emerald-600 italic">
-                        — {c.ai_summary}
+                        — {String(c.ai_summary)}
                       </span>
-                    )}
+                    ) : null}
                   </div>
                   <p className="text-sm leading-relaxed text-emerald-900">
-                    {c.original_text}
+                    {String(c.original_text ?? "")}
                   </p>
                 </div>
               ))}
@@ -166,23 +185,23 @@ export default async function SharePage({ params }: SharePageProps) {
               개선 피드백 ({negativeComments.length})
             </h2>
             <div className="space-y-2">
-              {negativeComments.map((c) => (
+              {negativeComments.map((c: Record<string, unknown>) => (
                 <div
-                  key={c.id}
+                  key={String(c.id)}
                   className="p-3.5 rounded-xl bg-red-50 border border-red-200"
                 >
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-xs font-bold text-red-700">
-                      {c.respondent}
+                      {String(c.respondent ?? "")}
                     </span>
-                    {c.ai_summary && (
+                    {c.ai_summary ? (
                       <span className="text-[10px] text-red-600 italic">
-                        — {c.ai_summary}
+                        — {String(c.ai_summary)}
                       </span>
-                    )}
+                    ) : null}
                   </div>
                   <p className="text-sm leading-relaxed text-red-900">
-                    {c.original_text}
+                    {String(c.original_text ?? "")}
                   </p>
                 </div>
               ))}
@@ -198,18 +217,18 @@ export default async function SharePage({ params }: SharePageProps) {
               기타 ({neutralComments.length})
             </h2>
             <div className="space-y-2">
-              {neutralComments.map((c) => (
+              {neutralComments.map((c: Record<string, unknown>) => (
                 <div
-                  key={c.id}
+                  key={String(c.id)}
                   className="p-3.5 rounded-xl bg-gray-50 border border-gray-200"
                 >
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-xs font-bold text-gray-600">
-                      {c.respondent}
+                      {String(c.respondent ?? "")}
                     </span>
                   </div>
                   <p className="text-sm leading-relaxed text-gray-700">
-                    {c.original_text}
+                    {String(c.original_text ?? "")}
                   </p>
                 </div>
               ))}

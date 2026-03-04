@@ -34,7 +34,6 @@ const BAR_COLOR = "#3451B2";
 
 // 성별 고정 색상
 const GENDER_COLOR_MAP: Record<string, string> = { "여성": "#E5484D", "남성": "#3451B2" };
-const GENDER_ORDER = ["여성", "남성"];
 
 // ---- helpers ----
 
@@ -81,7 +80,6 @@ export function toChartDataWithDefaults(
 
 export const AGE_GROUPS = ["20대", "30대", "40대", "50대", "60대 이상"];
 const GENDER_DEFAULTS = ["여성", "남성"];
-const HOURS_GROUPS = ["1시간 미만", "1~3시간", "3~5시간", "5시간 이상"];
 const CHANNEL_GROUPS = ["SNS", "지인 추천", "검색", "카페/커뮤니티", "블로그", "유튜브", "기타"];
 
 /** 특정 항목을 맨 위/맨 아래로 고정 (대소문자 무시) */
@@ -258,10 +256,12 @@ export function RecDonut({ postResponses }: { postResponses: SurveyResponse[] })
 }
 
 /** 긴 라벨용 세로 리스트 + 인라인 바 (expectedBenefit 등) */
-export function ListBar({ data: rawData }: { data: { name: string; value: number }[] }) {
+export function ListBar({ data: rawData, hidePercent, largeText }: { data: { name: string; value: number }[]; hidePercent?: boolean; largeText?: boolean }) {
   const data = safeChartData(rawData);
   const maxVal = Math.max(...data.map((d) => d.value), 1);
   const total = data.reduce((s, d) => s + d.value, 0);
+  const nameSize = largeText ? "text-[14px]" : "text-[12px]";
+  const countSize = largeText ? "text-[12px]" : "text-[11px]";
   return (
     <div className="space-y-2">
       {data.map((d) => {
@@ -269,9 +269,9 @@ export function ListBar({ data: rawData }: { data: { name: string; value: number
         return (
           <div key={String(d.name)}>
             <div className="flex items-baseline justify-between gap-2 mb-0.5">
-              <span className="text-[12px] text-foreground leading-snug">{safe(d.name)}</span>
-              <span className="text-[11px] text-muted-foreground whitespace-nowrap shrink-0">
-                {safe(d.value)}명 ({String(pct)}%)
+              <span className={`${nameSize} text-foreground leading-snug`}>{safe(d.name)}</span>
+              <span className={`${countSize} text-muted-foreground whitespace-nowrap shrink-0`}>
+                {safe(d.value)}명{hidePercent ? "" : ` (${String(pct)}%)`}
               </span>
             </div>
             <div className="h-2 rounded-full bg-muted overflow-hidden">
@@ -288,7 +288,7 @@ export function ListBar({ data: rawData }: { data: { name: string; value: number
 }
 
 /** 접이식 텍스트 리스트 (selectReason 등 자유 서술형) */
-function CollapsibleTextList({ responses, pattern, emptyMsg }: { responses: SurveyResponse[]; pattern: RegExp; emptyMsg?: string }) {
+export function CollapsibleTextList({ responses, pattern, emptyMsg }: { responses: SurveyResponse[]; pattern: RegExp; emptyMsg?: string }) {
   const [open, setOpen] = useState(true);
   const items = useMemo(() => {
     const result: { name: string; text: string }[] = [];
@@ -327,7 +327,7 @@ function CollapsibleTextList({ responses, pattern, emptyMsg }: { responses: Surv
 }
 
 /** 있음/없음 도넛 + 상세 리스트 (prevCourse) */
-function YesNoDonutWithDetails({
+export function YesNoDonutWithDetails({
   data,
   details,
   noDetails,
@@ -344,10 +344,8 @@ function YesNoDonutWithDetails({
 }) {
   const [yesOpen, setYesOpen] = useState(true);
   const [noOpen, setNoOpen] = useState(false);
-  const [blockedOpen, setBlockedOpen] = useState(true);
   const yesCount = data.find((d) => d.name === "있음")?.value || 0;
   const noCount = data.find((d) => d.name === "없음")?.value || 0;
-  const hasBlocked = blockedItems && blockedItems.length > 0;
   const allNoDetails = useMemo(() => {
     const blocked = blockedItems || [];
     return [...blocked, ...(noDetails || [])];

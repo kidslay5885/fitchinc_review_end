@@ -22,16 +22,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const prompt = `당신은 온라인 강의 설문 피드백를 검수하는 팀을 돕는 AI입니다.
+    const prompt = `당신은 온라인 강의 설문 피드백을 검수하는 팀을 돕는 AI입니다.
 아래 각 피드백에 대해 (1) 전달 대상, (2) 긍정/부정/중립을 판단해 JSON으로만 답하세요.
 
-전달 대상(tag) 규칙:
-- platform_pm: 플랫폼 운영·기획 관련 (일정, 안내, 시스템)
-- platform_pd: 콘텐츠·커리큘럼·교재 관련
-- platform_cs: 고객 지원·문의 대응 관련
-- platform_general: 플랫폼 전반에 대한 피드백 (서비스, 브랜드, 플랫폼 자체에 대한 요청/의견)
-- platform_etc: 플랫폼 관련이지만 PM/PD/CS/플랫폼으로 구분 어려움
-- instructor: 강사 수업·강의 방식·강사本人 관련
+전달 대상(tag) 규칙 — 아래 우선순위 순서로 판단하세요:
+- platform_pm: 강의 전반적인 운영 관련 (일정 안내, 공지, 수업 운영 방식, 시스템 등)
+- platform_pd: 동영상 퀄리티 관련 (영상 편집, 화질, 음질, 자막, 촬영, 콘텐츠 제작 품질 등)
+- platform_cs: 플랫폼과 고객 응대 관련 (문의 대응, 고객 지원, 환불, 안내 등). 단, 강사와의 소통은 제외
+- instructor: 커리큘럼 및 강의 퀄리티 관련 (강사 수업, 강의 내용, 피드백, 강의 방식, 강사와의 소통, 과제 등)
+- platform_general: 위 4가지(PM/PD/CS/강사)에 해당하지 않는 모든 피드백 (서비스, 브랜드, 플랫폼 자체에 대한 일반 의견/요청)
+- platform_etc: 위 5가지 어디에도 명확히 속하지 않는 애매한 피드백
 
 감성(sentiment): positive(긍정/칭찬), negative(불만/비판), neutral(중립/단순 의견)
 
@@ -58,8 +58,8 @@ ${items.map((item: { id: string; original_text: string }, i: number) => `[${i}] 
     }
     const parsed = JSON.parse(jsonMatch[0]) as { suggestions?: { commentId: string; tag: string; sentiment: string }[] };
     const suggestions = (parsed.suggestions || []).map((s) => {
-      const tag = TAG_VALUES.includes(s.tag as any) ? s.tag : "platform_etc";
-      const sentiment = SENTIMENT_VALUES.includes(s.sentiment as any) ? s.sentiment : "neutral";
+      const tag = (TAG_VALUES as readonly string[]).includes(s.tag) ? s.tag : "platform_etc";
+      const sentiment = (SENTIMENT_VALUES as readonly string[]).includes(s.sentiment) ? s.sentiment : "neutral";
       return { commentId: s.commentId, tag, sentiment };
     });
     return NextResponse.json({ suggestions });

@@ -7,13 +7,13 @@ async function fetchAll(
   queryBuilder: ReturnType<ReturnType<SupabaseClient["from"]>["select"]>
 ) {
   const PAGE = 1000;
-  let all: any[] = [];
+  let all: Record<string, unknown>[] = [];
   let from = 0;
   while (true) {
     const { data, error } = await queryBuilder.range(from, from + PAGE - 1);
     if (error) throw error;
     if (!data || data.length === 0) break;
-    all = all.concat(data);
+    all = all.concat(data as Record<string, unknown>[]);
     if (data.length < PAGE) break;
     from += PAGE;
   }
@@ -85,7 +85,7 @@ export async function GET(req: NextRequest) {
 
       // 2) tag가 null이지만 source_field로 자동 매핑되는 댓글 조회
       const autoFields = AUTO_FIELDS[tag] || [];
-      let autoComments: any[] = [];
+      let autoComments: Record<string, unknown>[] = [];
       if (autoFields.length > 0) {
         autoComments = await fetchAll(
           supabase
@@ -152,9 +152,10 @@ export async function GET(req: NextRequest) {
     }
 
     return NextResponse.json({ error: "surveyId 또는 platform+instructor 또는 tag 필요" }, { status: 400 });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "조회 실패";
     return NextResponse.json(
-      { error: error.message || "조회 실패" },
+      { error: msg },
       { status: 500 }
     );
   }
@@ -181,9 +182,10 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ ok: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "저장 실패";
     return NextResponse.json(
-      { error: error.message || "저장 실패" },
+      { error: msg },
       { status: 500 }
     );
   }
@@ -225,9 +227,10 @@ export async function PATCH(req: NextRequest) {
     }
 
     return NextResponse.json({ ok: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "수정 실패";
     return NextResponse.json(
-      { error: error.message || "수정 실패" },
+      { error: msg },
       { status: 500 }
     );
   }

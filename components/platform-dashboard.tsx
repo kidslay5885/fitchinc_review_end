@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import type { Platform, SurveyResponse } from "@/lib/types";
+import type { Platform } from "@/lib/types";
 import { allCohorts, cohortAvgScore } from "@/lib/types";
 import {
   computeDemographics,

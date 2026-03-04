@@ -214,6 +214,7 @@ function DashboardContent({ tabs, readOnly = false }: { tabs: typeof TABS_DATA; 
         loadCohortData(plat.name, i.name, cr.name, co.label)
       )
     ).finally(() => setPlatDataLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showPlatDash, plat?.id, plat?.instructors]);
 
   // 강사/기수 선택 시 실제 데이터 지연 로딩
@@ -239,6 +240,7 @@ function DashboardContent({ tabs, readOnly = false }: { tabs: typeof TABS_DATA; 
       setDataLoading(false);
     };
     loadData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inst?.id, course?.id, cohort?.id, plat?.name]);
 
   // 탭이 현재 목록에 없으면 첫 탭으로 리셋
@@ -247,6 +249,7 @@ function DashboardContent({ tabs, readOnly = false }: { tabs: typeof TABS_DATA; 
     if (!tabIds.includes(state.activeTab)) {
       dispatch({ type: "SET_TAB", tab: tabIds[0] });
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabs, state.activeTab]);
 
   return (

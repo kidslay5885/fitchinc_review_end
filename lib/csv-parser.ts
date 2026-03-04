@@ -34,7 +34,7 @@ function extractName(raw: string): string {
     const digitsOnly = part.replace(/[-\s()]/g, "");
     if (/^\d+$/.test(digitsOnly)) continue;
 
-    let cleaned = part
+    const cleaned = part
       .replace(/\d{2,4}[-.\s]?\d{3,4}[-.\s]?\d{4}/g, "")
       .replace(/\b\d{10,11}\b/g, "")
       .trim();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useRef } from "react";
 import type { Instructor, Course, Cohort, SurveyResponse } from "@/lib/types";
 import { allCohorts } from "@/lib/types";
 import { FIELD_LABELS } from "@/lib/feedback-utils";
@@ -32,14 +32,10 @@ const POST_FIELD_LABELS: Record<string, string> = {
 const POST_FIELDS = ["pFree", "pSat", "pFmt", "pRec", "lowScoreReason", "lowFeedbackRequest"] as const;
 
 function getResponseText(r: SurveyResponse, key: string): string {
-  const v = (r as Record<string, unknown>)[key];
+  const v = (r as unknown as Record<string, unknown>)[key];
   if (v == null) return "";
   const s = String(v).trim();
   return s.length > 0 ? s : "";
-}
-
-function slug(id: string): string {
-  return id.replace(/\s+/g, "-").replace(/[^\w가-힣-]/g, "");
 }
 
 interface TabWholeProps {
@@ -63,9 +59,11 @@ export function TabWhole({ instructor, course, platformName, selectedCohort, onG
   );
   // 전체 보기 탭 내 로컬 필터. 다중 선택 가능(1기+2기 등). 빈 Set = 전체, 전부 선택 시에도 전체로 간주.
   const [viewCohortLabels, setViewCohortLabels] = useState<Set<string>>(new Set());
-  useEffect(() => {
+  const prevCohortLabel = useRef(selectedCohort?.label);
+  if (prevCohortLabel.current !== selectedCohort?.label) {
+    prevCohortLabel.current = selectedCohort?.label;
     setViewCohortLabels(selectedCohort?.label ? new Set([selectedCohort.label]) : new Set());
-  }, [selectedCohort?.label]);
+  }
   const isEffectivelyAll =
     viewCohortLabels.size === 0 || viewCohortLabels.size === orderedCohorts.length;
   const currentCohorts =

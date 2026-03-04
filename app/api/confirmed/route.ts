@@ -43,8 +43,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
     return NextResponse.json({ ok: true, count: ids.length });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "처리 실패";
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }
 
@@ -62,7 +63,8 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
     return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e.message }, { status: 500 });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : "처리 실패";
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
 }

@@ -28,7 +28,10 @@ export function TabAIInsight({ instructor, course, cohort, platformName, isActiv
   const [expandedComplaint, setExpandedComplaint] = useState<number | null>(null);
 
   // 현재 보여줄 기수 목록
-  const visibleCohorts = course ? (course.cohorts || []) : allCohorts(instructor);
+  const visibleCohorts = useMemo(
+    () => course ? (course.cohorts || []) : allCohorts(instructor),
+    [course, instructor],
+  );
 
   // 로컬 점수 계산
   const scores = useMemo(() => {
@@ -53,6 +56,7 @@ export function TabAIInsight({ instructor, course, cohort, platformName, isActiv
   // 캐시 확인 (기수/전체별로 분리 저장됨). 탭 포커스 시에도 재조회해 이탈 후 생성 완료된 결과 표시
   useEffect(() => {
     if (isActive) loadCache();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [platformName, instructor.name, cohortLabel, isActive]);
 
   const loadCache = async () => {

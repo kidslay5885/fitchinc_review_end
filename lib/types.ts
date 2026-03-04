@@ -34,9 +34,11 @@ export interface ShareLink {
   id: string;
   token: string;
   title: string;
+  share_type: "comments" | "instructor";
   filter_platform: string | null;
   filter_instructor: string | null;
   filter_cohort: string | null;
+  filter_course: string | null;
   filter_sentiment: string | null;
   created_at: string;
   expires_at: string | null;

@@ -41,7 +41,6 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ preResponses: [], postResponses: [] });
     }
 
-    const surveyIds = surveys.map((s) => s.id);
     const preSurveyIds = surveys.filter((s) => s.survey_type === "사전").map((s) => s.id);
     const postSurveyIds = surveys.filter((s) => s.survey_type === "후기").map((s) => s.id);
 

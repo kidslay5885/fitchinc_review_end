@@ -333,7 +333,7 @@ export interface ExtraQuestion {
 }
 
 /** 타임스탬프·이메일·동의·관리용 컬럼 스킵 */
-const SKIP_COL = /^(타임스탬프|timestamp|제출\s*시간|수집\s*일시?|응답\s*일시?|이메일|email|e-?mail|접수\s*번호|참여자|번호|순번)$|개인\s*정보.*동의/i;
+const SKIP_COL = /^(타임스탬프|timestamp|제출\s*시간|수집\s*일시?|응답\s*일시?|이메일|email|e-?mail|접수\s*번호|참여자|번호|순번)$|개인\s*정보.*동의|사진.*넣어|사진.*올려|사진.*첨부|사진.*업로드|이미지.*첨부|이미지.*업로드|스크린\s*샷|캡[쳐처]/i;
 
 /**
  * rawData에서 COLUMN_PATTERNS·RAW_DATA_PATTERNS에 매칭되지 않는 "미매핑 질문"을 수집하여

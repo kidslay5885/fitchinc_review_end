@@ -15,9 +15,10 @@ export async function GET() {
     }
 
     return NextResponse.json(data);
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "조회 실패";
     return NextResponse.json(
-      { error: error.message || "조회 실패" },
+      { error: msg },
       { status: 500 }
     );
   }
@@ -39,9 +40,10 @@ export async function DELETE(req: NextRequest) {
     }
 
     return NextResponse.json({ ok: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "삭제 실패";
     return NextResponse.json(
-      { error: error.message || "삭제 실패" },
+      { error: msg },
       { status: 500 }
     );
   }

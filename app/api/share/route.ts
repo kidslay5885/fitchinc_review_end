@@ -35,9 +35,10 @@ export async function GET(req: NextRequest) {
     }
 
     return NextResponse.json(data);
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "조회 실패";
     return NextResponse.json(
-      { error: error.message || "조회 실패" },
+      { error: msg },
       { status: 500 }
     );
   }
@@ -55,9 +56,11 @@ export async function POST(req: NextRequest) {
       .insert({
         token,
         title: body.title,
+        share_type: body.share_type || "comments",
         filter_platform: body.filter_platform || null,
         filter_instructor: body.filter_instructor || null,
         filter_cohort: body.filter_cohort || null,
+        filter_course: body.filter_course || null,
         filter_sentiment: body.filter_sentiment || null,
       })
       .select()
@@ -68,11 +71,37 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(data);
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "생성 실패";
     return NextResponse.json(
-      { error: error.message || "생성 실패" },
+      { error: msg },
       { status: 500 }
     );
+  }
+}
+
+// PATCH: 공유 링크 제목 수정
+export async function PATCH(req: NextRequest) {
+  try {
+    const { id, title } = await req.json();
+    if (!id || !title) {
+      return NextResponse.json({ error: "id와 title 필요" }, { status: 400 });
+    }
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+      .from("share_links")
+      .update({ title })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    return NextResponse.json(data);
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "수정 실패";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
 
@@ -89,9 +118,10 @@ export async function DELETE(req: NextRequest) {
     }
 
     return NextResponse.json({ ok: true });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "삭제 실패";
     return NextResponse.json(
-      { error: error.message || "삭제 실패" },
+      { error: msg },
       { status: 500 }
     );
   }

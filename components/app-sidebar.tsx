@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useAppStore, useSelectedPlatform } from "@/hooks/use-app-store";
-import { autoStatus, statusBg, allCohorts } from "@/lib/types";
 import { getOrderedCohorts, setCohortOrder } from "@/lib/cohort-order";
 import { Settings, Upload, ChevronDown, ChevronUp, User, GripVertical, BookOpen } from "lucide-react";
 import type { Instructor, Course } from "@/lib/types";
@@ -64,7 +63,6 @@ export function AppSidebar({ onUpload, onEditInstructor, readOnly }: AppSidebarP
             {plat.instructors.map((instructor) => {
               const isSel = state.selectedInstructorId === instructor.id;
               const multiCourse = hasMultipleCourses(instructor);
-              const selectedCourse = instructor.courses.find((c) => c.id === state.selectedCourseId) || null;
 
               return (
                 <div key={instructor.id}>
@@ -265,7 +263,8 @@ function CohortList({
   course,
   selectedCohortId,
   dispatch,
-  orderKey,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  orderKey: _orderKey,
   setOrderKey,
   indent = false,
   readOnly = false,
@@ -327,7 +326,6 @@ function CohortList({
         </div>
       )}
       {ordered.map((c, index) => {
-        const status = autoStatus(c);
         const isSelCo = selectedCohortId === c.id;
         return (
           <div

@@ -1,7 +1,5 @@
 "use client";
 
-import { cn } from "@/lib/utils";
-
 interface BarChartProps {
   data: { label: string; value: number }[];
   color?: string;

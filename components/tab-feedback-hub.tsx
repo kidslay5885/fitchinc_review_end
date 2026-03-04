@@ -97,6 +97,7 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
   useEffect(() => {
     loadComments();
     return () => { abortRef.current?.abort(); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [platformName, instructor.name, courseName, cohortLabel]);
 
 
@@ -817,7 +818,10 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
             {/* 숨긴 댓글 토글 */}
             <button
               type="button"
-              onClick={() => hiddenCount > 0 && setShowHidden((v) => !v)}
+              onClick={() => {
+                if (showHidden) setShowHidden(false);
+                else if (hiddenCount > 0) setShowHidden(true);
+              }}
               className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-[13px] font-medium border transition-colors ${
                 showHidden
                   ? "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100"
@@ -825,7 +829,7 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
                     ? "bg-card hover:bg-muted/80 text-muted-foreground"
                     : "bg-card text-muted-foreground/50 cursor-default"
               }`}
-              title={hiddenCount === 0 ? "숨긴 댓글 없음" : showHidden ? "숨긴 댓글 보기 해제" : "숨긴 댓글 보기"}
+              title={hiddenCount === 0 && !showHidden ? "숨긴 댓글 없음" : showHidden ? "일반 댓글로 돌아가기" : "숨긴 댓글 보기"}
             >
               {showHidden ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
               숨긴 댓글 {hiddenCount}건
@@ -883,6 +887,23 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
         </div>
       )}
 
+
+      {/* 숨긴 댓글 모드 배너 */}
+      {showHidden && (
+        <div className="flex items-center gap-3 p-3 rounded-xl bg-amber-50 border border-amber-200 mb-3">
+          <Eye className="w-4 h-4 text-amber-600 shrink-0" />
+          <span className="text-[13px] font-semibold text-amber-800 flex-1">
+            숨긴 댓글을 보고 있습니다 ({hiddenCount}건)
+          </span>
+          <button
+            onClick={() => setShowHidden(false)}
+            className="flex items-center gap-1 py-1 px-3 rounded-lg bg-amber-600 text-white text-[12px] font-bold hover:bg-amber-700 transition-colors"
+          >
+            <X className="w-3 h-3" />
+            일반 댓글로 돌아가기
+          </button>
+        </div>
+      )}
 
       {/* 보조 필터 */}
       <div className="flex gap-2 items-center flex-wrap">

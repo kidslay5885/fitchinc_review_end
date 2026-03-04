@@ -20,8 +20,10 @@ import {
   CheckCircle2,
   EyeOff,
   Eye,
+  Share2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { ShareLinkDialog } from "@/components/share-link-dialog";
 
 type Role = "pm" | "pd" | "cs" | "platform" | "etc" | "instructor";
 
@@ -95,6 +97,10 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
   // 숨긴 댓글
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
   const [showHidden, setShowHidden] = useState(false);
+
+  // 공유 링크 다이얼로그
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [shareDialogTarget, setShareDialogTarget] = useState<{ platform: string; instructor: string } | null>(null);
 
   // 상세 뷰 스크롤 ref
   const detailRef = useRef<HTMLDivElement>(null);
@@ -205,6 +211,9 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
     setPlatformFilter("all");
     setSearch("");
     resetDetailFilters();
+    // 이전 역할의 댓글이 새 역할에서 보이지 않도록 즉시 초기화
+    setComments([]);
+    setLoaded(false);
     loadComments(role);
     loadConfirmed();
     loadHiddenComments();
@@ -464,7 +473,10 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
           <div className="flex-1" />
           <button
             type="button"
-            onClick={() => hiddenCount > 0 && (setShowHidden((v) => !v), setSelectedInstructor(null))}
+            onClick={() => {
+              if (showHidden) { setShowHidden(false); setSelectedInstructor(null); }
+              else if (hiddenCount > 0) { setShowHidden(true); setSelectedInstructor(null); }
+            }}
             className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-[13px] font-medium border transition-colors ${
               showHidden
                 ? "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100"
@@ -472,7 +484,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
                   ? "bg-card hover:bg-muted/80 text-muted-foreground"
                   : "bg-card text-muted-foreground/50 cursor-default"
             }`}
-            title={hiddenCount === 0 ? "숨긴 댓글 없음" : showHidden ? "숨긴 댓글 보기 해제" : "숨긴 댓글 보기"}
+            title={hiddenCount === 0 && !showHidden ? "숨긴 댓글 없음" : showHidden ? "일반 댓글로 돌아가기" : "숨긴 댓글 보기"}
           >
             {showHidden ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
             숨긴 댓글 {hiddenCount}건
@@ -481,6 +493,23 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
             총 {totalCount}건
           </span>
         </div>
+
+        {/* 숨긴 댓글 모드 배너 */}
+        {showHidden && (
+          <div className="flex items-center gap-3 p-3 rounded-xl bg-amber-50 border border-amber-200 mb-5">
+            <Eye className="w-4 h-4 text-amber-600 shrink-0" />
+            <span className="text-[13px] font-semibold text-amber-800 flex-1">
+              숨긴 댓글을 보고 있습니다 ({hiddenCount}건)
+            </span>
+            <button
+              onClick={() => { setShowHidden(false); setSelectedInstructor(null); }}
+              className="flex items-center gap-1 py-1 px-3 rounded-lg bg-amber-600 text-white text-[12px] font-bold hover:bg-amber-700 transition-colors"
+            >
+              <X className="w-3 h-3" />
+              일반 댓글로 돌아가기
+            </button>
+          </div>
+        )}
 
         {/* 상위 필터 */}
         <div className="flex gap-2 items-center flex-wrap mb-5">
@@ -508,15 +537,16 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
         </div>
 
         {/* 로딩 */}
-        {loading && !loaded && (
+        {loading && (
           <div className="text-center py-12">
             <Loader2 className="w-6 h-6 animate-spin text-primary mx-auto mb-2" />
-            <div className="text-[14px] text-muted-foreground">피드백 로딩 중...</div>
+            <div className="text-[14px] text-muted-foreground">{ROLE_LABELS[role]} 피드백을 불러오는 중입니다...</div>
+            <div className="text-[13px] text-muted-foreground/60 mt-1">잠시만 기다려주세요</div>
           </div>
         )}
 
         {/* 데이터 없음 */}
-        {loaded && comments.length === 0 && !loading && (
+        {!loading && loaded && comments.length === 0 && (
           <div className="text-center py-12 text-muted-foreground">
             <div className="text-[30px] opacity-25 mb-2">💬</div>
             <div className="text-[14px] font-bold">{ROLE_LABELS[role]} 피드백이 없습니다</div>
@@ -622,6 +652,18 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
               <span className="text-[13px] text-muted-foreground">{selectedSummary.platform}</span>
               <span className="text-[13px] font-bold text-primary">{detailFiltered.length}건</span>
               <div className="flex-1" />
+              {role === "instructor" && (
+                <button
+                  onClick={() => {
+                    setShareDialogTarget({ platform: selectedSummary.platform, instructor: selectedSummary.instructor });
+                    setShareDialogOpen(true);
+                  }}
+                  className="flex items-center gap-1 py-1 px-2.5 rounded-lg border text-[12px] font-medium bg-card hover:bg-muted/80 text-foreground transition-colors"
+                >
+                  <Share2 className="w-3.5 h-3.5" />
+                  공유 링크
+                </button>
+              )}
               <button
                 onClick={() => setSelectedInstructor(null)}
                 className="flex items-center gap-1 text-[12px] text-muted-foreground hover:text-foreground transition-colors"
@@ -849,6 +891,17 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
         )}
 
       </div>
+
+      {/* 공유 링크 다이얼로그 */}
+      {shareDialogTarget && (
+        <ShareLinkDialog
+          open={shareDialogOpen}
+          onClose={() => setShareDialogOpen(false)}
+          platform={shareDialogTarget.platform}
+          instructor={shareDialogTarget.instructor}
+          cohorts={detailCohorts}
+        />
+      )}
     </div>
   );
 }
