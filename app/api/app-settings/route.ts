@@ -14,6 +14,7 @@ function cohortOrderKey(platform: string, instructor: string, course: string = "
 const BLOCKLIST_KEY = "prevCourse_blocklist";
 const EXCLUDED_FIELDS_KEY = "excluded_source_fields";
 const HIDDEN_COMMENTS_KEY = "hidden_comments";
+const STARRED_COMMENTS_KEY = "starred_comments";
 
 /** GET: 모든 앱 설정 조회 (강사 사진, 기수 순서, 수강이력 블랙리스트) - 새 창/새로고침 시 복원용 */
 export async function GET() {
@@ -23,7 +24,7 @@ export async function GET() {
 
     if (error) {
       console.error("app_settings GET error (table may not exist):", error.message, error.code);
-      return NextResponse.json({ instructorPhotos: {}, cohortOrders: {}, prevCourseBlocklist: [], excludedSourceFields: [], courseDisplayNames: {}, hiddenComments: [] });
+      return NextResponse.json({ instructorPhotos: {}, cohortOrders: {}, prevCourseBlocklist: [], excludedSourceFields: [], courseDisplayNames: {}, hiddenComments: [], starredComments: [] });
     }
 
     const instructorPhotos: Record<string, { photo: string; photoPosition: string; category?: string }> = {};
@@ -31,6 +32,7 @@ export async function GET() {
     let prevCourseBlocklist: string[] = [];
     let excludedSourceFields: string[] = [];
     let hiddenComments: string[] = [];
+    let starredComments: string[] = [];
 
     for (const row of data || []) {
       const key = row.key as string;
@@ -50,17 +52,19 @@ export async function GET() {
         excludedSourceFields = value.filter((x) => typeof x === "string");
       } else if (key === HIDDEN_COMMENTS_KEY && Array.isArray(value)) {
         hiddenComments = value.filter((x) => typeof x === "string");
+      } else if (key === STARRED_COMMENTS_KEY && Array.isArray(value)) {
+        starredComments = value.filter((x) => typeof x === "string");
       }
     }
 
     return NextResponse.json(
-      { instructorPhotos, cohortOrders, prevCourseBlocklist, excludedSourceFields, hiddenComments },
+      { instructorPhotos, cohortOrders, prevCourseBlocklist, excludedSourceFields, hiddenComments, starredComments },
       { headers: { "Cache-Control": "no-store, max-age=0" } },
     );
   } catch (e) {
     console.warn("app_settings GET error:", e);
     return NextResponse.json(
-      { instructorPhotos: {}, cohortOrders: {}, prevCourseBlocklist: [], excludedSourceFields: [], hiddenComments: [] },
+      { instructorPhotos: {}, cohortOrders: {}, prevCourseBlocklist: [], excludedSourceFields: [], hiddenComments: [], starredComments: [] },
       { headers: { "Cache-Control": "no-store, max-age=0" } },
     );
   }
@@ -201,7 +205,41 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, list });
     }
 
-    return NextResponse.json({ error: "type: instructor_photo | cohort_order | prevCourse_blocklist | excluded_source_fields | hidden_comments 필요" }, { status: 400 });
+    if (body.type === "starred_comments") {
+      const { action, commentId } = body;
+      if (!action || typeof commentId !== "string") {
+        return NextResponse.json({ error: "action(add|remove), commentId 필요" }, { status: 400 });
+      }
+
+      const supabase = getSupabase();
+
+      const { data: existing } = await supabase
+        .from(TABLE)
+        .select("value")
+        .eq("key", STARRED_COMMENTS_KEY)
+        .single();
+      let list: string[] = Array.isArray(existing?.value) ? (existing.value as string[]) : [];
+
+      if (action === "add") {
+        if (!list.includes(commentId)) list.push(commentId);
+      } else if (action === "remove") {
+        list = list.filter((item) => item !== commentId);
+      } else {
+        return NextResponse.json({ error: "action: add | remove" }, { status: 400 });
+      }
+
+      const { error } = await supabase.from(TABLE).upsert(
+        { key: STARRED_COMMENTS_KEY, value: list, updated_at: new Date().toISOString() },
+        { onConflict: "key" }
+      );
+      if (error) {
+        console.warn("app_settings upsert starred_comments error:", error.message);
+        return NextResponse.json({ ok: false, error: error.message });
+      }
+      return NextResponse.json({ ok: true, list });
+    }
+
+    return NextResponse.json({ error: "type: instructor_photo | cohort_order | prevCourse_blocklist | excluded_source_fields | hidden_comments | starred_comments 필요" }, { status: 400 });
   } catch (e) {
     console.warn("app_settings POST error:", e);
     return NextResponse.json({ error: "저장 실패" }, { status: 500 });

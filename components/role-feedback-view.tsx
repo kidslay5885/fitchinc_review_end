@@ -18,9 +18,8 @@ import {
   ChevronUp,
   User,
   CheckCircle2,
-  EyeOff,
-  Eye,
   Share2,
+  Star,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ShareLinkDialog } from "@/components/share-link-dialog";
@@ -43,6 +42,7 @@ interface InstructorSummary {
   negative: number;
   neutral: number;
   confirmed: number;
+  starred: number;
   comments: EnrichedComment[];
 }
 
@@ -101,11 +101,10 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
 
   // 확인 완료
   const [confirmedIds, setConfirmedIds] = useState<Set<string>>(new Set());
-  const [viewMode, setViewMode] = useState<"unconfirmed" | "confirmed">("unconfirmed");
+  const [viewMode, setViewMode] = useState<"unconfirmed" | "confirmed" | "starred">("unconfirmed");
 
-  // 숨긴 댓글
-  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
-  const [showHidden, setShowHidden] = useState(false);
+  // 중요 표시 (별표)
+  const [starredIds, setStarredIds] = useState<Set<string>>(new Set());
 
   // 공유 링크 다이얼로그
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
@@ -124,51 +123,45 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
     } catch { /* ignore */ }
   };
 
-  // 숨긴 댓글 로드
-  const loadHiddenComments = async () => {
+  // 중요 표시 로드
+  const loadStarredComments = async () => {
     try {
       const res = await fetch("/api/app-settings");
       if (!res.ok) return;
       const d = await res.json();
-      if (Array.isArray(d.hiddenComments) && d.hiddenComments.length > 0) {
-        setHiddenIds(new Set(d.hiddenComments));
+      if (Array.isArray(d.starredComments) && d.starredComments.length > 0) {
+        setStarredIds(new Set(d.starredComments));
       }
     } catch { /* ignore */ }
   };
 
-  // 댓글 숨기기
-  const hideComment = async (commentId: string) => {
-    setHiddenIds((prev) => {
+  // 중요 표시 토글 (별표 시 자동 확인완료 + 미확인 목록에서 제거)
+  const toggleStar = async (commentId: string) => {
+    const isStarred = starredIds.has(commentId);
+    setStarredIds((prev) => {
       const next = new Set(prev);
-      next.add(commentId);
+      if (isStarred) next.delete(commentId);
+      else next.add(commentId);
       return next;
     });
-    try {
-      await fetch("/api/app-settings", {
+    // 별표 추가 시 확인완료 처리
+    if (!isStarred) {
+      setConfirmedIds((prev) => {
+        const next = new Set(prev);
+        next.add(commentId);
+        return next;
+      });
+      fetch("/api/confirmed", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "hidden_comments", action: "add", commentId }),
-      });
-    } catch {
-      toast.error("숨기기 저장 실패");
+        body: JSON.stringify({ commentIds: [commentId] }),
+      }).catch(() => {});
     }
-  };
-
-  const restoreComment = async (commentId: string) => {
-    setHiddenIds((prev) => {
-      const next = new Set(prev);
-      next.delete(commentId);
-      return next;
-    });
-    try {
-      await fetch("/api/app-settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "hidden_comments", action: "remove", commentId }),
-      });
-    } catch {
-      toast.error("복원 저장 실패");
-    }
+    fetch("/api/app-settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "starred_comments", action: isStarred ? "remove" : "add", commentId }),
+    }).catch(() => toast.error("중요 표시 저장 실패"));
   };
 
   const toggleConfirm = async (commentId: string) => {
@@ -225,7 +218,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
     setLoaded(false);
     loadComments(role);
     loadConfirmed();
-    loadHiddenComments();
+    loadStarredComments();
   }, [role]);
 
   const resetDetailFilters = () => {
@@ -275,17 +268,11 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
     return Array.from(set).sort();
   }, [comments]);
 
-  // 숨긴 댓글 수
-  const hiddenCount = useMemo(() => {
-    return comments.filter((c) => hiddenIds.has(c.id)).length;
-  }, [comments, hiddenIds]);
-
   // 강사별 요약 카드 데이터 (항상 전체 댓글 기준, 확인완료 건수 포함)
   const instructorSummaries = useMemo(() => {
     const map = new Map<string, InstructorSummary>();
     const courseSets = new Map<string, Set<string>>();
     for (const c of comments) {
-      if (showHidden ? !hiddenIds.has(c.id) : hiddenIds.has(c.id)) continue;
       if (platformFilter !== "all" && c._platform !== platformFilter) continue;
       const key = `${c._platform}|${c._instructor}`;
       if (!map.has(key)) {
@@ -298,6 +285,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
           negative: 0,
           neutral: 0,
           confirmed: 0,
+          starred: 0,
           comments: [],
         });
         courseSets.set(key, new Set());
@@ -309,6 +297,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
       else if (c.sentiment === "negative") s.negative++;
       else s.neutral++;
       if (confirmedIds.has(c.id)) s.confirmed++;
+      if (starredIds.has(c.id)) s.starred++;
       s.comments.push(c);
     }
     for (const [key, courses] of courseSets) {
@@ -325,7 +314,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
 
     result.sort((a, b) => b.total - a.total);
     return result;
-  }, [comments, platformFilter, search, confirmedIds, hiddenIds, showHidden]);
+  }, [comments, platformFilter, search, confirmedIds, starredIds]);
 
   const totalCount = useMemo(
     () => instructorSummaries.reduce((sum, s) => sum + s.total, 0),
@@ -362,8 +351,10 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
     if (!selectedSummary) return [];
     return selectedSummary.comments.filter((c) => {
       const isConfirmed = confirmedIds.has(c.id);
+      const isStarred = starredIds.has(c.id);
       if (viewMode === "unconfirmed" && isConfirmed) return false;
-      if (viewMode === "confirmed" && !isConfirmed) return false;
+      if (viewMode === "confirmed" && (!isConfirmed || isStarred)) return false;
+      if (viewMode === "starred" && !isStarred) return false;
       if (courseFilter !== "all" && c._course !== courseFilter) return false;
       if (cohortFilter !== "all" && c._cohort !== cohortFilter) return false;
       if (sourceFieldFilter !== "all" && c.source_field !== sourceFieldFilter) return false;
@@ -379,17 +370,21 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
       }
       return true;
     });
-  }, [selectedSummary, courseFilter, cohortFilter, sourceFieldFilter, sentimentFilter, detailSearch, viewMode, confirmedIds]);
+  }, [selectedSummary, courseFilter, cohortFilter, sourceFieldFilter, sentimentFilter, detailSearch, viewMode, confirmedIds, starredIds]);
 
-  // 확인완료/미확인 건수 (필터 무관하게 해당 강사 전체 기준)
+  // 탭별 건수 (필터 무관하게 해당 강사 전체 기준)
+  const starredCount = useMemo(() => {
+    if (!selectedSummary) return 0;
+    return selectedSummary.comments.filter((c) => starredIds.has(c.id)).length;
+  }, [selectedSummary, starredIds]);
   const confirmedCount = useMemo(() => {
     if (!selectedSummary) return 0;
-    return selectedSummary.comments.filter((c) => confirmedIds.has(c.id)).length;
-  }, [selectedSummary, confirmedIds]);
+    return selectedSummary.comments.filter((c) => confirmedIds.has(c.id) && !starredIds.has(c.id)).length;
+  }, [selectedSummary, confirmedIds, starredIds]);
   const unconfirmedCount = useMemo(() => {
     if (!selectedSummary) return 0;
-    return selectedSummary.total - confirmedCount;
-  }, [selectedSummary, confirmedCount]);
+    return selectedSummary.total - confirmedCount - starredCount;
+  }, [selectedSummary, confirmedCount, starredCount]);
 
   const handleCardClick = (key: string) => {
     if (selectedInstructor === key) {
@@ -495,45 +490,10 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
             ))}
           </div>
           <div className="flex-1" />
-          <button
-            type="button"
-            onClick={() => {
-              if (showHidden) { setShowHidden(false); setSelectedInstructor(null); }
-              else if (hiddenCount > 0) { setShowHidden(true); setSelectedInstructor(null); }
-            }}
-            className={`flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-[13px] font-medium border transition-colors ${
-              showHidden
-                ? "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100"
-                : hiddenCount > 0
-                  ? "bg-card hover:bg-muted/80 text-muted-foreground"
-                  : "bg-card text-muted-foreground/50 cursor-default"
-            }`}
-            title={hiddenCount === 0 && !showHidden ? "숨긴 댓글 없음" : showHidden ? "일반 댓글로 돌아가기" : "숨긴 댓글 보기"}
-          >
-            {showHidden ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-            숨긴 댓글 {hiddenCount}건
-          </button>
           <span className="text-[13px] text-muted-foreground font-semibold">
             총 {totalCount}건
           </span>
         </div>
-
-        {/* 숨긴 댓글 모드 배너 */}
-        {showHidden && (
-          <div className="flex items-center gap-3 p-3 rounded-xl bg-amber-50 border border-amber-200 mb-5">
-            <Eye className="w-4 h-4 text-amber-600 shrink-0" />
-            <span className="text-[13px] font-semibold text-amber-800 flex-1">
-              숨긴 댓글을 보고 있습니다 ({hiddenCount}건)
-            </span>
-            <button
-              onClick={() => { setShowHidden(false); setSelectedInstructor(null); }}
-              className="flex items-center gap-1 py-1 px-3 rounded-lg bg-amber-600 text-white text-[12px] font-bold hover:bg-amber-700 transition-colors"
-            >
-              <X className="w-3 h-3" />
-              일반 댓글로 돌아가기
-            </button>
-          </div>
-        )}
 
         {/* 상위 필터 */}
         <div className="flex gap-2 items-center flex-wrap mb-5">
@@ -620,8 +580,14 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
                   <div className="flex items-center gap-1.5 mt-2.5 w-full">
                     <span className="text-[20px] font-extrabold text-primary">{s.total}</span>
                     <span className="text-[12px] text-muted-foreground">건</span>
+                    {(s.starred > 0 || s.confirmed > 0) && <div className="flex-1" />}
+                    {s.starred > 0 && (
+                      <span className="flex items-center gap-0.5 text-[11px] text-amber-500 font-semibold">
+                        <Star className="w-3 h-3 fill-amber-400" />{s.starred}
+                      </span>
+                    )}
                     {s.confirmed > 0 && (
-                      <span className="flex items-center gap-0.5 text-[11px] text-emerald-600 font-semibold ml-auto">
+                      <span className="flex items-center gap-0.5 text-[11px] text-emerald-600 font-semibold">
                         <CheckCircle2 className="w-3 h-3" />{s.confirmed}
                       </span>
                     )}
@@ -705,19 +671,31 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
 
             {/* 상세 필터 */}
             <div className="flex gap-2 items-center flex-wrap px-5 py-3 border-b bg-muted/20">
-              {/* 확인 상태 필터 */}
-              <select
-                value={viewMode}
-                onChange={(e) => { setViewMode(e.target.value as typeof viewMode); setSelected(new Set()); }}
-                className={`py-1.5 px-2.5 rounded-lg border text-[13px] font-semibold ${
-                  viewMode === "confirmed"
-                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                    : "bg-card"
-                }`}
-              >
-                <option value="unconfirmed">미확인 {unconfirmedCount}건</option>
-                <option value="confirmed">확인완료 {confirmedCount}건</option>
-              </select>
+              {/* 미확인 / 확인완료 / 중요 탭 */}
+              <div className="flex gap-0.5 bg-muted rounded-lg p-0.5 border">
+                {([
+                  { key: "unconfirmed" as const, label: "미확인", count: unconfirmedCount },
+                  { key: "confirmed" as const, label: "확인완료", count: confirmedCount },
+                  { key: "starred" as const, label: "중요", count: starredCount },
+                ] as const).map((tab) => (
+                  <button
+                    key={tab.key}
+                    onClick={() => { setViewMode(tab.key); setSelected(new Set()); }}
+                    className={`py-1 px-3 rounded-md text-[13px] font-semibold transition-colors flex items-center gap-1 ${
+                      viewMode === tab.key
+                        ? tab.key === "starred"
+                          ? "bg-card text-amber-600 shadow-sm"
+                          : tab.key === "confirmed"
+                            ? "bg-card text-emerald-600 shadow-sm"
+                            : "bg-card text-primary shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {tab.key === "starred" && <Star className={`w-3 h-3 ${viewMode === "starred" ? "fill-amber-400" : ""}`} />}
+                    {tab.label} {tab.count}
+                  </button>
+                ))}
+              </div>
 
               {detailCourses.length > 1 && (
                 <select
@@ -802,12 +780,14 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
             </div>
 
             {/* 피드백 리스트 */}
-            <div className="max-h-[calc(100vh-420px)] overflow-y-auto">
+            <div className="h-[calc(100vh-420px)] overflow-y-auto">
               {detailFiltered.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground text-[14px]">
-                  {viewMode === "confirmed"
-                    ? "확인 완료된 피드백이 없습니다"
-                    : "해당 조건의 피드백이 없습니다"}
+                  {viewMode === "starred"
+                    ? "중요 표시된 피드백이 없습니다"
+                    : viewMode === "confirmed"
+                      ? "확인 완료된 피드백이 없습니다"
+                      : "해당 조건의 피드백이 없습니다"}
                 </div>
               )}
               <div className="grid gap-1 px-5 py-3">
@@ -856,39 +836,30 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
                             )}
                           </div>
                         </div>
-                        {showHidden ? (
-                          <button
-                            type="button"
-                            onClick={() => restoreComment(comment.id)}
-                            title="이 댓글 복원"
-                            className="shrink-0 p-1 rounded text-amber-600 hover:text-emerald-600 transition-colors"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                        ) : (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => hideComment(comment.id)}
-                              title="이 댓글 숨기기"
-                              className="shrink-0 p-1 rounded text-muted-foreground/40 hover:text-rose-500 transition-colors"
-                            >
-                              <EyeOff className="w-4 h-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => toggleConfirm(comment.id)}
-                              title={isConfirmed ? "확인 완료 해제" : "확인 완료"}
-                              className={`shrink-0 p-1 rounded transition-colors ${
-                                isConfirmed
-                                  ? "text-emerald-600 hover:text-emerald-800"
-                                  : "text-muted-foreground/40 hover:text-emerald-600"
-                              }`}
-                            >
-                              <CheckCircle2 className="w-4.5 h-4.5" />
-                            </button>
-                          </>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => toggleStar(comment.id)}
+                          title={starredIds.has(comment.id) ? "중요 해제" : "중요 표시"}
+                          className={`shrink-0 p-1 rounded transition-colors ${
+                            starredIds.has(comment.id)
+                              ? "text-amber-500 hover:text-amber-600"
+                              : "text-muted-foreground/40 hover:text-amber-500"
+                          }`}
+                        >
+                          <Star className={`w-4 h-4 ${starredIds.has(comment.id) ? "fill-amber-400" : ""}`} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleConfirm(comment.id)}
+                          title={isConfirmed ? "확인 해제" : "확인 완료"}
+                          className={`shrink-0 p-1 rounded transition-colors ${
+                            isConfirmed
+                              ? "text-emerald-600 hover:text-emerald-800"
+                              : "text-muted-foreground/40 hover:text-emerald-600"
+                          }`}
+                        >
+                          <CheckCircle2 className="w-4.5 h-4.5" />
+                        </button>
                       </div>
                     </div>
                   );
