@@ -32,7 +32,7 @@ export const FIELD_ORDER = [
 ];
 
 /** 세부 분류에서 디폴트로 제외되는 항목 */
-export const DEFAULT_EXCLUDED_FIELDS = ["prevCourse", "expectedBenefit"];
+export const DEFAULT_EXCLUDED_FIELDS = ["prevExperience", "prevCourse", "expectedBenefit", "pRec"];
 
 export const NOISE_RE =
   /^(네|예|아니요|없습니다|없음|감사합니다|고맙습니다|좋습니다|좋았습니다|잘 모르겠습니다|모르겠습니다|잘 모르겠어요|특별히 없습니다|딱히 없습니다|아직 없습니다|아직 없어요|별로 없습니다|별로 없어요|글쎄요|x|X|-|강의 내용|커리큘럼|피드백|추천합니다|네 추천합니다|예 추천합니다|네 너무 좋습니다|없어요|없읒|특별한 건 없습니다|특별한 건 없어요|없는 것 같습니다|없는 것 같아요|생각이 안 납니다|생각이 안 나요|[.\s]*)$/;
