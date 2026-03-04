@@ -534,28 +534,38 @@ export function ShareInstructorView({ token, title, filters }: ShareInstructorVi
         )}
 
         {/* 수강생 피드백 섹션 */}
-        {filteredComments.length > 0 && (
+        {comments.length > 0 && (
           <div className="border-t pt-6 sm:pt-8">
             {/* 제목 + 다운로드 */}
             <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
               <h2 className="text-xl font-extrabold">수강생 피드백</h2>
-              <button
-                type="button"
-                onClick={() => {
-                  const target = viewMode === "starred"
-                    ? filteredComments.filter((c) => starredIds.has(c.id))
-                    : filteredComments;
-                  downloadExcel(target, `${filters.instructor || "피드백"}_수강생피드백`);
-                }}
-                className="flex items-center gap-1.5 py-1.5 px-3 rounded-lg border text-[12px] font-semibold text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-              >
-                <Download className="w-3.5 h-3.5" />
-                {viewMode === "starred" ? `중요 ${starredIds.size}건 다운로드` : "전체 다운로드"}
-              </button>
+              {filteredComments.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = viewMode === "starred"
+                      ? filteredComments.filter((c) => starredIds.has(c.id))
+                      : filteredComments;
+                    downloadExcel(target, `${filters.instructor || "피드백"}_수강생피드백`);
+                  }}
+                  className="flex items-center gap-1.5 py-1.5 px-3 rounded-lg border text-[12px] font-semibold text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  {viewMode === "starred" ? `중요 ${starredIds.size}건 다운로드` : "전체 다운로드"}
+                </button>
+              )}
             </div>
 
+            {/* 해당 기수에 댓글이 없을 때 */}
+            {filteredComments.length === 0 && (
+              <div className="text-center py-10 text-muted-foreground">
+                <div className="text-[15px] font-semibold mb-1">해당 기수의 수강생 피드백이 없습니다.</div>
+                <div className="text-[13px]">다른 기수를 선택하거나 전체 기수로 확인해 주세요.</div>
+              </div>
+            )}
+
             {/* 목차 + 필터 (sticky) */}
-            <nav className="sticky top-[57px] z-[5] rounded-xl border bg-card/95 backdrop-blur p-3 shadow-sm mb-5">
+            {filteredComments.length > 0 && <nav className="sticky top-[57px] z-[5] rounded-xl border bg-card/95 backdrop-blur p-3 shadow-sm mb-5">
               {/* 보기 모드 + 감정 필터 */}
               <div className="flex items-center gap-3 mb-2.5 pb-2.5 border-b flex-wrap">
                 {/* 보기 모드 탭 */}
@@ -640,7 +650,7 @@ export function ShareInstructorView({ token, title, filters }: ShareInstructorVi
                   </button>
                 ))}
               </div>
-            </nav>
+            </nav>}
 
             {/* 필터 결과 없음 */}
             {preGroups.length === 0 && postGroups.length === 0 && (
