@@ -170,10 +170,19 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
     } catch { /* ignore */ }
   };
 
+  // 댓글의 실제 태그 추론 (auto-mapped 댓글용)
+  const getEffectiveTag = useCallback((comment: EnrichedComment): string => {
+    if (comment.tag) return comment.tag;
+    const autoMap: Record<string, string> = {
+      hopeInstructor: "instructor", selectReason: "instructor",
+      satOther: "instructor", lowScoreReason: "instructor", lowFeedbackRequest: "instructor",
+      hopePlatform: "platform_general", pFree: "platform_etc",
+    };
+    return autoMap[comment.source_field] || "instructor";
+  }, []);
+
   // 이관 실행
   const transferComments = useCallback(async (commentIds: string[], toRole: Role) => {
-    if (role === "all") return;
-    const fromTag = ROLE_TAGS[role];
     const toTag = ROLE_TAGS[toRole];
 
     // 1) 각 댓글의 tag 변경
@@ -192,8 +201,15 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
       return;
     }
 
-    // 2) 이관 출처 저장
-    const entries = Object.fromEntries(succeeded.map((id) => [id, fromTag]));
+    // 2) 이관 출처 저장 — "all" 모드에서는 각 댓글의 실제 tag 사용
+    const commentMap = new Map(comments.map(c => [c.id, c]));
+    const entries = Object.fromEntries(succeeded.map((id) => {
+      if (role === "all") {
+        const c = commentMap.get(id);
+        return [id, c ? getEffectiveTag(c) : "instructor"];
+      }
+      return [id, ROLE_TAGS[role]];
+    }));
     await fetch("/api/app-settings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -205,7 +221,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
     toast.success(`${succeeded.length}건을 ${ROLE_LABELS[toRole]}(으)로 이관했습니다`);
     setSelected(new Set());
     setTransferDropdownId(null);
-  }, [role]);
+  }, [role, comments, getEffectiveTag]);
 
   // 외부 클릭 시 이관 드롭다운 닫기
   useEffect(() => {
@@ -991,8 +1007,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
                             })()}
                           </div>
                         </div>
-                        {/* 이관 버튼 (전체 보기에서는 숨김) */}
-                        {role !== "all" && (
+                        {/* 이관 버튼 */}
                         <div className="relative shrink-0">
                           <button
                             type="button"
@@ -1005,7 +1020,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
                           {transferDropdownId === comment.id && (
                             <div ref={transferDropdownRef} className="absolute right-0 top-full mt-1 z-50 bg-card border rounded-lg shadow-lg py-1 min-w-[120px]">
                               {(Object.keys(ROLE_LABELS) as Role[])
-                                .filter((r) => r !== role)
+                                .filter((r) => role === "all" ? r !== TAG_TO_ROLE[getEffectiveTag(comment)] : r !== role)
                                 .map((r) => (
                                   <button
                                     key={r}
@@ -1018,7 +1033,6 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
                             </div>
                           )}
                         </div>
-                        )}
                         <button
                           type="button"
                           onClick={() => toggleStar(comment.id)}
@@ -1075,8 +1089,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   확인 완료
                 </button>
-                {/* 다중 이관 (전체 보기에서는 숨김) */}
-                {role !== "all" && (
+                {/* 다중 이관 */}
                 <div className="relative">
                   <button
                     onClick={() => setTransferDropdownId(transferDropdownId === "__bulk__" ? null : "__bulk__")}
@@ -1087,9 +1100,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
                   </button>
                   {transferDropdownId === "__bulk__" && (
                     <div ref={transferDropdownRef} className="absolute bottom-full mb-1 right-0 z-50 bg-card border rounded-lg shadow-lg py-1 min-w-[120px]">
-                      {(Object.keys(ROLE_LABELS) as Role[])
-                        .filter((r) => r !== role)
-                        .map((r) => (
+                      {ALL_ROLES.map((r) => (
                           <button
                             key={r}
                             onClick={() => transferComments(Array.from(selected), r)}
@@ -1101,7 +1112,6 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
                     </div>
                   )}
                 </div>
-                )}
                 <button
                   onClick={copySelected}
                   className="py-1 px-3 rounded-lg bg-primary text-primary-foreground text-[12px] font-bold flex items-center gap-1.5 hover:opacity-90 transition-opacity"
