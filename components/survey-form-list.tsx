@@ -12,6 +12,7 @@ import {
   FileText,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
   Calendar,
   Users,
 } from "lucide-react";
@@ -19,6 +20,7 @@ import {
 interface Props {
   onEdit: (form: SurveyForm) => void;
   onNew: () => void;
+  onBack?: () => void;
   refreshKey?: number;
 }
 
@@ -50,7 +52,7 @@ function daysLeft(expiresAt: string | null) {
   return diff;
 }
 
-export function SurveyFormList({ onEdit, onNew, refreshKey }: Props) {
+export function SurveyFormList({ onEdit, onNew, onBack, refreshKey }: Props) {
   const [forms, setForms] = useState<SurveyForm[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -165,7 +167,18 @@ export function SurveyFormList({ onEdit, onNew, refreshKey }: Props) {
   return (
     <div className="max-w-3xl mx-auto">
       <div className="flex items-center justify-between mb-5">
-        <h2 className="text-[16px] font-bold">설문 폼 목록</h2>
+        <div className="flex items-center gap-2">
+          {onBack && (
+            <button
+              onClick={onBack}
+              className="p-1.5 rounded-lg hover:bg-accent transition-colors"
+              title="뒤로가기"
+            >
+              <ChevronLeft className="w-5 h-5 text-muted-foreground" />
+            </button>
+          )}
+          <h2 className="text-[16px] font-bold">설문 폼 목록</h2>
+        </div>
         <button
           onClick={onNew}
           className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-[13px] font-bold hover:opacity-90 transition-opacity"

@@ -575,6 +575,7 @@ function FormManagementView({ onHome }: { onHome: () => void }) {
             setEditTarget(null);
             setView("new");
           }}
+          onBack={onHome}
           refreshKey={refreshKey}
         />
       )}
