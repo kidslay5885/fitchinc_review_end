@@ -227,6 +227,8 @@ export interface SurveyForm {
   fields: FormField[];
   is_active: boolean;
   token: string;
+  starts_at: string | null;
+  expires_at: string | null;
   created_at: string;
   updated_at: string;
 }

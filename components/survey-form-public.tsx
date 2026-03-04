@@ -274,6 +274,44 @@ export function SurveyFormPublic({ form }: Props) {
     }
   };
 
+  // ===== 기간 체크 =====
+  const now = new Date();
+  const notStarted = form.starts_at && new Date(form.starts_at) > now;
+  const expired = form.expires_at && new Date(form.expires_at) < now;
+
+  if (notStarted) {
+    const startDate = new Date(form.starts_at!).toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" });
+    return (
+      <div className="min-h-[100dvh] flex items-center justify-center bg-gradient-to-b from-blue-50 to-white p-6">
+        <div className="bg-white rounded-3xl shadow-lg border p-8 max-w-sm w-full text-center">
+          <div className="w-20 h-20 rounded-full bg-blue-50 flex items-center justify-center mx-auto mb-5">
+            <span className="text-3xl">📅</span>
+          </div>
+          <h1 className="text-xl font-bold text-gray-800 mb-2">아직 설문 기간이 아닙니다</h1>
+          <p className="text-[15px] text-gray-500 leading-relaxed">
+            {startDate}부터 응답 가능합니다.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (expired) {
+    return (
+      <div className="min-h-[100dvh] flex items-center justify-center bg-gradient-to-b from-blue-50 to-white p-6">
+        <div className="bg-white rounded-3xl shadow-lg border p-8 max-w-sm w-full text-center">
+          <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-5">
+            <span className="text-3xl">⏰</span>
+          </div>
+          <h1 className="text-xl font-bold text-gray-800 mb-2">설문이 마감되었습니다</h1>
+          <p className="text-[15px] text-gray-500 leading-relaxed">
+            응답 기간이 종료되었습니다.<br />감사합니다.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   // ===== 제출 완료 =====
   if (submitted) {
     return (

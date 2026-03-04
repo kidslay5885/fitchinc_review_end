@@ -1,12 +1,10 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import type { FormField, SurveyForm } from "@/lib/types";
 import { PRE_SURVEY_DEFAULTS, POST_SURVEY_DEFAULTS } from "@/lib/form-utils";
 import { PLATFORM_NAMES } from "@/lib/constants";
 import {
-  ArrowUp,
-  ArrowDown,
   Plus,
   Copy,
   Check,
@@ -22,6 +20,7 @@ import {
   CircleDot,
   Type,
   Hash,
+  Calendar,
 } from "lucide-react";
 
 // ===== 질문 유형 정의 =====
@@ -49,20 +48,31 @@ function QuestionCard({
   index,
   total,
   onUpdate,
-  onMove,
   onDuplicate,
   onDelete,
+  onDragStart,
+  onDragOver,
+  onDragEnd,
+  onDrop,
+  isDragging,
+  isDragOver,
 }: {
   field: FormField;
   index: number;
   total: number;
   onUpdate: (updates: Partial<FormField>) => void;
-  onMove: (dir: "up" | "down") => void;
   onDuplicate: () => void;
   onDelete: () => void;
+  onDragStart: () => void;
+  onDragOver: (e: React.DragEvent) => void;
+  onDragEnd: () => void;
+  onDrop: (e: React.DragEvent) => void;
+  isDragging: boolean;
+  isDragOver: boolean;
 }) {
   const [typeOpen, setTypeOpen] = useState(false);
   const hasOptions = field.type === "radio" || field.type === "select";
+  const handleRef = useRef<HTMLDivElement>(null);
 
   const addOption = () => {
     const current = field.options || [];
@@ -82,11 +92,38 @@ function QuestionCard({
   };
 
   return (
-    <div className="bg-card rounded-xl border-2 border-border hover:border-primary/20 transition-colors shadow-sm">
-      {/* 상단: 타입 드롭다운 + 순서 버튼 */}
-      <div className="flex items-center justify-between px-4 pt-4 pb-2">
+    <div
+      draggable
+      onDragStart={(e) => {
+        // 드래그 핸들에서만 드래그 시작
+        if (!handleRef.current?.contains(e.target as Node)) {
+          e.preventDefault();
+          return;
+        }
+        onDragStart();
+      }}
+      onDragOver={onDragOver}
+      onDragEnd={onDragEnd}
+      onDrop={onDrop}
+      className={`bg-card rounded-xl border-2 transition-all shadow-sm ${
+        isDragging ? "opacity-40 scale-[0.98] border-primary/40" :
+        isDragOver ? "border-primary border-dashed shadow-md" :
+        "border-border hover:border-primary/20"
+      }`}
+    >
+      {/* 상단: 드래그 핸들 + 타입 드롭다운 */}
+      <div className="flex items-center gap-2 px-4 pt-4 pb-2">
+        {/* 드래그 핸들 */}
+        <div
+          ref={handleRef}
+          className="flex flex-col items-center justify-center w-6 h-10 cursor-grab active:cursor-grabbing rounded hover:bg-accent transition-colors flex-shrink-0 -ml-1"
+          title="드래그하여 순서 변경"
+        >
+          <GripVertical className="w-5 h-5 text-muted-foreground/50" />
+        </div>
+
         {/* 타입 선택 드롭다운 */}
-        <div className="relative">
+        <div className="relative flex-1">
           <button
             type="button"
             onClick={() => setTypeOpen(!typeOpen)}
@@ -132,25 +169,6 @@ function QuestionCard({
           )}
         </div>
 
-        {/* 순서 이동 */}
-        <div className="flex items-center gap-0.5">
-          <button
-            onClick={() => onMove("up")}
-            disabled={index === 0}
-            className="p-1.5 rounded-lg hover:bg-accent disabled:opacity-20 transition-colors"
-            title="위로 이동"
-          >
-            <ArrowUp className="w-4 h-4 text-muted-foreground" />
-          </button>
-          <button
-            onClick={() => onMove("down")}
-            disabled={index === total - 1}
-            className="p-1.5 rounded-lg hover:bg-accent disabled:opacity-20 transition-colors"
-            title="아래로 이동"
-          >
-            <ArrowDown className="w-4 h-4 text-muted-foreground" />
-          </button>
-        </div>
       </div>
 
       {/* 질문 입력 */}
@@ -311,6 +329,17 @@ interface Props {
   onCancel: () => void;
 }
 
+/** 오늘 날짜를 YYYY-MM-DD 형식으로 */
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+/** 오늘 + N일 */
+function futureDateStr(days: number) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 export function SurveyFormBuilder({ editForm, onSaved, onCancel }: Props) {
   const isEditing = !!editForm;
 
@@ -321,6 +350,8 @@ export function SurveyFormBuilder({ editForm, onSaved, onCancel }: Props) {
   const [surveyType, setSurveyType] = useState<"사전" | "후기">(editForm?.survey_type || "후기");
   const [title, setTitle] = useState(editForm?.title || "");
   const [description, setDescription] = useState(editForm?.description || "");
+  const [startsAt, setStartsAt] = useState(editForm?.starts_at?.slice(0, 10) || todayStr());
+  const [expiresAt, setExpiresAt] = useState(editForm?.expires_at?.slice(0, 10) || futureDateStr(14));
   const [fields, setFields] = useState<FormField[]>(
     editForm?.fields?.length ? (editForm.fields as FormField[]) : POST_SURVEY_DEFAULTS.map((f) => ({ ...f }))
   );
@@ -328,6 +359,10 @@ export function SurveyFormBuilder({ editForm, onSaved, onCancel }: Props) {
   const [saving, setSaving] = useState(false);
   const [savedUrl, setSavedUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // 드래그 상태
+  const [draggedKey, setDraggedKey] = useState<string | null>(null);
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null);
 
   const handleTypeChange = useCallback(
     (type: "사전" | "후기") => {
@@ -347,19 +382,22 @@ export function SurveyFormBuilder({ editForm, onSaved, onCancel }: Props) {
     );
   };
 
-  const moveField = (key: string, direction: "up" | "down") => {
+  const handleDrop = useCallback((fromKey: string, toKey: string) => {
+    if (fromKey === toKey) return;
     setFields((prev) => {
       const sorted = [...prev].sort((a, b) => a.order - b.order);
-      const idx = sorted.findIndex((f) => f.key === key);
-      if (idx === -1) return prev;
-      const swapIdx = direction === "up" ? idx - 1 : idx + 1;
-      if (swapIdx < 0 || swapIdx >= sorted.length) return prev;
-      const tmpOrder = sorted[idx].order;
-      sorted[idx] = { ...sorted[idx], order: sorted[swapIdx].order };
-      sorted[swapIdx] = { ...sorted[swapIdx], order: tmpOrder };
-      return sorted;
+      const fromIdx = sorted.findIndex((f) => f.key === fromKey);
+      const toIdx = sorted.findIndex((f) => f.key === toKey);
+      if (fromIdx === -1 || toIdx === -1) return prev;
+      // 아이템을 빼서 목표 위치에 삽입
+      const [moved] = sorted.splice(fromIdx, 1);
+      sorted.splice(toIdx, 0, moved);
+      // order 재할당
+      return sorted.map((f, i) => ({ ...f, order: i + 1 }));
     });
-  };
+    setDraggedKey(null);
+    setDragOverKey(null);
+  }, []);
 
   const duplicateField = (key: string) => {
     setFields((prev) => {
@@ -426,6 +464,8 @@ export function SurveyFormBuilder({ editForm, onSaved, onCancel }: Props) {
         title: title.trim() || `${instructor.trim()} ${cohort.trim()} ${surveyType} 설문`,
         description: description.trim(),
         fields,
+        starts_at: startsAt ? `${startsAt}T00:00:00.000Z` : null,
+        expires_at: expiresAt ? `${expiresAt}T23:59:59.999Z` : null,
       };
 
       const res = await fetch("/api/survey-forms", {
@@ -599,6 +639,35 @@ export function SurveyFormBuilder({ editForm, onSaved, onCancel }: Props) {
             className="w-full py-2 px-3 rounded-lg border text-[13px] bg-background resize-none"
           />
         </div>
+
+        {/* 설문 기간 설정 */}
+        <div>
+          <label className="text-[12px] font-semibold text-muted-foreground mb-1 flex items-center gap-1.5">
+            <Calendar className="w-3.5 h-3.5" />
+            설문 기간
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <span className="text-[11px] text-muted-foreground">시작일</span>
+              <input
+                type="date"
+                value={startsAt}
+                onChange={(e) => setStartsAt(e.target.value)}
+                className="w-full py-2 px-3 rounded-lg border text-[13px] bg-background"
+              />
+            </div>
+            <div>
+              <span className="text-[11px] text-muted-foreground">종료일</span>
+              <input
+                type="date"
+                value={expiresAt}
+                onChange={(e) => setExpiresAt(e.target.value)}
+                className="w-full py-2 px-3 rounded-lg border text-[13px] bg-background"
+              />
+            </div>
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-1">기본: 생성일로부터 2주</p>
+        </div>
       </div>
 
       {/* 질문 카드 목록 */}
@@ -610,9 +679,14 @@ export function SurveyFormBuilder({ editForm, onSaved, onCancel }: Props) {
             index={idx}
             total={sortedFields.length}
             onUpdate={(updates) => updateField(field.key, updates)}
-            onMove={(dir) => moveField(field.key, dir)}
             onDuplicate={() => duplicateField(field.key)}
             onDelete={() => deleteField(field.key)}
+            onDragStart={() => setDraggedKey(field.key)}
+            onDragOver={(e) => { e.preventDefault(); setDragOverKey(field.key); }}
+            onDragEnd={() => { setDraggedKey(null); setDragOverKey(null); }}
+            onDrop={(e) => { e.preventDefault(); if (draggedKey) handleDrop(draggedKey, field.key); }}
+            isDragging={draggedKey === field.key}
+            isDragOver={dragOverKey === field.key && draggedKey !== field.key}
           />
         ))}
       </div>

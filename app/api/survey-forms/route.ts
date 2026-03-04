@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { platform, instructor, course, cohort, survey_type, title, description, fields } = body;
+    const { platform, instructor, course, cohort, survey_type, title, description, fields, starts_at, expires_at } = body;
 
     if (!platform || !instructor || !survey_type) {
       return NextResponse.json({ error: "플랫폼, 강사, 설문 유형은 필수입니다" }, { status: 400 });
@@ -64,6 +64,8 @@ export async function POST(req: NextRequest) {
         fields: fields || [],
         is_active: true,
         token,
+        starts_at: starts_at || null,
+        expires_at: expires_at || null,
       })
       .select()
       .single();

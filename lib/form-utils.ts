@@ -7,11 +7,11 @@ const DEMOGRAPHICS_FIELDS: FormField[] = [
   { key: "name", label: "이름", type: "text", required: true, enabled: true, order: 1, section: "demographics", placeholder: "수강생 이름" },
   { key: "gender", label: "성별", type: "radio", required: false, enabled: true, order: 2, section: "demographics", options: ["남", "여"] },
   { key: "age", label: "연령대", type: "select", required: false, enabled: true, order: 3, section: "demographics", options: ["10대", "20대", "30대", "40대", "50대", "60대 이상"] },
-  { key: "job", label: "현재 하고 계신 일", type: "text", required: false, enabled: true, order: 4, section: "demographics", placeholder: "직업을 입력해주세요" },
+  { key: "job", label: "현재 하고 계신 일", type: "select", required: false, enabled: true, order: 4, section: "demographics", options: ["회사원", "자영업", "프리랜서", "전업주부", "학생", "무직/구직중", "기타"] },
   { key: "hours", label: "부업에 투자 가능한 시간", type: "select", required: false, enabled: true, order: 5, section: "demographics", options: ["1시간 미만", "1~2시간", "2~3시간", "3~4시간", "4시간 이상"] },
-  { key: "channel", label: "강의를 알게 된 경로", type: "text", required: false, enabled: true, order: 6, section: "demographics", placeholder: "예: 인스타그램, 유튜브, 지인 추천 등" },
+  { key: "channel", label: "강의를 알게 된 경로", type: "select", required: false, enabled: true, order: 6, section: "demographics", options: ["인스타그램", "유튜브", "블로그", "네이버 카페", "지인 추천", "네이버 검색", "기타"] },
   { key: "computer", label: "컴퓨터 활용 능력 (1~5점)", type: "scale", required: false, enabled: true, order: 7, section: "demographics", scaleMin: 1, scaleMax: 5 },
-  { key: "goal", label: "목표 수익", type: "text", required: false, enabled: true, order: 8, section: "demographics", placeholder: "월 목표 수익을 입력해주세요" },
+  { key: "goal", label: "목표 수익", type: "select", required: false, enabled: true, order: 8, section: "demographics", options: ["30만원 이하", "50만원", "100만원", "200만원", "300만원 이상"] },
 ];
 
 const PRE_FREETEXT_FIELDS: FormField[] = [
@@ -27,12 +27,12 @@ const POST_SCORE_FIELDS: FormField[] = [
   { key: "ps1", label: "커리큘럼 만족도", type: "scale", required: false, enabled: true, order: 10, section: "scores", scaleMin: 1, scaleMax: 5 },
   { key: "ps2", label: "피드백 만족도", type: "scale", required: false, enabled: true, order: 11, section: "scores", scaleMin: 1, scaleMax: 5 },
   { key: "pSat", label: "만족스러웠던 점", type: "textarea", required: false, enabled: true, order: 12, section: "scores", placeholder: "어떤 점이 만족스러웠나요?" },
-  { key: "pFmt", label: "선호하는 강의 형태", type: "text", required: false, enabled: true, order: 13, section: "scores", placeholder: "예: 라이브, VOD, 혼합 등" },
+  { key: "pFmt", label: "선호하는 강의 형태", type: "select", required: false, enabled: true, order: 13, section: "scores", options: ["라이브 강의", "VOD 강의", "혼합 (라이브+VOD)"] },
 ];
 
 const POST_FREETEXT_FIELDS: FormField[] = [
   { key: "pFree", label: "하고 싶은 말씀을 편하게 적어주세요", type: "textarea", required: false, enabled: true, order: 20, section: "freetext", placeholder: "자유롭게 작성해주세요" },
-  { key: "pRec", label: "이 강의를 지인분들께 추천하실 것 같으신가요?", type: "textarea", required: false, enabled: true, order: 21, section: "freetext", placeholder: "추천 여부와 이유를 적어주세요" },
+  { key: "pRec", label: "이 강의를 지인분들께 추천하실 것 같으신가요?", type: "radio", required: false, enabled: true, order: 21, section: "freetext", options: ["네, 추천할 것 같아요", "아니요", "잘 모르겠어요"] },
   { key: "satOther", label: "기타 만족스러웠던 점", type: "textarea", required: false, enabled: false, order: 22, section: "freetext", placeholder: "기타 의견을 적어주세요" },
   { key: "lowScoreReason", label: "커리큘럼 2점 이하 선택 이유", type: "textarea", required: false, enabled: false, order: 23, section: "freetext", placeholder: "불만족 이유를 적어주세요" },
   { key: "lowFeedbackRequest", label: "피드백 5점 이하 시 바라는 점", type: "textarea", required: false, enabled: false, order: 24, section: "freetext", placeholder: "개선 바라는 점을 적어주세요" },
