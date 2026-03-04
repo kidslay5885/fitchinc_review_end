@@ -37,7 +37,7 @@ interface EnrichedComment extends Comment {
 interface InstructorSummary {
   instructor: string;
   platform: string;
-  course: string;
+  courses: string[];
   total: number;
   positive: number;
   negative: number;
@@ -68,6 +68,12 @@ const ROLE_LABELS: Record<Role, string> = {
   instructor: "강사",
 };
 
+const PLATFORM_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  핏크닉: { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200" },
+  머니업클래스: { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200" },
+};
+const DEFAULT_PLATFORM_COLOR = { bg: "bg-muted", text: "text-foreground", border: "border-border" };
+
 export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) {
   const { state } = useAppStore();
   const [role, setRole] = useState<Role>(initialRole);
@@ -83,6 +89,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
   const [selectedInstructor, setSelectedInstructor] = useState<string | null>(null);
 
   // 상세 뷰 내 필터
+  const [courseFilter, setCourseFilter] = useState<string>("all");
   const [cohortFilter, setCohortFilter] = useState<string>("all");
   const [sourceFieldFilter, setSourceFieldFilter] = useState<string>("all");
   const [sentimentFilter, setSentimentFilter] = useState<"all" | "positive" | "negative" | "neutral">("all");
@@ -222,6 +229,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
   }, [role]);
 
   const resetDetailFilters = () => {
+    setCourseFilter("all");
     setCohortFilter("all");
     setSourceFieldFilter("all");
     setSentimentFilter("all");
@@ -275,15 +283,16 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
   // 강사별 요약 카드 데이터 (항상 전체 댓글 기준, 확인완료 건수 포함)
   const instructorSummaries = useMemo(() => {
     const map = new Map<string, InstructorSummary>();
+    const courseSets = new Map<string, Set<string>>();
     for (const c of comments) {
       if (showHidden ? !hiddenIds.has(c.id) : hiddenIds.has(c.id)) continue;
       if (platformFilter !== "all" && c._platform !== platformFilter) continue;
-      const key = `${c._platform}|${c._instructor}|${c._course}`;
+      const key = `${c._platform}|${c._instructor}`;
       if (!map.has(key)) {
         map.set(key, {
           instructor: c._instructor,
           platform: c._platform,
-          course: c._course,
+          courses: [],
           total: 0,
           positive: 0,
           negative: 0,
@@ -291,8 +300,10 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
           confirmed: 0,
           comments: [],
         });
+        courseSets.set(key, new Set());
       }
       const s = map.get(key)!;
+      if (c._course) courseSets.get(key)!.add(c._course);
       s.total++;
       if (c.sentiment === "positive") s.positive++;
       else if (c.sentiment === "negative") s.negative++;
@@ -300,12 +311,15 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
       if (confirmedIds.has(c.id)) s.confirmed++;
       s.comments.push(c);
     }
+    for (const [key, courses] of courseSets) {
+      map.get(key)!.courses = Array.from(courses).sort();
+    }
     let result = Array.from(map.values());
 
     if (search) {
       const q = search.toLowerCase();
       result = result.filter(
-        (s) => s.instructor.toLowerCase().includes(q) || s.platform.toLowerCase().includes(q) || s.course.toLowerCase().includes(q)
+        (s) => s.instructor.toLowerCase().includes(q) || s.platform.toLowerCase().includes(q)
       );
     }
 
@@ -320,9 +334,15 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
 
   // 선택된 강사의 상세 데이터
   const selectedSummary = useMemo(
-    () => instructorSummaries.find((s) => `${s.platform}|${s.instructor}|${s.course}` === selectedInstructor) || null,
+    () => instructorSummaries.find((s) => `${s.platform}|${s.instructor}` === selectedInstructor) || null,
     [instructorSummaries, selectedInstructor]
   );
+
+  // 상세 뷰 강의 목록
+  const detailCourses = useMemo(() => {
+    if (!selectedSummary) return [];
+    return selectedSummary.courses;
+  }, [selectedSummary]);
 
   // 상세 뷰 기수/문항 목록
   const detailCohorts = useMemo(() => {
@@ -344,6 +364,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
       const isConfirmed = confirmedIds.has(c.id);
       if (viewMode === "unconfirmed" && isConfirmed) return false;
       if (viewMode === "confirmed" && !isConfirmed) return false;
+      if (courseFilter !== "all" && c._course !== courseFilter) return false;
       if (cohortFilter !== "all" && c._cohort !== cohortFilter) return false;
       if (sourceFieldFilter !== "all" && c.source_field !== sourceFieldFilter) return false;
       if (sentimentFilter !== "all") {
@@ -358,7 +379,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
       }
       return true;
     });
-  }, [selectedSummary, cohortFilter, sourceFieldFilter, sentimentFilter, detailSearch, viewMode, confirmedIds]);
+  }, [selectedSummary, courseFilter, cohortFilter, sourceFieldFilter, sentimentFilter, detailSearch, viewMode, confirmedIds]);
 
   // 확인완료/미확인 건수 (필터 무관하게 해당 강사 전체 기준)
   const confirmedCount = useMemo(() => {
@@ -563,10 +584,11 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
         {loaded && instructorSummaries.length > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 mb-5">
             {instructorSummaries.map((s) => {
-              const key = `${s.platform}|${s.instructor}|${s.course}`;
+              const key = `${s.platform}|${s.instructor}`;
               const isActive = selectedInstructor === key;
               const pct = positivePercent(s);
-              const photo = photoMap.get(`${s.platform}|${s.instructor}`);
+              const photo = photoMap.get(key);
+              const pColor = PLATFORM_COLORS[s.platform] || DEFAULT_PLATFORM_COLOR;
               return (
                 <button
                   key={key}
@@ -591,8 +613,10 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
                     )}
                   </div>
                   <span className="text-[15px] font-bold truncate w-full">{s.instructor}</span>
-                  {s.course && <span className="text-[12px] text-muted-foreground truncate w-full">{s.course}</span>}
-                  <span className="text-[12px] text-muted-foreground mt-0.5">{s.platform}</span>
+                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border mt-0.5 ${pColor.bg} ${pColor.text} ${pColor.border}`}>{s.platform}</span>
+                  {s.courses.length > 1 && (
+                    <span className="text-[11px] text-muted-foreground mt-1">{s.courses.length}개 강의</span>
+                  )}
                   <div className="flex items-center gap-1.5 mt-2.5 w-full">
                     <span className="text-[20px] font-extrabold text-primary">{s.total}</span>
                     <span className="text-[12px] text-muted-foreground">건</span>
@@ -653,8 +677,9 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
             {/* 상세 헤더 */}
             <div className="flex items-center gap-3 py-3 px-5 bg-primary/5 border-b">
               <span className="text-[16px] font-extrabold">{selectedSummary.instructor}</span>
-              {selectedSummary.course && <span className="text-[13px] text-muted-foreground">{selectedSummary.course}</span>}
-              <span className="text-[13px] text-muted-foreground">{selectedSummary.platform}</span>
+              {(() => { const pc = PLATFORM_COLORS[selectedSummary.platform] || DEFAULT_PLATFORM_COLOR; return (
+                <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${pc.bg} ${pc.text} ${pc.border}`}>{selectedSummary.platform}</span>
+              ); })()}
               <span className="text-[13px] font-bold text-primary">{detailFiltered.length}건</span>
               <div className="flex-1" />
               {role === "instructor" && (
@@ -693,6 +718,19 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
                 <option value="unconfirmed">미확인 {unconfirmedCount}건</option>
                 <option value="confirmed">확인완료 {confirmedCount}건</option>
               </select>
+
+              {detailCourses.length > 1 && (
+                <select
+                  value={courseFilter}
+                  onChange={(e) => setCourseFilter(e.target.value)}
+                  className="py-1.5 px-2.5 rounded-lg border text-[13px] bg-card"
+                >
+                  <option value="all">전체 강의</option>
+                  {detailCourses.map((l) => (
+                    <option key={l} value={l}>{l}</option>
+                  ))}
+                </select>
+              )}
 
               {detailCohorts.length > 1 && (
                 <select
