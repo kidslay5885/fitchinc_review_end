@@ -645,8 +645,9 @@ export function SurveyFormBuilder({ editForm, onSaved, onCancel }: Props) {
       </div>
 
       {/* 메타데이터 */}
-      <div className="bg-card rounded-xl border p-5 mb-4 space-y-3">
-        <h3 className="text-[14px] font-bold mb-1">기본 정보</h3>
+      <div className="bg-card rounded-xl border p-5 mb-4 space-y-4">
+        <h3 className="text-[14px] font-bold">기본 정보</h3>
+        <hr className="border-border/60" />
 
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -690,6 +691,8 @@ export function SurveyFormBuilder({ editForm, onSaved, onCancel }: Props) {
           </div>
         </div>
 
+        <hr className="border-border/60" />
+
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-[12px] font-semibold text-muted-foreground mb-1 block">설문 유형</label>
@@ -721,6 +724,8 @@ export function SurveyFormBuilder({ editForm, onSaved, onCancel }: Props) {
           </div>
         </div>
 
+        <hr className="border-border/60" />
+
         <div>
           <label className="text-[12px] font-semibold text-muted-foreground mb-1 block">설명 (선택)</label>
           <textarea
@@ -731,6 +736,8 @@ export function SurveyFormBuilder({ editForm, onSaved, onCancel }: Props) {
             className="w-full py-2 px-3 rounded-lg border text-[13px] bg-background resize-none"
           />
         </div>
+
+        <hr className="border-border/60" />
 
         {/* 설문 기간 설정 */}
         <div>
