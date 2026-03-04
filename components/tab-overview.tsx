@@ -561,6 +561,9 @@ export function TabOverview({ instructor, course, cohort, platformName, readOnly
   const prevCourseData = filteredPrevCourseData;
   const expectedBenefitData = pinItems(toChartData(demographics.expectedBenefit), { bottom: ["기타"] });
   const satData = satItems.map((s) => ({ name: s.label, value: s.count }));
+  const computerData = Object.entries(demographics.computer.distribution)
+    .map(([score, count]) => ({ name: `${score}점`, value: count }))
+    .sort((a, b) => parseInt(a.name) - parseInt(b.name));
 
   return (
     <div className="space-y-6">
@@ -670,6 +673,12 @@ export function TabOverview({ instructor, course, cohort, platformName, readOnly
         <ErrorBoundary name="차트:부업시간">
           <ChartCard title="하루에 평균적으로 부업에 투자할 수 있는 시간" empty={hoursData.length === 0} tip="사전 설문 '하루에 평균적으로 부업에 투자할 수 있는 시간' 항목 응답 분포">
             <HBarChart data={hoursData} />
+          </ChartCard>
+        </ErrorBoundary>
+
+        <ErrorBoundary name="차트:컴퓨터활용">
+          <ChartCard title={`컴퓨터 활용 능력${demographics.computer.avg > 0 ? ` (평균 ${demographics.computer.avg}점)` : ""}`} empty={computerData.length === 0} tip="사전 설문 '나의 컴퓨터 활용 능력은?' 항목 응답 분포 (10점 만점)">
+            <HBarChart data={computerData} />
           </ChartCard>
         </ErrorBoundary>
 
