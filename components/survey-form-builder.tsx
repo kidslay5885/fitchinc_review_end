@@ -24,6 +24,8 @@ import {
   ArrowLeft,
   ImagePlus,
   Upload,
+  Settings2,
+  ShieldCheck,
 } from "lucide-react";
 
 // ===== 질문 유형 정의 =====
@@ -36,6 +38,7 @@ const FIELD_TYPES = [
   { value: "scale" as const, label: "척도형", icon: <Star className="w-4 h-4" />, desc: "점수 선택" },
   { value: "number" as const, label: "숫자", icon: <Hash className="w-4 h-4" />, desc: "숫자 입력" },
   { value: "image" as const, label: "이미지 업로드", icon: <ImagePlus className="w-4 h-4" />, desc: "사진 첨부" },
+  { value: "consent" as const, label: "개인정보 수집 / 제공 동의", icon: <ShieldCheck className="w-4 h-4" />, desc: "동의 항목" },
 ] as const;
 
 function getTypeLabel(type: string) {
@@ -43,6 +46,177 @@ function getTypeLabel(type: string) {
 }
 function getTypeIcon(type: string) {
   return FIELD_TYPES.find((t) => t.value === type)?.icon || <Type className="w-4 h-4" />;
+}
+
+// ===== 척도 설정 (큰 미리보기 + 접이식 세부 설정) =====
+
+function ScaleSection({
+  scaleMin,
+  scaleMax,
+  scaleNums,
+  onUpdate,
+}: {
+  scaleMin: number;
+  scaleMax: number;
+  scaleNums: number[];
+  onUpdate: (updates: Partial<FormField>) => void;
+}) {
+  const [showSettings, setShowSettings] = useState(false);
+
+  const count = scaleNums.length;
+  const itemGap = count > 10 ? "gap-1" : count > 7 ? "gap-2" : "gap-4";
+  const numSize = count > 10 ? "text-[10px]" : count > 7 ? "text-[12px]" : "text-[14px]";
+  const circleSize = count > 10 ? "w-4 h-4" : count > 7 ? "w-5 h-5" : "w-6 h-6";
+
+  return (
+    <div className="px-4 pb-2">
+      {/* 큰 척도 미리보기 — 네이버폼 스타일 */}
+      <div className={`flex items-end justify-center ${itemGap} py-3 flex-wrap`}>
+        <span className="text-[12px] text-muted-foreground font-medium pb-1 shrink-0">매우 불만족</span>
+        {scaleNums.map((n) => (
+          <div key={n} className="flex flex-col items-center gap-1.5">
+            <span className={`${numSize} font-bold text-foreground`}>{n}</span>
+            <span className={`${circleSize} rounded-full border-2 border-gray-300 hover:border-primary/50 transition-colors`} />
+          </div>
+        ))}
+        <span className="text-[12px] text-muted-foreground font-medium pb-1 shrink-0">매우 만족</span>
+      </div>
+
+      {/* 세부 설정 토글 */}
+      <button
+        type="button"
+        onClick={() => setShowSettings(!showSettings)}
+        className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors mt-1"
+      >
+        <Settings2 className="w-3 h-3" />
+        점수 범위 설정
+        <ChevronDown className={`w-3 h-3 transition-transform ${showSettings ? "rotate-180" : ""}`} />
+      </button>
+
+      {showSettings && (
+        <div className="flex items-center gap-2 mt-2 text-[12px] pb-1">
+          <span className="text-muted-foreground text-[11px]">점수 {scaleMin}일 경우</span>
+          <span className="text-[11px] font-medium">매우 불만족</span>
+          <span className="text-muted-foreground mx-1">|</span>
+          <input
+            type="number"
+            value={scaleMin}
+            onChange={(e) => onUpdate({ scaleMin: parseInt(e.target.value) || 1 })}
+            className="w-12 py-1.5 px-2 rounded border text-[12px] bg-background text-center"
+          />
+          <span className="text-muted-foreground">~</span>
+          <input
+            type="number"
+            value={scaleMax}
+            onChange={(e) => onUpdate({ scaleMax: parseInt(e.target.value) || 5 })}
+            className="w-12 py-1.5 px-2 rounded border text-[12px] bg-background text-center"
+          />
+          <span className="text-muted-foreground text-[11px]">점수 {scaleMax}일 경우</span>
+          <span className="text-[11px] font-medium">매우 만족</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ===== 개인정보 동의 설정 =====
+
+function ConsentSection({
+  consentConfig,
+  onUpdate,
+}: {
+  consentConfig: NonNullable<FormField["consentConfig"]>;
+  onUpdate: (updates: Partial<FormField>) => void;
+}) {
+  const [tab, setTab] = useState<"collect" | "thirdParty">("collect");
+
+  const updateConfig = (key: string, value: string) => {
+    onUpdate({ consentConfig: { ...consentConfig, [key]: value } });
+  };
+
+  return (
+    <div className="px-4 pb-2">
+      {/* 탭 전환 */}
+      <div className="flex items-center gap-3 mb-3">
+        {(["collect", "thirdParty"] as const).map((t) => {
+          const active = tab === t;
+          const label = t === "collect" ? "개인정보 수집 및 이용 동의" : "개인정보 제 3자 제공 동의";
+          return (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setTab(t)}
+              className={`flex items-center gap-1.5 select-none`}
+            >
+              <span
+                className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                  active ? "border-emerald-500" : "border-gray-300"
+                }`}
+              >
+                {active && <span className="w-2 h-2 rounded-full bg-emerald-500" />}
+              </span>
+              <span className={`text-[12px] ${active ? "font-bold text-foreground" : "text-muted-foreground"}`}>
+                {label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 수집 및 이용 동의 */}
+      {tab === "collect" && (
+        <div className="rounded-lg border border-border/50 overflow-hidden">
+          <div className="bg-muted/30 px-3 py-2 border-b border-border/50">
+            <span className="text-[11px] font-bold text-muted-foreground">개인정보 수집 및 이용 동의</span>
+          </div>
+          <div className="divide-y divide-border/40">
+            {([
+              { key: "collectItems", label: "수집하는 개인정보 항목", ph: "ex) 이름, 연락처" },
+              { key: "collectPurpose", label: "수집 및 이용 목적", ph: "ex) 이벤트 진행 및 당첨자 안내" },
+              { key: "collectRetention", label: "보유 및 이용기간", ph: "ex) 당첨자 발표 후 1개월 보관" },
+            ] as const).map((item) => (
+              <div key={item.key} className="flex items-center gap-3 px-3 py-2.5">
+                <span className="text-[12px] text-muted-foreground w-[130px] flex-shrink-0">· {item.label}</span>
+                <input
+                  value={(consentConfig as Record<string, string>)[item.key] || ""}
+                  onChange={(e) => updateConfig(item.key, e.target.value)}
+                  placeholder={item.ph}
+                  className="flex-1 text-[12px] bg-transparent outline-none border-b border-transparent hover:border-gray-300 focus:border-primary/40 py-1 transition-colors placeholder:text-gray-300"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 제 3자 제공 동의 */}
+      {tab === "thirdParty" && (
+        <div className="rounded-lg border border-border/50 overflow-hidden">
+          <div className="bg-muted/30 px-3 py-2 border-b border-border/50">
+            <span className="text-[11px] font-bold text-muted-foreground">개인정보 제 3자 제공 동의</span>
+          </div>
+          <div className="divide-y divide-border/40">
+            {([
+              { key: "thirdPartyRecipient", label: "제공받는 자", ph: "ex) (주) 제휴사명" },
+              { key: "thirdPartyPurpose", label: "제공받는 자의 이용 목적", ph: "ex) 이벤트 진행 및 당첨자 안내" },
+              { key: "thirdPartyItems", label: "제공하는 항목", ph: "ex) 이름, 연락처" },
+              { key: "thirdPartyRetention", label: "제공받는 자의 보유 및 이용기간", ph: "ex) 당첨자 발표 후 1개월 보관" },
+            ] as const).map((item) => (
+              <div key={item.key} className="flex items-center gap-3 px-3 py-2.5">
+                <span className="text-[12px] text-muted-foreground w-[170px] flex-shrink-0">· {item.label}</span>
+                <input
+                  value={(consentConfig as Record<string, string>)[item.key] || ""}
+                  onChange={(e) => updateConfig(item.key, e.target.value)}
+                  placeholder={item.ph}
+                  className="flex-1 text-[12px] bg-transparent outline-none border-b border-transparent hover:border-gray-300 focus:border-primary/40 py-1 transition-colors placeholder:text-gray-300"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ===== 질문 카드 컴포넌트 =====
@@ -75,6 +249,7 @@ function QuestionCard({
   isDragOver: boolean;
 }) {
   const [typeOpen, setTypeOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const hasOptions = field.type === "radio" || field.type === "select";
   const handleRef = useRef<HTMLDivElement>(null);
   const descImgRef = useRef<HTMLInputElement>(null);
@@ -97,11 +272,29 @@ function QuestionCard({
     onUpdate({ options: current });
   };
 
+  // 옵션 드래그 순서 변경
+  const [dragOptIdx, setDragOptIdx] = useState<number | null>(null);
+  const [overOptIdx, setOverOptIdx] = useState<number | null>(null);
+
+  const handleOptDrop = (toIdx: number) => {
+    if (dragOptIdx === null || dragOptIdx === toIdx) return;
+    const current = [...(field.options || [])];
+    const [moved] = current.splice(dragOptIdx, 1);
+    current.splice(toIdx, 0, moved);
+    onUpdate({ options: current });
+    setDragOptIdx(null);
+    setOverOptIdx(null);
+  };
+
+  // 접힌 상태: 질문 미리보기 + 척도/객관식 프리뷰
+  const scaleMin = field.scaleMin ?? 1;
+  const scaleMax = field.scaleMax ?? 5;
+  const scaleNums = Array.from({ length: scaleMax - scaleMin + 1 }, (_, i) => scaleMin + i);
+
   return (
     <div
       draggable
       onDragStart={(e) => {
-        // 드래그 핸들에서만 드래그 시작
         if (!handleRef.current?.contains(e.target as Node)) {
           e.preventDefault();
           return;
@@ -111,295 +304,339 @@ function QuestionCard({
       onDragOver={onDragOver}
       onDragEnd={onDragEnd}
       onDrop={onDrop}
-      className={`bg-card rounded-xl border-2 transition-all shadow-sm ${
-        isDragging ? "opacity-40 scale-[0.98] border-primary/40" :
-        isDragOver ? "border-primary border-dashed shadow-md" :
-        "border-border hover:border-primary/20"
+      className={`transition-all ${
+        isDragging ? "opacity-40 scale-[0.98]" :
+        isDragOver ? "bg-primary/5" : ""
+      } ${collapsed
+        ? "border-b border-border hover:bg-accent/30"
+        : "bg-card rounded-xl border-2 border-blue-200 shadow-md my-1"
       }`}
     >
-      {/* 상단: 드래그 핸들 + 타입 드롭다운 */}
-      <div className="flex items-center gap-2 px-4 pt-4 pb-2">
-        {/* 드래그 핸들 */}
+      {/* 접힌 상태 — 한 줄 슬림 리스트 */}
+      <div
+        className={`cursor-pointer flex items-center gap-2 ${collapsed ? "px-3 py-2.5" : "px-4 py-3"}`}
+        onClick={() => setCollapsed(!collapsed)}
+      >
         <div
           ref={handleRef}
-          className="flex flex-col items-center justify-center w-6 h-10 cursor-grab active:cursor-grabbing rounded hover:bg-accent transition-colors flex-shrink-0 -ml-1"
+          className="flex items-center justify-center w-5 cursor-grab active:cursor-grabbing flex-shrink-0"
           title="드래그하여 순서 변경"
+          onClick={(e) => e.stopPropagation()}
         >
-          <GripVertical className="w-5 h-5 text-muted-foreground/50" />
+          <GripVertical className="w-4 h-4 text-muted-foreground/40" />
         </div>
 
-        {/* 타입 선택 드롭다운 */}
-        <div className="relative flex-1">
-          <button
-            type="button"
-            onClick={() => setTypeOpen(!typeOpen)}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-background hover:bg-accent text-[13px] font-semibold transition-colors whitespace-nowrap"
-          >
-            {getTypeIcon(field.type)}
-            {getTypeLabel(field.type)}
-            <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${typeOpen ? "rotate-180" : ""}`} />
-          </button>
+        <div className="flex-1 min-w-0 flex items-center gap-1.5">
+          {field.required && <span className="text-red-500 text-[13px] font-bold">*</span>}
+          <span className="text-[12px] text-blue-600 font-bold">{index + 1}.</span>
+          <span className={`text-[13px] truncate ${collapsed ? "font-medium" : "font-semibold"}`}>
+            {field.label || "(질문 없음)"}
+          </span>
+        </div>
 
-          {typeOpen && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setTypeOpen(false)} />
-              <div className="absolute left-0 top-full mt-1 z-20 bg-card rounded-xl border shadow-xl py-1 w-[260px]">
-                {FIELD_TYPES.map((t) => (
-                  <button
-                    key={t.value}
-                    type="button"
-                    onClick={() => {
-                      const updates: Partial<FormField> = { type: t.value };
-                      // 타입 변경 시 옵션 초기화
-                      if ((t.value === "radio" || t.value === "select") && !field.options?.length) {
-                        updates.options = ["항목 1", "항목 2"];
+        <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded flex-shrink-0">
+          {getTypeLabel(field.type)}
+        </span>
+        <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground flex-shrink-0 transition-transform ${!collapsed ? "rotate-180" : ""}`} />
+      </div>
+
+      {/* 펼친 상태 — 전체 편집 UI (네이버폼 비율) */}
+      {!collapsed && (
+        <>
+          <div className="border-t border-blue-100" />
+
+          {/* 타입 드롭다운 — 작고 조용하게 */}
+          <div className="px-4 pt-3 pb-0">
+            <div className="relative inline-block">
+              <button
+                type="button"
+                onClick={() => setTypeOpen(!typeOpen)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md border bg-muted/40 hover:bg-accent text-[11px] text-muted-foreground font-medium transition-colors whitespace-nowrap"
+              >
+                {getTypeIcon(field.type)}
+                {getTypeLabel(field.type)}
+                <ChevronDown className={`w-3 h-3 transition-transform ${typeOpen ? "rotate-180" : ""}`} />
+              </button>
+
+              {typeOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setTypeOpen(false)} />
+                  <div className="absolute left-0 top-full mt-1 z-20 bg-card rounded-xl border shadow-xl py-1 w-[200px]">
+                    {FIELD_TYPES.map((t) => (
+                      <button
+                        key={t.value}
+                        type="button"
+                        onClick={() => {
+                          const updates: Partial<FormField> = { type: t.value };
+                          if ((t.value === "radio" || t.value === "select") && !field.options?.length) {
+                            updates.options = ["항목 1", "항목 2"];
+                          }
+                          if (t.value === "scale") {
+                            updates.scaleMin = field.scaleMin ?? 1;
+                            updates.scaleMax = field.scaleMax ?? 5;
+                          }
+                          if (t.value === "consent" && !field.consentConfig) {
+                            updates.consentConfig = {
+                              collectItems: "이름, 연락처",
+                              collectPurpose: "강의 수강 관리 및 안내",
+                              collectRetention: "강의 종료 후 1개월 보관",
+                            };
+                            updates.required = true;
+                          }
+                          onUpdate(updates);
+                          setTypeOpen(false);
+                        }}
+                        className={`w-full flex items-center gap-2.5 px-3.5 py-2 text-[12px] hover:bg-accent transition-colors whitespace-nowrap ${
+                          field.type === t.value ? "text-primary font-bold bg-primary/5" : "text-foreground"
+                        }`}
+                      >
+                        <span className="text-muted-foreground">{t.icon}</span>
+                        <span>{t.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* 질문 제목 — 크고 볼드하게 */}
+          <div className="px-4 pt-1.5 pb-0">
+            <input
+              value={field.label}
+              onChange={(e) => onUpdate({ label: e.target.value })}
+              placeholder="질문 입력"
+              className="w-full text-[16px] font-bold bg-transparent outline-none border-b border-transparent hover:border-gray-300 focus:border-primary/40 py-1.5 transition-colors placeholder:text-gray-300 placeholder:font-normal"
+            />
+          </div>
+
+          {/* 질문 설명 */}
+          <div className="px-4 pb-2">
+            <input
+              value={field.placeholder || ""}
+              onChange={(e) => onUpdate({ placeholder: e.target.value })}
+              placeholder="설명 입력"
+              className="w-full text-[13px] text-muted-foreground bg-transparent outline-none border-b border-transparent hover:border-gray-300 focus:border-primary/40 py-1 transition-colors placeholder:text-gray-300"
+            />
+
+            {/* 설명 이미지 첨부 */}
+            {field.descriptionImage ? (
+              <div className="relative inline-block mt-2">
+                <img
+                  src={field.descriptionImage}
+                  alt="설명 이미지"
+                  className="max-h-24 rounded-md border object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={() => onUpdate({ descriptionImage: undefined })}
+                  className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center shadow hover:bg-red-600"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ) : (
+              <>
+                <input
+                  ref={descImgRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (file.size > 5 * 1024 * 1024) {
+                      alert("이미지는 5MB 이하만 업로드 가능합니다");
+                      return;
+                    }
+                    setUploadingDescImg(true);
+                    try {
+                      const fd = new FormData();
+                      fd.append("file", file);
+                      const res = await fetch("/api/survey-images", { method: "POST", body: fd });
+                      const data = await res.json();
+                      if (res.ok && data.url) {
+                        onUpdate({ descriptionImage: data.url });
+                      } else {
+                        alert(data.error || "업로드 실패");
                       }
-                      if (t.value === "scale") {
-                        updates.scaleMin = field.scaleMin ?? 1;
-                        updates.scaleMax = field.scaleMax ?? 5;
-                      }
-                      onUpdate(updates);
-                      setTypeOpen(false);
-                    }}
-                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-[13px] hover:bg-accent transition-colors whitespace-nowrap ${
-                      field.type === t.value ? "text-primary font-bold bg-primary/5" : "text-foreground"
+                    } catch {
+                      alert("업로드 중 오류가 발생했습니다");
+                    } finally {
+                      setUploadingDescImg(false);
+                      if (descImgRef.current) descImgRef.current.value = "";
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => descImgRef.current?.click()}
+                  disabled={uploadingDescImg}
+                  className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground/60 hover:text-muted-foreground transition-colors disabled:opacity-50"
+                >
+                  {uploadingDescImg ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Upload className="w-3 h-3" />
+                  )}
+                  이미지 첨부
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* 이미지 업로드 타입 안내 */}
+          {field.type === "image" && (
+            <div className="px-4 pb-2">
+              <div className="flex items-center gap-2 py-2 px-3 rounded-lg bg-blue-50 border border-blue-200 text-[11px] text-blue-700">
+                <ImagePlus className="w-3.5 h-3.5 flex-shrink-0" />
+                이미지 업로드 (최대 5MB, JPG/PNG/WebP)
+              </div>
+            </div>
+          )}
+
+          {/* 단답형/장문형 미리보기 */}
+          {field.type === "text" && (
+            <div className="px-4 pb-2">
+              <div className="py-2.5 px-3 rounded-lg bg-muted/30 border border-border/50 text-[12px] text-muted-foreground/50">
+                참여자의 답변 입력란 (최대 100자)
+              </div>
+            </div>
+          )}
+          {field.type === "textarea" && (
+            <div className="px-4 pb-2">
+              <div className="py-2.5 px-3 rounded-lg bg-muted/30 border border-border/50 text-[12px] text-muted-foreground/50 min-h-[60px]">
+                참여자의 답변 입력란 (최대 2000자)
+              </div>
+            </div>
+          )}
+
+          {/* 옵션 목록 (객관식) */}
+          {hasOptions && (
+            <div className="px-4 pb-2">
+              <div className="space-y-0.5">
+                {(field.options || []).map((opt, i) => (
+                  <div
+                    key={i}
+                    draggable
+                    onDragStart={() => setDragOptIdx(i)}
+                    onDragOver={(e) => { e.preventDefault(); setOverOptIdx(i); }}
+                    onDragEnd={() => { setDragOptIdx(null); setOverOptIdx(null); }}
+                    onDrop={(e) => { e.preventDefault(); handleOptDrop(i); }}
+                    className={`flex items-center gap-1.5 group transition-all ${
+                      dragOptIdx === i ? "opacity-40" : overOptIdx === i && dragOptIdx !== null ? "bg-primary/5" : ""
                     }`}
                   >
-                    <span className="text-muted-foreground">{t.icon}</span>
-                    <span>{t.label}</span>
-                    <span className="text-[11px] text-muted-foreground ml-auto">{t.desc}</span>
-                  </button>
+                    <GripVertical className="w-3.5 h-3.5 text-muted-foreground/30 flex-shrink-0 cursor-grab active:cursor-grabbing" />
+                    <span className={`w-4 h-4 flex-shrink-0 border-2 border-gray-300 ${field.multiple ? "rounded" : "rounded-full"}`} />
+                    <div className="flex-1 flex items-center border-b border-border/60 hover:border-gray-400 focus-within:border-primary/40 transition-colors">
+                      <input
+                        value={opt}
+                        onChange={(e) => updateOption(i, e.target.value)}
+                        placeholder={`항목 ${i + 1}`}
+                        className="flex-1 py-1.5 text-[13px] bg-transparent outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeOption(i)}
+                        className="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-red-50 transition-all"
+                      >
+                        <X className="w-3.5 h-3.5 text-red-400" />
+                      </button>
+                    </div>
+                  </div>
                 ))}
               </div>
-            </>
-          )}
-        </div>
 
-      </div>
-
-      {/* 질문 입력 */}
-      <div className="px-4 pb-2">
-        <div className="flex items-start gap-1 mb-1">
-          {field.required && <span className="text-red-500 text-[14px] font-bold mt-0.5">*</span>}
-          <span className="text-[13px] text-emerald-600 font-bold mt-0.5">{index + 1}.</span>
-        </div>
-        <input
-          value={field.label}
-          onChange={(e) => onUpdate({ label: e.target.value })}
-          placeholder="질문 입력"
-          className="w-full text-[15px] font-semibold bg-transparent outline-none border-b-2 border-transparent focus:border-primary/30 py-1.5 transition-colors"
-        />
-        <input
-          value={field.placeholder || ""}
-          onChange={(e) => onUpdate({ placeholder: e.target.value })}
-          placeholder="설명 입력 (선택)"
-          className="w-full text-[12px] text-muted-foreground bg-transparent outline-none py-1 mt-0.5"
-        />
-
-        {/* 설명 이미지 첨부 */}
-        <div className="mt-2">
-          {field.descriptionImage ? (
-            <div className="relative inline-block">
-              <img
-                src={field.descriptionImage}
-                alt="설명 이미지"
-                className="max-h-32 rounded-lg border object-cover"
-              />
               <button
                 type="button"
-                onClick={() => onUpdate({ descriptionImage: undefined })}
-                className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center shadow hover:bg-red-600"
+                onClick={addOption}
+                className="mt-2 px-3 py-1 rounded-md bg-blue-50 text-[12px] font-semibold text-blue-600 hover:bg-blue-100 transition-colors"
               >
-                <X className="w-3 h-3" />
+                항목 추가
               </button>
             </div>
-          ) : (
-            <>
-              <input
-                ref={descImgRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                className="hidden"
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  if (file.size > 5 * 1024 * 1024) {
-                    alert("이미지는 5MB 이하만 업로드 가능합니다");
-                    return;
-                  }
-                  setUploadingDescImg(true);
-                  try {
-                    const fd = new FormData();
-                    fd.append("file", file);
-                    const res = await fetch("/api/survey-images", { method: "POST", body: fd });
-                    const data = await res.json();
-                    if (res.ok && data.url) {
-                      onUpdate({ descriptionImage: data.url });
-                    } else {
-                      alert(data.error || "업로드 실패");
-                    }
-                  } catch {
-                    alert("업로드 중 오류가 발생했습니다");
-                  } finally {
-                    setUploadingDescImg(false);
-                    if (descImgRef.current) descImgRef.current.value = "";
-                  }
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => descImgRef.current?.click()}
-                disabled={uploadingDescImg}
-                className="flex items-center gap-1.5 text-[11px] text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-              >
-                {uploadingDescImg ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Upload className="w-3.5 h-3.5" />
-                )}
-                설명 이미지 첨부
-              </button>
-            </>
           )}
-        </div>
-      </div>
 
-      {/* 이미지 업로드 타입 안내 */}
-      {field.type === "image" && (
-        <div className="px-4 pb-2">
-          <div className="flex items-center gap-2 py-3 px-4 rounded-xl bg-blue-50 border border-blue-200 text-[12px] text-blue-700">
-            <ImagePlus className="w-4 h-4 flex-shrink-0" />
-            응답자가 이미지(사진/스크린샷)를 업로드할 수 있습니다. (최대 5MB, JPG/PNG/WebP)
-          </div>
-        </div>
-      )}
+          {/* 척도 설정 */}
+          {field.type === "scale" && (
+            <ScaleSection
+              scaleMin={scaleMin}
+              scaleMax={scaleMax}
+              scaleNums={scaleNums}
+              onUpdate={onUpdate}
+            />
+          )}
 
-      {/* 옵션 목록 (객관식) */}
-      {hasOptions && (
-        <div className="px-4 pb-2">
-          <div className="space-y-1.5">
-            {(field.options || []).map((opt, i) => (
-              <div key={i} className="flex items-center gap-2 group">
-                <GripVertical className="w-4 h-4 text-muted-foreground/40 flex-shrink-0" />
-                <div className="flex-1 flex items-center border-b border-border">
-                  <input
-                    value={opt}
-                    onChange={(e) => updateOption(i, e.target.value)}
-                    placeholder={`항목 ${i + 1}`}
-                    className="flex-1 py-2 text-[13px] bg-transparent outline-none"
+          {/* 개인정보 동의 설정 */}
+          {field.type === "consent" && (
+            <ConsentSection
+              consentConfig={field.consentConfig || {}}
+              onUpdate={onUpdate}
+            />
+          )}
+
+          {/* 하단: 필수 토글 + 액션 버튼 */}
+          <div className="flex items-center justify-between px-4 py-2 border-t border-blue-100 mt-1">
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                <span className="text-[11px] font-semibold text-muted-foreground">답변 필수</span>
+                <button
+                  type="button"
+                  onClick={() => onUpdate({ required: !field.required })}
+                  className={`w-9 h-[20px] rounded-full relative transition-colors ${
+                    field.required ? "bg-emerald-500" : "bg-gray-300"
+                  }`}
+                >
+                  <span
+                    className={`absolute top-[2px] w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                      field.required ? "left-[19px]" : "left-[2px]"
+                    }`}
                   />
+                </button>
+              </label>
+
+              {hasOptions && (
+                <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                  <span className="text-[11px] font-semibold text-muted-foreground">복수 선택</span>
                   <button
                     type="button"
-                    onClick={() => removeOption(i)}
-                    className="p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-red-50 transition-all"
-                    title="항목 삭제"
+                    onClick={() => onUpdate({ multiple: !field.multiple })}
+                    className={`w-9 h-[20px] rounded-full relative transition-colors ${
+                      field.multiple ? "bg-violet-500" : "bg-gray-300"
+                    }`}
                   >
-                    <X className="w-3.5 h-3.5 text-red-400" />
+                    <span
+                      className={`absolute top-[2px] w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                        field.multiple ? "left-[19px]" : "left-[2px]"
+                      }`}
+                    />
                   </button>
-                </div>
-              </div>
-            ))}
-          </div>
+                </label>
+              )}
+            </div>
 
-          <div className="flex items-center gap-2 mt-3">
-            <button
-              type="button"
-              onClick={addOption}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-[12px] font-bold hover:bg-emerald-100 transition-colors border border-emerald-200"
-            >
-              항목 추가
-            </button>
+            <div className="flex items-center gap-0.5">
+              <button
+                type="button"
+                onClick={onDuplicate}
+                className="p-1.5 rounded-md hover:bg-accent transition-colors"
+                title="복제"
+              >
+                <CopyIcon className="w-3.5 h-3.5 text-muted-foreground" />
+              </button>
+              <button
+                type="button"
+                onClick={onDelete}
+                className="p-1.5 rounded-md hover:bg-red-50 transition-colors"
+                title="삭제"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-red-400" />
+              </button>
+            </div>
           </div>
-        </div>
+        </>
       )}
-
-      {/* 척도 설정 */}
-      {field.type === "scale" && (
-        <div className="px-4 pb-2">
-          <div className="flex items-center gap-3 text-[13px]">
-            <label className="flex items-center gap-1.5 text-muted-foreground">
-              최소
-              <input
-                type="number"
-                value={field.scaleMin ?? 1}
-                onChange={(e) => onUpdate({ scaleMin: parseInt(e.target.value) || 1 })}
-                className="w-14 py-1.5 px-2 rounded-lg border text-[13px] bg-background text-center"
-              />
-            </label>
-            <span className="text-muted-foreground">~</span>
-            <label className="flex items-center gap-1.5 text-muted-foreground">
-              최대
-              <input
-                type="number"
-                value={field.scaleMax ?? 5}
-                onChange={(e) => onUpdate({ scaleMax: parseInt(e.target.value) || 5 })}
-                className="w-14 py-1.5 px-2 rounded-lg border text-[13px] bg-background text-center"
-              />
-            </label>
-            <span className="text-muted-foreground text-[12px]">점</span>
-          </div>
-        </div>
-      )}
-
-      {/* 하단: 필수 토글 + 액션 버튼 */}
-      <div className="flex items-center justify-between px-4 py-3 border-t border-border/50 mt-1">
-        <div className="flex items-center gap-4">
-          {/* 답변 필수 토글 */}
-          <label className="flex items-center gap-2 cursor-pointer select-none">
-            <span className="text-[12px] font-semibold text-muted-foreground">답변 필수</span>
-            <button
-              type="button"
-              onClick={() => onUpdate({ required: !field.required })}
-              className={`w-10 h-[22px] rounded-full relative transition-colors ${
-                field.required ? "bg-emerald-500" : "bg-gray-300"
-              }`}
-            >
-              <span
-                className={`absolute top-[3px] w-4 h-4 rounded-full bg-white shadow transition-transform ${
-                  field.required ? "left-[22px]" : "left-[3px]"
-                }`}
-              />
-            </button>
-          </label>
-
-          {/* 활성/비활성 토글 */}
-          <label className="flex items-center gap-2 cursor-pointer select-none">
-            <span className="text-[12px] font-semibold text-muted-foreground">표시</span>
-            <button
-              type="button"
-              onClick={() => onUpdate({ enabled: !field.enabled })}
-              className={`w-10 h-[22px] rounded-full relative transition-colors ${
-                field.enabled ? "bg-blue-500" : "bg-gray-300"
-              }`}
-            >
-              <span
-                className={`absolute top-[3px] w-4 h-4 rounded-full bg-white shadow transition-transform ${
-                  field.enabled ? "left-[22px]" : "left-[3px]"
-                }`}
-              />
-            </button>
-          </label>
-        </div>
-
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={onDuplicate}
-            className="p-2 rounded-lg hover:bg-accent transition-colors"
-            title="복제"
-          >
-            <CopyIcon className="w-4 h-4 text-muted-foreground" />
-          </button>
-          <button
-            type="button"
-            onClick={onDelete}
-            className="p-2 rounded-lg hover:bg-red-50 transition-colors"
-            title="삭제"
-          >
-            <Trash2 className="w-4 h-4 text-red-400" />
-          </button>
-        </div>
-      </div>
     </div>
   );
 }
@@ -412,12 +649,14 @@ function QuestionOutlineSidebar({
   onClickItem,
   onReorder,
   formTitle,
+  closingMessage,
 }: {
   fields: FormField[];
   activeKey: string | null;
   onClickItem: (key: string) => void;
   onReorder: (fromKey: string, toKey: string) => void;
   formTitle: string;
+  closingMessage: string;
 }) {
   const [dragKey, setDragKey] = useState<string | null>(null);
   const [overKey, setOverKey] = useState<string | null>(null);
@@ -527,9 +766,9 @@ function QuestionOutlineSidebar({
             )}
 
             {/* 마지막 메시지 (실제 설문에 표시됨) */}
-            <div className="rounded-md border border-border/50 bg-muted/20 px-2.5 py-2">
-              <span className="text-[11px] text-muted-foreground">
-                설문에 참여해 주셔서 감사합니다.
+            <div className="rounded-md border border-emerald-300 bg-emerald-50/30 px-2.5 py-2">
+              <span className="text-[11px] text-emerald-700">
+                {closingMessage || "(마지막 안내 메시지)"}
               </span>
             </div>
           </div>
@@ -576,10 +815,14 @@ export function SurveyFormBuilder({ editForm, initialType, onSaved, onCancel }: 
   const [startsAt, setStartsAt] = useState(editForm?.starts_at?.slice(0, 10) || todayStr());
   const [expiresAt, setExpiresAt] = useState(editForm?.expires_at?.slice(0, 10) || futureDateStr(14));
   const isFreeForm = initialType === "자유";
+  const existingFields = editForm?.fields?.length ? (editForm.fields as FormField[]) : null;
   const [fields, setFields] = useState<FormField[]>(
-    editForm?.fields?.length
-      ? (editForm.fields as FormField[])
+    existingFields
+      ? existingFields.filter((f) => f.type !== "closing")
       : isFreeForm ? [] : resolvedType === "사전" ? getPreDefaults() : getPostDefaults()
+  );
+  const [closingMessage, setClosingMessage] = useState(
+    existingFields?.find((f) => f.type === "closing")?.label || "설문 작성해주셔서 감사합니다."
   );
 
   // 자동 제목: 플랫폼 / 강사명 / 강의명 / 기수 / 사전|후기 설문지
@@ -724,7 +967,10 @@ export function SurveyFormBuilder({ editForm, initialType, onSaved, onCancel }: 
         survey_type: surveyType,
         title: title.trim(),
         description: description.trim(),
-        fields,
+        fields: [
+          ...fields,
+          { key: "_closing", label: closingMessage, type: "closing" as const, required: false, enabled: true, order: 99999, section: "freetext" as const },
+        ],
         starts_at: startsAt ? `${startsAt}T00:00:00.000Z` : null,
         expires_at: expiresAt ? `${expiresAt}T23:59:59.999Z` : null,
       };
@@ -830,17 +1076,16 @@ export function SurveyFormBuilder({ editForm, initialType, onSaved, onCancel }: 
         </div>
 
         {/* 메타데이터 */}
-        <div className="bg-card rounded-xl border p-5 mb-4 space-y-4">
-          <h3 className="text-[14px] font-bold">기본 정보</h3>
-          <hr className="border-border/60" />
+        <div className="bg-card rounded-xl border p-4 mb-3">
+          <h3 className="text-[13px] font-bold mb-3">기본 정보</h3>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-4 gap-2 mb-2">
             <div>
-              <label className="text-[12px] font-semibold text-muted-foreground mb-1 block">플랫폼</label>
+              <label className="text-[11px] font-semibold text-muted-foreground mb-0.5 block">플랫폼</label>
               <select
                 value={platform}
                 onChange={(e) => setPlatform(e.target.value)}
-                className="w-full py-2 px-3 rounded-lg border text-[13px] bg-background"
+                className="w-full py-1.5 px-2 rounded-md border text-[12px] bg-background"
               >
                 {PLATFORM_NAMES.map((p) => (
                   <option key={p} value={p}>{p}</option>
@@ -848,47 +1093,45 @@ export function SurveyFormBuilder({ editForm, initialType, onSaved, onCancel }: 
               </select>
             </div>
             <div>
-              <label className="text-[12px] font-semibold text-muted-foreground mb-1 block">강사명 *</label>
+              <label className="text-[11px] font-semibold text-muted-foreground mb-0.5 block">강사명 *</label>
               <input
                 value={instructor}
                 onChange={(e) => setInstructor(e.target.value)}
-                placeholder="예: 머니테이커"
-                className="w-full py-2 px-3 rounded-lg border text-[13px] bg-background"
+                placeholder="머니테이커"
+                className="w-full py-1.5 px-2 rounded-md border text-[12px] bg-background"
               />
             </div>
             <div>
-              <label className="text-[12px] font-semibold text-muted-foreground mb-1 block">강의명</label>
+              <label className="text-[11px] font-semibold text-muted-foreground mb-0.5 block">강의명</label>
               <input
                 value={course}
                 onChange={(e) => setCourse(e.target.value)}
-                placeholder="예: 파이널VIP 코스"
-                className="w-full py-2 px-3 rounded-lg border text-[13px] bg-background"
+                placeholder="파이널VIP 코스"
+                className="w-full py-1.5 px-2 rounded-md border text-[12px] bg-background"
               />
             </div>
             <div>
-              <label className="text-[12px] font-semibold text-muted-foreground mb-1 block">기수</label>
+              <label className="text-[11px] font-semibold text-muted-foreground mb-0.5 block">기수</label>
               <input
                 value={cohort}
                 onChange={(e) => setCohort(e.target.value)}
-                placeholder="예: 21기"
-                className="w-full py-2 px-3 rounded-lg border text-[13px] bg-background"
+                placeholder="21기"
+                className="w-full py-1.5 px-2 rounded-md border text-[12px] bg-background"
               />
             </div>
           </div>
 
-          <hr className="border-border/60" />
-
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2 mb-2">
             <div>
-              <label className="text-[12px] font-semibold text-muted-foreground mb-1 block">설문 유형</label>
+              <label className="text-[11px] font-semibold text-muted-foreground mb-0.5 block">설문 유형</label>
               {isFreeForm ? (
-                <div className="flex gap-2">
+                <div className="flex gap-1.5">
                   {(["사전", "후기"] as const).map((t) => (
                     <button
                       key={t}
                       type="button"
                       onClick={() => setSurveyType(t)}
-                      className={`flex-1 py-2 rounded-lg text-[13px] font-bold transition-all border ${
+                      className={`flex-1 py-1.5 rounded-md text-[12px] font-bold transition-all border ${
                         surveyType === t
                           ? "border-primary bg-primary text-primary-foreground"
                           : "border-border bg-background text-muted-foreground hover:bg-accent"
@@ -899,79 +1142,69 @@ export function SurveyFormBuilder({ editForm, initialType, onSaved, onCancel }: 
                   ))}
                 </div>
               ) : (
-                <div className="py-2 px-3 rounded-lg border bg-muted/30 text-[13px] font-bold text-foreground">
+                <div className="py-1.5 px-2 rounded-md border bg-muted/30 text-[12px] font-bold text-foreground">
                   {surveyType} 설문
                 </div>
               )}
             </div>
             <div>
-              <label className="text-[12px] font-semibold text-muted-foreground mb-1 block">
-                설문 제목
-              </label>
+              <label className="text-[11px] font-semibold text-muted-foreground mb-0.5 block">설문 제목</label>
               <input
                 value={title}
                 onChange={(e) => { setTitleOverride(true); setTitleManual(e.target.value); }}
-                placeholder="위 정보를 입력하면 자동 생성됩니다"
-                className={`w-full py-2 px-3 rounded-lg border text-[13px] bg-background ${
+                placeholder="자동 생성됩니다"
+                className={`w-full py-1.5 px-2 rounded-md border text-[12px] bg-background hover:border-gray-400 focus:border-primary/40 transition-colors ${
                   !titleOverride ? "text-muted-foreground" : ""
                 }`}
               />
             </div>
           </div>
 
-          <hr className="border-border/60" />
-
-          <div>
-            <label className="text-[12px] font-semibold text-muted-foreground mb-1 block">설명 (선택)</label>
+          <div className="mb-2">
+            <label className="text-[11px] font-semibold text-muted-foreground mb-0.5 block">설명 (선택)</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="설문 안내 메시지를 입력하세요"
               rows={2}
-              className="w-full py-2 px-3 rounded-lg border text-[13px] bg-background resize-none"
+              className="w-full py-1.5 px-2 rounded-md border text-[12px] bg-background resize-none hover:border-gray-400 focus:border-primary/40 transition-colors"
             />
           </div>
 
-          <hr className="border-border/60" />
-
-          {/* 설문 기간 설정 */}
-          <div>
-            <label className="text-[12px] font-semibold text-muted-foreground mb-1 flex items-center gap-1.5">
-              <Calendar className="w-3.5 h-3.5" />
-              설문 기간
-            </label>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <span className="text-[11px] text-muted-foreground">시작일</span>
-                <input
-                  type="date"
-                  value={startsAt}
-                  onChange={(e) => setStartsAt(e.target.value)}
-                  className="w-full py-2 px-3 rounded-lg border text-[13px] bg-background"
-                />
-              </div>
-              <div>
-                <span className="text-[11px] text-muted-foreground">종료일</span>
-                <input
-                  type="date"
-                  value={expiresAt}
-                  onChange={(e) => setExpiresAt(e.target.value)}
-                  className="w-full py-2 px-3 rounded-lg border text-[13px] bg-background"
-                />
-              </div>
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <label className="text-[11px] font-semibold text-muted-foreground mb-0.5 flex items-center gap-1">
+                <Calendar className="w-3 h-3" />
+                시작일
+              </label>
+              <input
+                type="date"
+                value={startsAt}
+                onChange={(e) => setStartsAt(e.target.value)}
+                className="w-full py-1.5 px-2 rounded-md border text-[12px] bg-background"
+              />
             </div>
-            <p className="text-[11px] text-muted-foreground mt-1">기본: 생성일로부터 2주</p>
+            <span className="text-muted-foreground text-[12px] pb-2">~</span>
+            <div className="flex-1">
+              <label className="text-[11px] font-semibold text-muted-foreground mb-0.5 block">종료일</label>
+              <input
+                type="date"
+                value={expiresAt}
+                onChange={(e) => setExpiresAt(e.target.value)}
+                className="w-full py-1.5 px-2 rounded-md border text-[12px] bg-background"
+              />
+            </div>
           </div>
         </div>
 
         {/* 질문 카드 목록 */}
-        <div className="space-y-3 mb-4">
+        <div className="space-y-1 mb-3">
           {sortedFields.map((field, idx) => (
             <div
               key={field.key}
               ref={(el) => { questionRefs.current[field.key] = el; }}
               data-question-key={field.key}
-              className="transition-all rounded-xl"
+              className="transition-all"
             >
               <QuestionCard
                 field={field}
@@ -991,15 +1224,27 @@ export function SurveyFormBuilder({ editForm, initialType, onSaved, onCancel }: 
           ))}
         </div>
 
-        {/* 질문 추가 버튼 */}
-        <button
-          type="button"
-          onClick={addQuestion}
-          className="w-full py-3.5 rounded-xl border-2 border-dashed border-border hover:border-primary/40 hover:bg-primary/5 transition-all flex items-center justify-center gap-2 text-[14px] font-semibold text-muted-foreground hover:text-primary mb-6"
-        >
-          <Plus className="w-5 h-5" />
-          질문 추가
-        </button>
+        {/* 질문 추가 + 마지막 메시지 */}
+        <div className="flex items-center gap-3 mb-3">
+          <button
+            type="button"
+            onClick={addQuestion}
+            className="flex items-center gap-1.5 text-[13px] font-semibold text-muted-foreground hover:text-primary transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            질문 추가
+          </button>
+        </div>
+
+        {/* 마지막 안내 메시지 (고정) */}
+        <div className="bg-card rounded-lg border-2 border-emerald-300 px-4 py-3 mb-4">
+          <input
+            value={closingMessage}
+            onChange={(e) => setClosingMessage(e.target.value)}
+            className="w-full text-[14px] font-semibold bg-transparent outline-none border-b border-transparent hover:border-gray-300 focus:border-primary/40 py-0.5 transition-colors"
+            placeholder="마지막 안내 메시지 입력"
+          />
+        </div>
 
         {/* 저장 버튼 */}
         <button
@@ -1026,6 +1271,7 @@ export function SurveyFormBuilder({ editForm, initialType, onSaved, onCancel }: 
           onClickItem={scrollToQuestion}
           onReorder={handleDrop}
           formTitle={title}
+          closingMessage={closingMessage}
         />
       </div>
 

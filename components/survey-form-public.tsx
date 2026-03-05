@@ -8,13 +8,6 @@ interface Props {
   form: SurveyForm;
 }
 
-const SECTION_LABELS: Record<string, string> = {
-  demographics: "기본 정보",
-  scores: "만족도 평가",
-  freetext: "자유 의견",
-};
-
-const SECTION_ORDER = ["demographics", "scores", "freetext"];
 
 // ===== 척도 입력 =====
 
@@ -30,30 +23,86 @@ function ScaleInput({
   const min = field.scaleMin ?? 1;
   const max = field.scaleMax ?? 5;
   const points = Array.from({ length: max - min + 1 }, (_, i) => min + i);
+  const count = points.length;
+  const leftLabel = field.placeholder?.split("|")[0]?.trim() || `${min}점`;
+  const rightLabel = field.placeholder?.split("|")[1]?.trim() || `${max}점`;
 
-  return (
-    <div className="flex flex-col gap-1.5">
-      {/* 라벨 행 */}
-      <div className="flex items-center justify-between px-1">
-        <span className="text-[11px] text-gray-400">{min}점</span>
-        <span className="text-[11px] text-gray-400">{max}점</span>
+  // 8개 이상: 라벨을 위로 분리하여 버튼 공간 확보 (모바일 2줄 방지)
+  if (count > 7) {
+    const numSize = count > 10 ? "text-[10px]" : "text-[11px]";
+    const circleSize = count > 10 ? "w-[16px] h-[16px]" : "w-[18px] h-[18px]";
+    const dotSize = count > 10 ? "w-1 h-1" : "w-1.5 h-1.5";
+
+    return (
+      <div>
+        <div className="flex justify-between px-1 mb-1">
+          <span className="text-[11px] text-gray-400">{leftLabel}</span>
+          <span className="text-[11px] text-gray-400">{rightLabel}</span>
+        </div>
+        <div className="flex items-center justify-between py-1">
+          {points.map((p) => {
+            const selected = value === String(p);
+            return (
+              <button
+                key={p}
+                type="button"
+                onClick={() => onChange(String(p))}
+                className="flex flex-col items-center gap-1 py-1 group flex-1 min-w-0"
+              >
+                <span className={`${numSize} font-bold transition-colors ${
+                  selected ? "text-blue-600" : "text-gray-500 group-active:text-blue-500"
+                }`}>
+                  {p}
+                </span>
+                <span className={`${circleSize} rounded-full border-2 flex items-center justify-center transition-all ${
+                  selected
+                    ? "border-blue-500 bg-blue-500 shadow-md shadow-blue-200"
+                    : "border-gray-300 bg-white group-active:border-blue-400"
+                }`}>
+                  {selected && <span className={`${dotSize} rounded-full bg-white`} />}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
-      {/* 버튼 행: 균등 배분 */}
-      <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${points.length}, 1fr)` }}>
-        {points.map((p) => (
-          <button
-            key={p}
-            type="button"
-            onClick={() => onChange(String(p))}
-            className={`aspect-square min-h-[48px] rounded-2xl border-2 text-[15px] font-bold transition-all active:scale-95 ${
-              value === String(p)
-                ? "border-blue-500 bg-blue-500 text-white shadow-lg shadow-blue-200"
-                : "border-gray-200 bg-white text-gray-500 active:bg-blue-50 active:border-blue-300"
-            }`}
-          >
-            {p}
-          </button>
-        ))}
+    );
+  }
+
+  // 7개 이하: 라벨 인라인
+  return (
+    <div>
+      <div className="flex items-end justify-center gap-0 py-2">
+        <span className="text-[12px] sm:text-[13px] text-gray-400 pb-2 pr-2 sm:pr-3 shrink-0 leading-tight max-w-[70px] text-right">
+          {leftLabel}
+        </span>
+        {points.map((p) => {
+          const selected = value === String(p);
+          return (
+            <button
+              key={p}
+              type="button"
+              onClick={() => onChange(String(p))}
+              className="flex flex-col items-center gap-1.5 px-2 sm:px-3 py-1 group"
+            >
+              <span className={`text-[14px] sm:text-[15px] font-bold transition-colors ${
+                selected ? "text-blue-600" : "text-gray-500 group-active:text-blue-500"
+              }`}>
+                {p}
+              </span>
+              <span className={`w-[22px] h-[22px] sm:w-[26px] sm:h-[26px] rounded-full border-2 flex items-center justify-center transition-all ${
+                selected
+                  ? "border-blue-500 bg-blue-500 shadow-md shadow-blue-200"
+                  : "border-gray-300 bg-white group-active:border-blue-400"
+              }`}>
+                {selected && <span className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-white" />}
+              </span>
+            </button>
+          );
+        })}
+        <span className="text-[12px] sm:text-[13px] text-gray-400 pb-2 pl-2 sm:pl-3 shrink-0 leading-tight max-w-[70px]">
+          {rightLabel}
+        </span>
       </div>
     </div>
   );
@@ -203,7 +252,8 @@ function FieldRenderer({
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={field.placeholder || "입력해주세요"}
+          placeholder="참여자의 답변 입력란 (최대 100자)"
+          maxLength={100}
           className={`${baseInput} ${errorCls}`}
           autoComplete="off"
         />
@@ -216,7 +266,7 @@ function FieldRenderer({
           inputMode="numeric"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={field.placeholder || "숫자를 입력해주세요"}
+          placeholder="숫자를 입력해주세요"
           className={`${baseInput} ${errorCls}`}
         />
       );
@@ -226,7 +276,8 @@ function FieldRenderer({
         <textarea
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={field.placeholder || "자유롭게 작성해주세요"}
+          placeholder="참여자의 답변 입력란 (최대 2000자)"
+          maxLength={2000}
           rows={4}
           className={`${baseInput} resize-none min-h-[120px] ${errorCls}`}
         />
@@ -252,6 +303,55 @@ function FieldRenderer({
       );
 
     case "radio":
+      if (field.multiple) {
+        // 복수 선택 모드
+        const selected = value ? value.split(", ") : [];
+        const toggleOpt = (opt: string) => {
+          const next = selected.includes(opt)
+            ? selected.filter((s) => s !== opt)
+            : [...selected, opt];
+          onChange(next.join(", "));
+        };
+        return (
+          <div className="flex flex-col gap-2">
+            {(field.options || []).map((opt) => {
+              const checked = selected.includes(opt);
+              return (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => toggleOpt(opt)}
+                  className={`flex items-center gap-3 py-3.5 px-4 rounded-2xl border-2 text-left transition-all active:scale-[0.98] ${
+                    checked
+                      ? "border-blue-500 bg-blue-50 shadow-sm"
+                      : "border-gray-200 bg-white active:bg-gray-50"
+                  }`}
+                >
+                  {/* 체크박스 */}
+                  <span
+                    className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                      checked ? "border-blue-500 bg-blue-500" : "border-gray-300"
+                    }`}
+                  >
+                    {checked && (
+                      <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </span>
+                  <span
+                    className={`text-[15px] ${
+                      checked ? "text-blue-700 font-semibold" : "text-gray-600"
+                    }`}
+                  >
+                    {opt}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        );
+      }
       return (
         <div className="flex flex-col gap-2">
           {(field.options || []).map((opt) => (
@@ -293,6 +393,101 @@ function FieldRenderer({
     case "image":
       return <ImageUploadField value={value} onChange={onChange} error={error} />;
 
+    case "consent": {
+      const cfg = field.consentConfig || {};
+      const hasCollect = cfg.collectItems || cfg.collectPurpose || cfg.collectRetention;
+      const hasThirdParty = cfg.thirdPartyRecipient || cfg.thirdPartyPurpose || cfg.thirdPartyItems || cfg.thirdPartyRetention;
+      const agreed = value === "동의";
+
+      return (
+        <div className="space-y-3">
+          {/* 수집 및 이용 동의 정보 */}
+          {hasCollect && (
+            <div className="bg-gray-50 rounded-2xl border border-gray-200 p-4 space-y-2">
+              <p className="text-[14px] font-semibold text-gray-700 mb-2">개인정보 수집 및 이용 동의</p>
+              {cfg.collectItems && (
+                <div className="flex gap-2 text-[13px]">
+                  <span className="text-gray-500 flex-shrink-0">· 수집 항목:</span>
+                  <span className="text-gray-700">{cfg.collectItems}</span>
+                </div>
+              )}
+              {cfg.collectPurpose && (
+                <div className="flex gap-2 text-[13px]">
+                  <span className="text-gray-500 flex-shrink-0">· 이용 목적:</span>
+                  <span className="text-gray-700">{cfg.collectPurpose}</span>
+                </div>
+              )}
+              {cfg.collectRetention && (
+                <div className="flex gap-2 text-[13px]">
+                  <span className="text-gray-500 flex-shrink-0">· 보유 기간:</span>
+                  <span className="text-gray-700">{cfg.collectRetention}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 제3자 제공 동의 정보 */}
+          {hasThirdParty && (
+            <div className="bg-gray-50 rounded-2xl border border-gray-200 p-4 space-y-2">
+              <p className="text-[14px] font-semibold text-gray-700 mb-2">개인정보 제 3자 제공 동의</p>
+              {cfg.thirdPartyRecipient && (
+                <div className="flex gap-2 text-[13px]">
+                  <span className="text-gray-500 flex-shrink-0">· 제공받는 자:</span>
+                  <span className="text-gray-700">{cfg.thirdPartyRecipient}</span>
+                </div>
+              )}
+              {cfg.thirdPartyPurpose && (
+                <div className="flex gap-2 text-[13px]">
+                  <span className="text-gray-500 flex-shrink-0">· 이용 목적:</span>
+                  <span className="text-gray-700">{cfg.thirdPartyPurpose}</span>
+                </div>
+              )}
+              {cfg.thirdPartyItems && (
+                <div className="flex gap-2 text-[13px]">
+                  <span className="text-gray-500 flex-shrink-0">· 제공 항목:</span>
+                  <span className="text-gray-700">{cfg.thirdPartyItems}</span>
+                </div>
+              )}
+              {cfg.thirdPartyRetention && (
+                <div className="flex gap-2 text-[13px]">
+                  <span className="text-gray-500 flex-shrink-0">· 보유 기간:</span>
+                  <span className="text-gray-700">{cfg.thirdPartyRetention}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 동의 체크박스 */}
+          <button
+            type="button"
+            onClick={() => onChange(agreed ? "" : "동의")}
+            className={`flex items-center gap-3 py-3.5 px-4 rounded-2xl border-2 text-left transition-all active:scale-[0.98] w-full ${
+              agreed
+                ? "border-blue-500 bg-blue-50 shadow-sm"
+                : error
+                  ? "border-red-300 bg-white"
+                  : "border-gray-200 bg-white active:bg-gray-50"
+            }`}
+          >
+            <span
+              className={`w-5 h-5 rounded-md border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                agreed ? "border-blue-500 bg-blue-500" : "border-gray-300"
+              }`}
+            >
+              {agreed && (
+                <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </span>
+            <span className={`text-[15px] ${agreed ? "text-blue-700 font-semibold" : "text-gray-600"}`}>
+              위 내용에 동의합니다
+            </span>
+          </button>
+        </div>
+      );
+    }
+
     default:
       return null;
   }
@@ -321,23 +516,11 @@ export function SurveyFormPublic({ form }: Props) {
   const [submitted, setSubmitted] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
 
-  const enabledFields = (form.fields as FormField[])
+  const allFields = (form.fields as FormField[])
     .filter((f) => f.enabled)
     .sort((a, b) => a.order - b.order);
-
-  // 섹션별 그룹핑
-  const sections = SECTION_ORDER
-    .map((sec) => ({
-      key: sec,
-      label: SECTION_LABELS[sec],
-      fields: enabledFields.filter((f) => f.section === sec),
-    }))
-    .filter((s) => s.fields.length > 0);
-
-  const unsectioned = enabledFields.filter((f) => !f.section);
-  if (unsectioned.length > 0) {
-    sections.push({ key: "other", label: "기타", fields: unsectioned });
-  }
+  const closingField = allFields.find((f) => f.type === "closing");
+  const enabledFields = allFields.filter((f) => f.type !== "closing");
 
   // 진행률 계산
   const totalRequired = enabledFields.filter((f) => f.required).length;
@@ -492,51 +675,60 @@ export function SurveyFormPublic({ form }: Props) {
           {form.description && (
             <p className="text-[14px] text-gray-500 mt-2 leading-relaxed">{form.description}</p>
           )}
+          {(form.starts_at || form.expires_at) && (
+            <p className="text-[12px] text-gray-400 mt-3">
+              {form.starts_at && new Date(form.starts_at).toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" })}
+              {form.starts_at && form.expires_at && " ~ "}
+              {form.expires_at && new Date(form.expires_at).toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" })}
+            </p>
+          )}
         </div>
 
-        {/* 섹션별 질문 */}
-        {sections.map((section) => (
-          <div key={section.key} className="bg-white rounded-3xl shadow-sm border p-5 sm:p-6 mb-4">
-            <h2 className="text-[14px] font-bold text-gray-700 mb-5 flex items-center gap-2.5">
-              <span className="w-1.5 h-5 bg-blue-500 rounded-full" />
-              {section.label}
-            </h2>
-
-            <div className="space-y-7">
-              {section.fields.map((field) => (
-                <div key={field.key} id={`field-${field.key}`}>
-                  <label className="block text-[15px] font-semibold text-gray-700 mb-2.5 leading-snug">
-                    {field.label}
-                    {field.required && <span className="text-red-500 ml-0.5">*</span>}
-                  </label>
-                  {field.descriptionImage && (
-                    <img
-                      src={field.descriptionImage}
-                      alt="설명 이미지"
-                      className="max-w-full max-h-48 rounded-xl border border-gray-200 object-contain mb-3"
-                    />
+        {/* 질문 목록 — 네이버폼 스타일 연속 나열 */}
+        <div className="bg-white rounded-3xl shadow-sm border p-5 sm:p-6 mb-4">
+          <div className="space-y-8">
+            {enabledFields.map((field, idx) => (
+              <div key={field.key} id={`field-${field.key}`}>
+                <label className="block text-[15px] font-semibold text-gray-700 mb-2.5 leading-snug">
+                  {field.required && <span className="text-red-500">*</span>}
+                  <span className="text-blue-600">{idx + 1}. </span>
+                  {field.label}
+                  {field.type === "radio" && field.multiple && (
+                    <span className="text-[12px] text-gray-400 font-normal ml-1">(복수선택)</span>
                   )}
-                  <FieldRenderer
-                    field={field}
-                    value={answers[field.key] || ""}
-                    onChange={(v) => handleChange(field.key, v)}
-                    error={errors.has(field.key)}
+                </label>
+                {field.descriptionImage && (
+                  <img
+                    src={field.descriptionImage}
+                    alt="설명 이미지"
+                    className="max-w-full max-h-48 rounded-xl border border-gray-200 object-contain mb-3"
                   />
-                  {errors.has(field.key) && (
-                    <p className="text-[13px] text-red-500 mt-2 flex items-center gap-1">
-                      <span className="inline-block w-1 h-1 rounded-full bg-red-500" />
-                      필수 항목입니다
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
+                )}
+                {field.placeholder && field.type !== "scale" && (
+                  <p className="text-[13px] text-gray-400 mb-2 leading-relaxed">{field.placeholder}</p>
+                )}
+                <FieldRenderer
+                  field={field}
+                  value={answers[field.key] || ""}
+                  onChange={(v) => handleChange(field.key, v)}
+                  error={errors.has(field.key)}
+                />
+                {errors.has(field.key) && (
+                  <p className="text-[13px] text-red-500 mt-2 flex items-center gap-1">
+                    <span className="inline-block w-1 h-1 rounded-full bg-red-500" />
+                    필수 항목입니다
+                  </p>
+                )}
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
 
         {/* 마지막 안내 메시지 */}
-        <div className="bg-white rounded-3xl shadow-sm border p-5 sm:p-6">
-          <p className="text-[14px] text-gray-500">설문에 참여해 주셔서 감사합니다.</p>
+        <div className="bg-white rounded-3xl shadow-sm border-2 border-emerald-300 p-5 sm:p-6">
+          <p className="text-[15px] font-semibold text-gray-700">
+            {closingField?.label || "설문 작성해주셔서 감사합니다."}
+          </p>
         </div>
       </div>
 

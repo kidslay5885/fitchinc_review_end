@@ -218,6 +218,7 @@ function DefaultsModal({ onClose }: { onClose: () => void }) {
 interface Props {
   onEdit: (form: SurveyForm) => void;
   onNew: (type: "사전" | "후기" | "자유") => void;
+  onResults?: (form: SurveyForm) => void;
   onBack?: () => void;
   refreshKey?: number;
 }
@@ -251,7 +252,7 @@ function daysLeft(expiresAt: string | null) {
   return diff;
 }
 
-export function SurveyFormList({ onEdit, onNew, onBack, refreshKey }: Props) {
+export function SurveyFormList({ onEdit, onNew, onResults, onBack, refreshKey }: Props) {
   const [forms, setForms] = useState<SurveyForm[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -480,11 +481,11 @@ export function SurveyFormList({ onEdit, onNew, onBack, refreshKey }: Props) {
                   <div className="flex items-start justify-between gap-3">
                     <div
                       className="flex-1 min-w-0 cursor-pointer"
-                      onClick={() => handleToggleResults(form.id)}
+                      onClick={() => onResults ? onResults(form) : handleToggleResults(form.id)}
                     >
                       {/* 제목 + 상태 뱃지 */}
                       <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                        <span className="text-[14px] font-bold truncate">
+                        <span className="text-[14px] font-bold truncate hover:text-primary transition-colors">
                           {form.title || `${form.instructor} ${form.survey_type} 설문`}
                         </span>
                         <span

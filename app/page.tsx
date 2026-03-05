@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { SurveyFormBuilder } from "@/components/survey-form-builder";
 import { SurveyFormList } from "@/components/survey-form-list";
+import { SurveyFormResults } from "@/components/survey-form-results";
 import type { SurveyForm } from "@/lib/types";
 
 type AppMode = "landing" | "data" | "role" | "classify" | "form";
@@ -559,8 +560,9 @@ function SuggestionFab() {
 }
 
 function FormManagementView({ onHome }: { onHome: () => void }) {
-  const [view, setView] = useState<"list" | "new" | "edit">("list");
+  const [view, setView] = useState<"list" | "new" | "edit" | "results">("list");
   const [editTarget, setEditTarget] = useState<SurveyForm | null>(null);
+  const [resultsTarget, setResultsTarget] = useState<SurveyForm | null>(null);
   const [newSurveyType, setNewSurveyType] = useState<"사전" | "후기" | "자유">("후기");
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -577,6 +579,10 @@ function FormManagementView({ onHome }: { onHome: () => void }) {
             setNewSurveyType(type);
             setView("new");
           }}
+          onResults={(form) => {
+            setResultsTarget(form);
+            setView("results");
+          }}
           onBack={onHome}
           refreshKey={refreshKey}
         />
@@ -591,6 +597,19 @@ function FormManagementView({ onHome }: { onHome: () => void }) {
           onCancel={() => {
             setView("list");
             setRefreshKey((k) => k + 1);
+          }}
+        />
+      )}
+      {view === "results" && resultsTarget && (
+        <SurveyFormResults
+          form={resultsTarget}
+          onBack={() => {
+            setView("list");
+            setRefreshKey((k) => k + 1);
+          }}
+          onEdit={() => {
+            setEditTarget(resultsTarget);
+            setView("edit");
           }}
         />
       )}

@@ -204,7 +204,7 @@ export function generateId(): string {
 export interface FormField {
   key: string;
   label: string;
-  type: "text" | "textarea" | "select" | "number" | "radio" | "scale" | "image";
+  type: "text" | "textarea" | "select" | "number" | "radio" | "scale" | "image" | "closing" | "consent";
   required: boolean;
   enabled: boolean;
   order: number;
@@ -215,6 +215,18 @@ export interface FormField {
   section?: "demographics" | "scores" | "freetext";
   /** 질문 설명용 이미지 URL */
   descriptionImage?: string;
+  /** 객관식 복수 선택 허용 */
+  multiple?: boolean;
+  /** 개인정보 동의 설정 */
+  consentConfig?: {
+    collectItems?: string;
+    collectPurpose?: string;
+    collectRetention?: string;
+    thirdPartyRecipient?: string;
+    thirdPartyPurpose?: string;
+    thirdPartyItems?: string;
+    thirdPartyRetention?: string;
+  };
 }
 
 export interface SurveyForm {
