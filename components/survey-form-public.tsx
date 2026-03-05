@@ -533,6 +533,11 @@ export function SurveyFormPublic({ form }: Props) {
             </div>
           </div>
         ))}
+
+        {/* 마지막 안내 메시지 */}
+        <div className="bg-white rounded-3xl shadow-sm border p-5 sm:p-6">
+          <p className="text-[14px] text-gray-500">설문에 참여해 주셔서 감사합니다.</p>
+        </div>
       </div>
 
       {/* 하단 고정 제출 버튼 */}
