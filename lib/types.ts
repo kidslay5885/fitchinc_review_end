@@ -160,6 +160,39 @@ export interface AnalyzeResult {
   summary: string;
 }
 
+// ===== 액션 기반 분류 타입 =====
+
+export type ActionTag = 'instructor' | 'pm' | 'pd' | 'dev' | 'cs' | 'no_action';
+
+export type ProcessStatus = 'self_resolved' | 'needs_discussion' | 'next_cohort' | 'no_action_needed';
+
+export interface CommentWithAction extends Comment {
+  action_tag: ActionTag | null;
+  process_status: ProcessStatus | null;
+  process_memo: string;
+  important: boolean;
+  processed_at: string | null;
+  _platform: string;
+  _instructor: string;
+  _course: string;
+  _cohort: string;
+}
+
+export interface ActionTheme {
+  id: string;
+  scope_key: string;
+  action_tag: string;
+  theme_name: string;
+  comment_ids: string[];
+  example_text: string;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface ThemeWithComments extends ActionTheme {
+  comments: CommentWithAction[];
+}
+
 // ===== 헬퍼 함수 =====
 
 export function autoStatus(c: Cohort): "완료" | "진행중" | "준비중" {

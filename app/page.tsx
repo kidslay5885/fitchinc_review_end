@@ -21,7 +21,7 @@ import { TabAIInsight } from "@/components/tab-ai-insight";
 import { TabQualityOverview } from "@/components/tab-quality-overview";
 import { UploadDialog } from "@/components/upload-dialog";
 import { EditInstructorDialog } from "@/components/edit-instructor-dialog";
-import { RoleFeedbackView } from "@/components/role-feedback-view";
+import { ActionRoleView } from "@/components/action-role-view";
 import type { Instructor } from "@/lib/types";
 import { SuggestionsPanel } from "@/components/suggestions-panel";
 import { BarChart3, Loader2, Lock, MessageSquare, Tag, Send } from "lucide-react";
@@ -90,7 +90,7 @@ function LandingScreen({
       mode: "role" as AppMode,
       icon: <MessageSquare className="w-8 h-8" />,
       title: "직무별 피드백",
-      desc: "PM / PD / CS / 강사\n직무별 피드백 조회",
+      desc: "액션 기반 분류 + 역할별\n처리 + 상태 대시보드",
       color: "text-violet-600",
       bg: "hover:border-violet-300 hover:bg-violet-50/50",
     },
@@ -665,7 +665,7 @@ function MainContent() {
 
       {appMode === "classify" && <DashboardContent tabs={TABS_CLASSIFY} />}
 
-      {appMode === "role" && <RoleFeedbackView />}
+      {appMode === "role" && <ActionRoleView />}
 
       {appMode === "form" && <FormManagementView onHome={handleGoHome} />}
 
