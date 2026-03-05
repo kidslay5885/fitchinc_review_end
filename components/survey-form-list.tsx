@@ -15,7 +15,199 @@ import {
   ChevronLeft,
   Calendar,
   Users,
+  Settings2,
+  X,
+  GripVertical,
+  CircleDot,
+  ListChecks,
+  Type,
+  AlignLeft,
+  Star,
+  Hash,
+  ImagePlus,
+  RotateCcw,
 } from "lucide-react";
+import type { FormField } from "@/lib/types";
+import {
+  getPreDefaults,
+  getPostDefaults,
+  savePreDefaults,
+  savePostDefaults,
+  resetDefaults,
+  PRE_SURVEY_DEFAULTS,
+  POST_SURVEY_DEFAULTS,
+} from "@/lib/form-utils";
+
+// ===== 폼 고정값 설정 모달 =====
+
+const FIELD_TYPE_LABELS: Record<string, string> = {
+  radio: "객관식",
+  select: "드롭다운",
+  text: "단답형",
+  textarea: "서술형",
+  scale: "척도형",
+  number: "숫자",
+  image: "이미지",
+};
+
+function DefaultsModal({ onClose }: { onClose: () => void }) {
+  const [tab, setTab] = useState<"사전" | "후기">("사전");
+  const [preFields, setPreFields] = useState<FormField[]>(getPreDefaults);
+  const [postFields, setPostDefaults] = useState<FormField[]>(getPostDefaults);
+  const [saved, setSaved] = useState(false);
+
+  const fields = tab === "사전" ? preFields : postFields;
+  const setFields = tab === "사전" ? setPreFields : setPostDefaults;
+
+  const handleSave = () => {
+    savePreDefaults(preFields);
+    savePostDefaults(postFields);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
+  };
+
+  const handleReset = () => {
+    if (!confirm(`${tab} 설문 고정값을 초기 상태로 되돌리시겠습니까?`)) return;
+    resetDefaults(tab);
+    if (tab === "사전") setPreFields(PRE_SURVEY_DEFAULTS.map((f) => ({ ...f })));
+    else setPostDefaults(POST_SURVEY_DEFAULTS.map((f) => ({ ...f })));
+  };
+
+  const updateField = (key: string, updates: Partial<FormField>) => {
+    setFields((prev) => prev.map((f) => (f.key === key ? { ...f, ...updates } : f)));
+  };
+
+  const deleteField = (key: string) => {
+    setFields((prev) => prev.filter((f) => f.key !== key));
+  };
+
+  const addField = () => {
+    const id = Date.now().toString(36);
+    const maxOrder = Math.max(0, ...fields.map((f) => f.order));
+    setFields((prev) => [
+      ...prev,
+      { key: `custom_${id}`, label: "", type: "textarea", required: false, enabled: true, order: maxOrder + 1, section: "freetext", placeholder: "" },
+    ]);
+  };
+
+  const sorted = [...fields].sort((a, b) => a.order - b.order);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="bg-card rounded-2xl shadow-xl border w-[560px] max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        {/* 헤더 */}
+        <div className="flex items-center justify-between px-5 py-4 border-b">
+          <div className="flex items-center gap-3">
+            <Settings2 className="w-5 h-5 text-primary" />
+            <h3 className="text-[15px] font-bold">폼 고정값 설정</h3>
+          </div>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-accent transition-colors">
+            <X className="w-5 h-5 text-muted-foreground" />
+          </button>
+        </div>
+
+        {/* 탭 */}
+        <div className="flex gap-1 px-5 pt-3">
+          {(["사전", "후기"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`px-4 py-2 rounded-lg text-[13px] font-bold transition-all ${
+                tab === t
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground hover:bg-accent"
+              }`}
+            >
+              {t} 설문
+            </button>
+          ))}
+          <div className="flex-1" />
+          <button
+            onClick={handleReset}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] text-muted-foreground hover:bg-accent transition-colors"
+            title="초기값으로 되돌리기"
+          >
+            <RotateCcw className="w-3 h-3" />
+            초기화
+          </button>
+        </div>
+
+        {/* 질문 목록 */}
+        <div className="flex-1 overflow-y-auto px-5 py-3 space-y-1.5">
+          {sorted.map((field, idx) => (
+            <div
+              key={field.key}
+              className={`rounded-lg border px-3 py-2.5 flex items-center gap-2 ${
+                !field.enabled ? "opacity-45 bg-muted/30" : "bg-background"
+              }`}
+            >
+              <span className="text-[12px] font-bold text-muted-foreground min-w-[18px] text-right">
+                {idx + 1}
+              </span>
+              <input
+                value={field.label}
+                onChange={(e) => updateField(field.key, { label: e.target.value })}
+                placeholder="질문 입력"
+                className="flex-1 text-[13px] bg-transparent outline-none min-w-0"
+              />
+              <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded flex-shrink-0">
+                {FIELD_TYPE_LABELS[field.type] || field.type}
+              </span>
+              <button
+                type="button"
+                onClick={() => updateField(field.key, { enabled: !field.enabled })}
+                className={`text-[10px] px-1.5 py-0.5 rounded flex-shrink-0 ${
+                  field.enabled ? "bg-blue-50 text-blue-600" : "bg-gray-100 text-gray-400"
+                }`}
+              >
+                {field.enabled ? "표시" : "숨김"}
+              </button>
+              <button
+                type="button"
+                onClick={() => deleteField(field.key)}
+                className="p-0.5 rounded hover:bg-red-50 transition-colors flex-shrink-0"
+              >
+                <Trash2 className="w-3 h-3 text-red-400" />
+              </button>
+            </div>
+          ))}
+
+          <button
+            onClick={addField}
+            className="w-full py-2.5 rounded-lg border-2 border-dashed border-border hover:border-primary/40 hover:bg-primary/5 transition-all text-[12px] text-muted-foreground hover:text-primary font-semibold"
+          >
+            + 질문 추가
+          </button>
+        </div>
+
+        {/* 하단 버튼 */}
+        <div className="px-5 py-3 border-t flex items-center justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-lg border text-[13px] font-bold text-muted-foreground hover:bg-accent transition-colors"
+          >
+            취소
+          </button>
+          <button
+            onClick={handleSave}
+            className="px-5 py-2 rounded-lg bg-primary text-primary-foreground text-[13px] font-bold hover:opacity-90 transition-opacity flex items-center gap-1.5"
+          >
+            {saved ? (
+              <>
+                <Check className="w-4 h-4" />
+                저장됨
+              </>
+            ) : (
+              "저장"
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ===== 메인 목록 =====
 
 interface Props {
   onEdit: (form: SurveyForm) => void;
@@ -38,11 +230,12 @@ interface FormResponse {
   [key: string]: unknown;
 }
 
-/** 날짜 표시 포맷 */
+/** 날짜 표시 포맷 (요일 포함) */
+const DAY_NAMES = ["일", "월", "화", "수", "목", "금", "토"];
 function formatDate(iso: string | null) {
   if (!iso) return null;
   const d = new Date(iso);
-  return `${d.getMonth() + 1}/${d.getDate()}`;
+  return `${d.getMonth() + 1}/${d.getDate()}(${DAY_NAMES[d.getDay()]})`;
 }
 
 /** D-day 계산 */
@@ -58,6 +251,7 @@ export function SurveyFormList({ onEdit, onNew, onBack, refreshKey }: Props) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [showDefaults, setShowDefaults] = useState(false);
 
   // 결과 보기 상태
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -179,13 +373,22 @@ export function SurveyFormList({ onEdit, onNew, onBack, refreshKey }: Props) {
           )}
           <h2 className="text-[16px] font-bold">설문 폼 목록</h2>
         </div>
-        <button
-          onClick={onNew}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-[13px] font-bold hover:opacity-90 transition-opacity"
-        >
-          <Plus className="w-4 h-4" />
-          새 설문 폼
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowDefaults(true)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg border text-[13px] font-bold text-muted-foreground hover:bg-accent transition-colors"
+          >
+            <Settings2 className="w-4 h-4" />
+            폼 고정값 설정
+          </button>
+          <button
+            onClick={onNew}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-[13px] font-bold hover:opacity-90 transition-opacity"
+          >
+            <Plus className="w-4 h-4" />
+            새 설문 폼
+          </button>
+        </div>
       </div>
 
       {forms.length === 0 ? (
@@ -430,6 +633,8 @@ export function SurveyFormList({ onEdit, onNew, onBack, refreshKey }: Props) {
           })}
         </div>
       )}
+
+      {showDefaults && <DefaultsModal onClose={() => setShowDefaults(false)} />}
     </div>
   );
 }

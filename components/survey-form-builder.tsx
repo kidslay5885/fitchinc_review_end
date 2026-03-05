@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { FormField, SurveyForm } from "@/lib/types";
-import { PRE_SURVEY_DEFAULTS, POST_SURVEY_DEFAULTS } from "@/lib/form-utils";
+import { getPreDefaults, getPostDefaults } from "@/lib/form-utils";
 import { PLATFORM_NAMES } from "@/lib/constants";
 import {
   Plus,
@@ -572,7 +572,7 @@ export function SurveyFormBuilder({ editForm, onSaved, onCancel }: Props) {
   const [startsAt, setStartsAt] = useState(editForm?.starts_at?.slice(0, 10) || todayStr());
   const [expiresAt, setExpiresAt] = useState(editForm?.expires_at?.slice(0, 10) || futureDateStr(14));
   const [fields, setFields] = useState<FormField[]>(
-    editForm?.fields?.length ? (editForm.fields as FormField[]) : POST_SURVEY_DEFAULTS.map((f) => ({ ...f }))
+    editForm?.fields?.length ? (editForm.fields as FormField[]) : getPostDefaults()
   );
 
   // 자동 제목: 플랫폼 / 강사명 / 강의명 / 기수 / 사전|후기 설문지
@@ -630,7 +630,7 @@ export function SurveyFormBuilder({ editForm, onSaved, onCancel }: Props) {
       setSurveyType(type);
       if (!isEditing) {
         setFields(
-          (type === "사전" ? PRE_SURVEY_DEFAULTS : POST_SURVEY_DEFAULTS).map((f) => ({ ...f }))
+          type === "사전" ? getPreDefaults() : getPostDefaults()
         );
       }
     },
@@ -748,6 +748,11 @@ export function SurveyFormBuilder({ editForm, onSaved, onCancel }: Props) {
 
       const form = data.form as SurveyForm;
       onSaved(form);
+
+      if (isEditing) {
+        onCancel();
+        return;
+      }
 
       if (!isEditing) {
         const url = `${window.location.origin}/survey/${form.token}`;
@@ -899,17 +904,8 @@ export function SurveyFormBuilder({ editForm, onSaved, onCancel }: Props) {
               </div>
             </div>
             <div>
-              <label className="text-[12px] font-semibold text-muted-foreground mb-1 flex items-center gap-2">
+              <label className="text-[12px] font-semibold text-muted-foreground mb-1 block">
                 설문 제목
-                {titleOverride && (
-                  <button
-                    type="button"
-                    onClick={() => { setTitleOverride(false); setTitleManual(""); }}
-                    className="text-[10px] text-primary hover:underline font-normal"
-                  >
-                    자동으로 되돌리기
-                  </button>
-                )}
               </label>
               <input
                 value={title}

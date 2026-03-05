@@ -1,53 +1,88 @@
 import type { FormField } from "./types";
 import { TEXT_FIELDS, PRE_FIELDS, POST_FIELDS, NOISE_PATTERNS } from "./csv-parser";
 
-// ===== 기본 필드 템플릿 (XLSX 구조 기반) =====
+// ===== 기본 필드 템플릿 (실제 XLSX 설문지 기반) =====
 
 const DEMOGRAPHICS_FIELDS: FormField[] = [
-  { key: "name", label: "이름", type: "text", required: true, enabled: true, order: 1, section: "demographics", placeholder: "수강생 이름" },
-  { key: "gender", label: "성별", type: "radio", required: false, enabled: true, order: 2, section: "demographics", options: ["남", "여"] },
-  { key: "age", label: "연령대", type: "select", required: false, enabled: true, order: 3, section: "demographics", options: ["10대", "20대", "30대", "40대", "50대", "60대 이상"] },
-  { key: "job", label: "현재 하고 계신 일", type: "select", required: false, enabled: true, order: 4, section: "demographics", options: ["회사원", "자영업", "프리랜서", "전업주부", "학생", "무직/구직중", "기타"] },
-  { key: "hours", label: "부업에 투자 가능한 시간", type: "select", required: false, enabled: true, order: 5, section: "demographics", options: ["1시간 미만", "1~2시간", "2~3시간", "3~4시간", "4시간 이상"] },
-  { key: "channel", label: "강의를 알게 된 경로", type: "select", required: false, enabled: true, order: 6, section: "demographics", options: ["인스타그램", "유튜브", "블로그", "네이버 카페", "지인 추천", "네이버 검색", "기타"] },
-  { key: "computer", label: "컴퓨터 활용 능력 (1~5점)", type: "scale", required: false, enabled: true, order: 7, section: "demographics", scaleMin: 1, scaleMax: 5 },
-  { key: "goal", label: "목표 수익", type: "select", required: false, enabled: true, order: 8, section: "demographics", options: ["30만원 이하", "50만원", "100만원", "200만원", "300만원 이상"] },
+  { key: "name", label: "수강생 이름", type: "text", required: true, enabled: true, order: 1, section: "demographics", placeholder: "이름을 입력해주세요" },
+  { key: "gender", label: "성별", type: "radio", required: true, enabled: true, order: 2, section: "demographics", options: ["남성", "여성"] },
+  { key: "age", label: "연령대", type: "radio", required: true, enabled: true, order: 3, section: "demographics", options: ["20대", "30대", "40대", "50대", "60대 이상"] },
+  { key: "job", label: "현재 하고 계신 일이 무엇인가요?", type: "radio", required: true, enabled: true, order: 4, section: "demographics", options: ["직장인", "자영업자", "전업주부", "프리랜서", "퇴직자", "기타"] },
+  { key: "hours", label: "하루에 평균적으로 부업에 투자할 수 있는 시간", type: "radio", required: true, enabled: true, order: 5, section: "demographics", options: ["1시간 미만", "1 ~ 2시간", "2 ~ 4시간", "4시간 이상"] },
+  { key: "channel", label: "머니업클래스를 알게 되신 경로는?", type: "radio", required: true, enabled: true, order: 6, section: "demographics", options: ["SNS(유튜브, 인스타, 페이스북)", "인터넷 직접 검색", "지인 추천", "핸드폰 문자, 카톡", "기타"] },
 ];
 
-const PRE_FREETEXT_FIELDS: FormField[] = [
-  { key: "selectReason", label: "강사님 강의를 선택하신 이유", type: "textarea", required: false, enabled: true, order: 20, section: "freetext", placeholder: "자유롭게 작성해주세요" },
-  { key: "hopePlatform", label: "플랫폼에 바라는 점", type: "textarea", required: false, enabled: true, order: 21, section: "freetext", placeholder: "자유롭게 작성해주세요" },
-  { key: "hopeInstructor", label: "강사에게 바라는 점", type: "textarea", required: false, enabled: true, order: 22, section: "freetext", placeholder: "자유롭게 작성해주세요" },
-  { key: "prevCourse", label: "다른 정규강의 수강 이력", type: "textarea", required: false, enabled: false, order: 23, section: "freetext", placeholder: "있으시다면 적어주세요" },
-  { key: "prevExperience", label: "타 플랫폼 수강 경험", type: "textarea", required: false, enabled: false, order: 24, section: "freetext", placeholder: "있으시다면 적어주세요" },
-  { key: "expectedBenefit", label: "기대되는 혜택", type: "textarea", required: false, enabled: false, order: 25, section: "freetext", placeholder: "가장 기대되는 혜택을 적어주세요" },
+const PRE_CONTENT_FIELDS: FormField[] = [
+  { key: "selectReason", label: "강사님 강의를 선택하신 이유가 어떻게 되시나요?", type: "textarea", required: true, enabled: true, order: 10, section: "freetext", placeholder: "자유롭게 작성해주세요" },
+  { key: "computer", label: "나의 컴퓨터 활용 능력은?", type: "scale", required: true, enabled: true, order: 11, section: "freetext", scaleMin: 1, scaleMax: 10 },
+  { key: "prevCourse", label: "머니업클래스의 다른 정규강의를 수강하신 적이 있나요? (있다면 어떤 강의를 수강하셨나요?)", type: "textarea", required: true, enabled: true, order: 12, section: "freetext", placeholder: "없으시다면 '없음'이라고 적어주세요" },
+  { key: "prevExperience", label: "이전에 타 플랫폼의 강의 수강하신 경험이 있으신가요?", type: "radio", required: true, enabled: true, order: 13, section: "freetext", options: ["이 강의가 처음입니다", "유튜브", "블로그", "인스타그램", "쇼핑몰(쿠팡, 스마트스토어 등)", "기타"] },
+  { key: "goal", label: "이번 강의를 듣고 벌고 싶은 월 수익 목표 금액?", type: "radio", required: true, enabled: true, order: 14, section: "freetext", options: ["월 100만원 정도 부수익", "월 300만원 정도 부수익", "월 500만원 정도 부수익", "월 1000만원 이상을 넘은 사업화"] },
+  { key: "expectedBenefit", label: "이번 강의 혜택 중 가장 필요한(기대되는) 혜택은 무엇인가요?", type: "textarea", required: true, enabled: true, order: 15, section: "freetext", placeholder: "가장 기대되는 혜택을 적어주세요" },
+  { key: "hopePlatform", label: "이번 강의 수강 전, 머니업클래스에 바라는 점이 있으신가요?", type: "textarea", required: true, enabled: true, order: 16, section: "freetext", placeholder: "자유롭게 작성해주세요" },
+  { key: "hopeInstructor", label: "이번 강의 수강 전 걱정되시는 점이나 강사님에게 바라는 점이 있으신가요?", type: "textarea", required: true, enabled: true, order: 17, section: "freetext", placeholder: "자유롭게 작성해주세요" },
 ];
 
 const POST_SCORE_FIELDS: FormField[] = [
-  { key: "ps1", label: "커리큘럼 만족도", type: "scale", required: false, enabled: true, order: 10, section: "scores", scaleMin: 1, scaleMax: 5 },
-  { key: "ps2", label: "피드백 만족도", type: "scale", required: false, enabled: true, order: 11, section: "scores", scaleMin: 1, scaleMax: 5 },
-  { key: "pSat", label: "만족스러웠던 점", type: "textarea", required: false, enabled: true, order: 12, section: "scores", placeholder: "어떤 점이 만족스러웠나요?" },
-  { key: "pFmt", label: "선호하는 강의 형태", type: "select", required: false, enabled: true, order: 13, section: "scores", options: ["라이브 강의", "VOD 강의", "혼합 (라이브+VOD)"] },
+  { key: "pSat", label: "수강 과정 중 가장 만족스러웠던 점", type: "radio", required: true, enabled: true, order: 10, section: "scores", options: ["강의 내용", "강사님의 피드백", "머니업클래스측 문의 응대", "기타"] },
+  { key: "satOther", label: "1번 질문에서 '기타'를 선택하셨다면 어떤 점이 만족스러웠나요?", type: "textarea", required: false, enabled: true, order: 11, section: "scores", placeholder: "기타 의견을 적어주세요" },
+  { key: "ps1", label: "전반적인 강의 커리큘럼 만족도는 몇 점이었나요?", type: "scale", required: true, enabled: true, order: 12, section: "scores", scaleMin: 1, scaleMax: 5 },
+  { key: "lowScoreReason", label: "만약 5점 이하라면 이유는 무엇인가요?", type: "textarea", required: false, enabled: true, order: 13, section: "scores", placeholder: "아쉬웠던 점을 적어주세요" },
+  { key: "ps2", label: "강사님의 피드백은 적절히 이루어졌나요?", type: "scale", required: true, enabled: true, order: 14, section: "scores", scaleMin: 1, scaleMax: 5 },
+  { key: "lowFeedbackRequest", label: "만약 2점 이하라면 강의 과정 중 바라는 점을 말씀해주세요.", type: "textarea", required: true, enabled: true, order: 15, section: "scores", placeholder: "개선 바라는 점을 적어주세요" },
+  { key: "pFmt", label: "선호하는 강의 방식은 무엇인가요?", type: "radio", required: true, enabled: true, order: 16, section: "scores", options: ["오프라인 현장 강의", "온라인 줌 라이브", "온라인 VOD"] },
 ];
 
 const POST_FREETEXT_FIELDS: FormField[] = [
-  { key: "pFree", label: "하고 싶은 말씀을 편하게 적어주세요", type: "textarea", required: false, enabled: true, order: 20, section: "freetext", placeholder: "자유롭게 작성해주세요" },
-  { key: "pRec", label: "이 강의를 지인분들께 추천하실 것 같으신가요?", type: "radio", required: false, enabled: true, order: 21, section: "freetext", options: ["네, 추천할 것 같아요", "아니요", "잘 모르겠어요"] },
-  { key: "satOther", label: "기타 만족스러웠던 점", type: "textarea", required: false, enabled: false, order: 22, section: "freetext", placeholder: "기타 의견을 적어주세요" },
-  { key: "lowScoreReason", label: "커리큘럼 2점 이하 선택 이유", type: "textarea", required: false, enabled: false, order: 23, section: "freetext", placeholder: "불만족 이유를 적어주세요" },
-  { key: "lowFeedbackRequest", label: "피드백 5점 이하 시 바라는 점", type: "textarea", required: false, enabled: false, order: 24, section: "freetext", placeholder: "개선 바라는 점을 적어주세요" },
+  { key: "pFree", label: "이번 강의 수강 후, 머니업클래스에 하고 싶은 말씀을 편하게 적어주세요.", type: "textarea", required: true, enabled: true, order: 20, section: "freetext", placeholder: "자유롭게 작성해주세요" },
+  { key: "pRec", label: "이 강의를 지인분들께 추천하실 것 같으신가요?", type: "textarea", required: true, enabled: true, order: 21, section: "freetext", placeholder: "자유롭게 작성해주세요" },
 ];
 
 export const PRE_SURVEY_DEFAULTS: FormField[] = [
   ...DEMOGRAPHICS_FIELDS,
-  ...PRE_FREETEXT_FIELDS,
+  ...PRE_CONTENT_FIELDS,
 ];
 
 export const POST_SURVEY_DEFAULTS: FormField[] = [
-  ...DEMOGRAPHICS_FIELDS,
   ...POST_SCORE_FIELDS,
   ...POST_FREETEXT_FIELDS,
 ];
+
+// ===== 커스텀 디폴트 (localStorage 저장) =====
+
+const STORAGE_KEY_PRE = "survey_defaults_pre";
+const STORAGE_KEY_POST = "survey_defaults_post";
+
+export function getPreDefaults(): FormField[] {
+  if (typeof window === "undefined") return PRE_SURVEY_DEFAULTS;
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_PRE);
+    if (saved) return JSON.parse(saved);
+  } catch {}
+  return PRE_SURVEY_DEFAULTS.map((f) => ({ ...f }));
+}
+
+export function getPostDefaults(): FormField[] {
+  if (typeof window === "undefined") return POST_SURVEY_DEFAULTS;
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_POST);
+    if (saved) return JSON.parse(saved);
+  } catch {}
+  return POST_SURVEY_DEFAULTS.map((f) => ({ ...f }));
+}
+
+export function savePreDefaults(fields: FormField[]) {
+  localStorage.setItem(STORAGE_KEY_PRE, JSON.stringify(fields));
+}
+
+export function savePostDefaults(fields: FormField[]) {
+  localStorage.setItem(STORAGE_KEY_POST, JSON.stringify(fields));
+}
+
+export function resetDefaults(type: "사전" | "후기") {
+  if (type === "사전") localStorage.removeItem(STORAGE_KEY_PRE);
+  else localStorage.removeItem(STORAGE_KEY_POST);
+}
 
 // ===== camelCase 폼 키 → snake_case DB 컬럼 매핑 =====
 
