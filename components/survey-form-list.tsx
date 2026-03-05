@@ -150,9 +150,15 @@ function DefaultsModal({ onClose }: { onClose: () => void }) {
                 placeholder="질문 입력"
                 className="flex-1 text-[13px] bg-transparent outline-none min-w-0"
               />
-              <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded flex-shrink-0">
-                {FIELD_TYPE_LABELS[field.type] || field.type}
-              </span>
+              <select
+                value={field.type}
+                onChange={(e) => updateField(field.key, { type: e.target.value as FormField["type"] })}
+                className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded flex-shrink-0 outline-none cursor-pointer hover:bg-accent transition-colors"
+              >
+                {Object.entries(FIELD_TYPE_LABELS).map(([val, label]) => (
+                  <option key={val} value={val}>{label}</option>
+                ))}
+              </select>
               <button
                 type="button"
                 onClick={() => updateField(field.key, { enabled: !field.enabled })}
@@ -211,7 +217,7 @@ function DefaultsModal({ onClose }: { onClose: () => void }) {
 
 interface Props {
   onEdit: (form: SurveyForm) => void;
-  onNew: () => void;
+  onNew: (type: "사전" | "후기" | "자유") => void;
   onBack?: () => void;
   refreshKey?: number;
 }
@@ -252,6 +258,7 @@ export function SurveyFormList({ onEdit, onNew, onBack, refreshKey }: Props) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [showDefaults, setShowDefaults] = useState(false);
+  const [showNewMenu, setShowNewMenu] = useState(false);
 
   // 결과 보기 상태
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -381,13 +388,45 @@ export function SurveyFormList({ onEdit, onNew, onBack, refreshKey }: Props) {
             <Settings2 className="w-4 h-4" />
             폼 고정값 설정
           </button>
-          <button
-            onClick={onNew}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-[13px] font-bold hover:opacity-90 transition-opacity"
-          >
-            <Plus className="w-4 h-4" />
-            새 설문 폼
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowNewMenu(!showNewMenu)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-[13px] font-bold hover:opacity-90 transition-opacity"
+            >
+              <Plus className="w-4 h-4" />
+              새 설문 폼
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showNewMenu ? "rotate-180" : ""}`} />
+            </button>
+            {showNewMenu && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowNewMenu(false)} />
+                <div className="absolute right-0 top-full mt-1 z-20 bg-card rounded-xl border shadow-xl py-1 w-[160px]">
+                  <button
+                    onClick={() => { setShowNewMenu(false); onNew("사전"); }}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-[13px] font-semibold hover:bg-accent transition-colors"
+                  >
+                    <FileText className="w-4 h-4 text-blue-500" />
+                    사전 설문
+                  </button>
+                  <button
+                    onClick={() => { setShowNewMenu(false); onNew("후기"); }}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-[13px] font-semibold hover:bg-accent transition-colors"
+                  >
+                    <FileText className="w-4 h-4 text-emerald-500" />
+                    후기 설문
+                  </button>
+                  <hr className="my-1 border-border" />
+                  <button
+                    onClick={() => { setShowNewMenu(false); onNew("자유"); }}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-[13px] font-semibold hover:bg-accent transition-colors"
+                  >
+                    <Plus className="w-4 h-4 text-muted-foreground" />
+                    자유 형식
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -400,12 +439,26 @@ export function SurveyFormList({ onEdit, onNew, onBack, refreshKey }: Props) {
           <p className="text-[13px] text-muted-foreground mt-1">
             새 설문 폼을 만들어 수강생에게 공유하세요
           </p>
-          <button
-            onClick={onNew}
-            className="mt-4 px-5 py-2.5 rounded-lg bg-primary text-primary-foreground text-[13px] font-bold hover:opacity-90 transition-opacity"
-          >
-            설문 폼 만들기
-          </button>
+          <div className="flex items-center justify-center gap-2 mt-4">
+            <button
+              onClick={() => onNew("사전")}
+              className="px-4 py-2.5 rounded-lg border border-primary text-primary text-[13px] font-bold hover:bg-primary/5 transition-colors"
+            >
+              사전 설문
+            </button>
+            <button
+              onClick={() => onNew("후기")}
+              className="px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-[13px] font-bold hover:opacity-90 transition-opacity"
+            >
+              후기 설문
+            </button>
+            <button
+              onClick={() => onNew("자유")}
+              className="px-4 py-2.5 rounded-lg border text-[13px] font-bold text-muted-foreground hover:bg-accent transition-colors"
+            >
+              자유 형식
+            </button>
+          </div>
         </div>
       ) : (
         <div className="space-y-3">
@@ -459,30 +512,12 @@ export function SurveyFormList({ onEdit, onNew, onBack, refreshKey }: Props) {
                       </div>
 
                       {/* 메타 정보 */}
-                      <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground flex-wrap">
-                        <span className="font-medium">{form.platform}</span>
-                        <span className="text-border">·</span>
-                        <span className="font-medium">{form.instructor}</span>
-                        {form.cohort && (
-                          <>
-                            <span className="text-border">·</span>
-                            <span>{form.cohort}</span>
-                          </>
-                        )}
-                        <span className="text-border">·</span>
-                        <span>{form.survey_type}</span>
-                        <span className="text-border">·</span>
-                        <span>{(form.fields as unknown[]).length}개 항목</span>
-                        {startFmt && endFmt && (
-                          <>
-                            <span className="text-border">·</span>
-                            <span className="flex items-center gap-0.5">
-                              <Calendar className="w-3 h-3" />
-                              {startFmt}~{endFmt}
-                            </span>
-                          </>
-                        )}
-                      </div>
+                      {startFmt && endFmt && (
+                        <div className="flex items-center gap-1 text-[12px] text-muted-foreground">
+                          <Calendar className="w-3 h-3" />
+                          <span>{startFmt}~{endFmt}</span>
+                        </div>
+                      )}
                     </div>
 
                     {/* 액션 버튼들 */}

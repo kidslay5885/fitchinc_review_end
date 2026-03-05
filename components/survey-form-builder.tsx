@@ -543,6 +543,7 @@ function QuestionOutlineSidebar({
 
 interface Props {
   editForm?: SurveyForm | null;
+  initialType?: "사전" | "후기" | "자유";
   onSaved: (form: SurveyForm) => void;
   onCancel: () => void;
 }
@@ -558,21 +559,27 @@ function futureDateStr(days: number) {
   return d.toISOString().slice(0, 10);
 }
 
-export function SurveyFormBuilder({ editForm, onSaved, onCancel }: Props) {
+export function SurveyFormBuilder({ editForm, initialType, onSaved, onCancel }: Props) {
   const isEditing = !!editForm;
+  const resolvedType = editForm?.survey_type || initialType || "후기";
+  // DB에 저장할 survey_type (자유 → 사전으로 저장)
+  const dbSurveyType = resolvedType === "자유" ? "사전" : resolvedType;
 
   const [platform, setPlatform] = useState(editForm?.platform || PLATFORM_NAMES[0]);
   const [instructor, setInstructor] = useState(editForm?.instructor || "");
   const [course, setCourse] = useState(editForm?.course || "");
   const [cohort, setCohort] = useState(editForm?.cohort || "");
-  const [surveyType, setSurveyType] = useState<"사전" | "후기">(editForm?.survey_type || "후기");
+  const [surveyType, setSurveyType] = useState<"사전" | "후기">(dbSurveyType);
   const [titleManual, setTitleManual] = useState(editForm?.title || "");
   const [titleOverride, setTitleOverride] = useState(!!editForm?.title);
   const [description, setDescription] = useState(editForm?.description || "");
   const [startsAt, setStartsAt] = useState(editForm?.starts_at?.slice(0, 10) || todayStr());
   const [expiresAt, setExpiresAt] = useState(editForm?.expires_at?.slice(0, 10) || futureDateStr(14));
+  const isFreeForm = initialType === "자유";
   const [fields, setFields] = useState<FormField[]>(
-    editForm?.fields?.length ? (editForm.fields as FormField[]) : getPostDefaults()
+    editForm?.fields?.length
+      ? (editForm.fields as FormField[])
+      : isFreeForm ? [] : resolvedType === "사전" ? getPreDefaults() : getPostDefaults()
   );
 
   // 자동 제목: 플랫폼 / 강사명 / 강의명 / 기수 / 사전|후기 설문지
@@ -624,18 +631,6 @@ export function SurveyFormBuilder({ editForm, onSaved, onCancel }: Props) {
     }
     return () => observer.disconnect();
   }, [fields]);
-
-  const handleTypeChange = useCallback(
-    (type: "사전" | "후기") => {
-      setSurveyType(type);
-      if (!isEditing) {
-        setFields(
-          type === "사전" ? getPreDefaults() : getPostDefaults()
-        );
-      }
-    },
-    [isEditing]
-  );
 
   const updateField = (key: string, updates: Partial<FormField>) => {
     setFields((prev) =>
@@ -886,22 +881,28 @@ export function SurveyFormBuilder({ editForm, onSaved, onCancel }: Props) {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-[12px] font-semibold text-muted-foreground mb-1 block">설문 유형</label>
-              <div className="flex gap-2">
-                {(["사전", "후기"] as const).map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => handleTypeChange(t)}
-                    className={`flex-1 py-2 rounded-lg text-[13px] font-bold transition-all border ${
-                      surveyType === t
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-border bg-background text-muted-foreground hover:bg-accent"
-                    }`}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
+              {isFreeForm ? (
+                <div className="flex gap-2">
+                  {(["사전", "후기"] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setSurveyType(t)}
+                      className={`flex-1 py-2 rounded-lg text-[13px] font-bold transition-all border ${
+                        surveyType === t
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border bg-background text-muted-foreground hover:bg-accent"
+                      }`}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-2 px-3 rounded-lg border bg-muted/30 text-[13px] font-bold text-foreground">
+                  {surveyType} 설문
+                </div>
+              )}
             </div>
             <div>
               <label className="text-[12px] font-semibold text-muted-foreground mb-1 block">

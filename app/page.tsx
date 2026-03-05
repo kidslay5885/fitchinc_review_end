@@ -561,6 +561,7 @@ function SuggestionFab() {
 function FormManagementView({ onHome }: { onHome: () => void }) {
   const [view, setView] = useState<"list" | "new" | "edit">("list");
   const [editTarget, setEditTarget] = useState<SurveyForm | null>(null);
+  const [newSurveyType, setNewSurveyType] = useState<"사전" | "후기" | "자유">("후기");
   const [refreshKey, setRefreshKey] = useState(0);
 
   return (
@@ -571,8 +572,9 @@ function FormManagementView({ onHome }: { onHome: () => void }) {
             setEditTarget(form);
             setView("edit");
           }}
-          onNew={() => {
+          onNew={(type) => {
             setEditTarget(null);
+            setNewSurveyType(type);
             setView("new");
           }}
           onBack={onHome}
@@ -582,6 +584,7 @@ function FormManagementView({ onHome }: { onHome: () => void }) {
       {(view === "new" || view === "edit") && (
         <SurveyFormBuilder
           editForm={view === "edit" ? editTarget : null}
+          initialType={view === "new" ? newSurveyType : undefined}
           onSaved={() => {
             setRefreshKey((k) => k + 1);
           }}
