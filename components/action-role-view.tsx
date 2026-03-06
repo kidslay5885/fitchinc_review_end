@@ -75,6 +75,12 @@ const PROCESS_BAR_COLORS: Record<string, string> = {
   next_cohort: "bg-amber-500",
   no_action_needed: "bg-gray-400",
 };
+const PROCESS_CARD_BG: Record<string, string> = {
+  self_resolved: "bg-green-50/40",
+  needs_discussion: "bg-blue-50/40",
+  next_cohort: "bg-amber-50/40",
+  no_action_needed: "bg-gray-50/40",
+};
 
 interface InstructorSummary {
   instructor: string;
@@ -146,6 +152,8 @@ export function ActionRoleView() {
 
   // 처리 버튼 피드백 (commentId:status → true)
   const [justProcessed, setJustProcessed] = useState<string | null>(null);
+  // 중요 표시 애니메이션 (commentId)
+  const [justStarred, setJustStarred] = useState<string | null>(null);
 
   // 테마 접기/펼치기
   const [expandedThemes, setExpandedThemes] = useState<Set<string>>(new Set());
@@ -533,7 +541,16 @@ export function ActionRoleView() {
         body: JSON.stringify({ commentId, important: newVal }),
       });
       if (!res.ok) throw new Error();
-      setComments((prev) => prev.map((c) => c.id === commentId ? { ...c, important: newVal } : c));
+      if (newVal) {
+        // 별 반짝 애니메이션 후 상태 전환
+        setJustStarred(commentId);
+        setTimeout(() => {
+          setJustStarred((prev) => prev === commentId ? null : prev);
+          setComments((prev) => prev.map((c) => c.id === commentId ? { ...c, important: newVal } : c));
+        }, 600);
+      } else {
+        setComments((prev) => prev.map((c) => c.id === commentId ? { ...c, important: newVal } : c));
+      }
     } catch { toast.error("중요 표시 실패"); }
   };
 
@@ -1107,8 +1124,8 @@ export function ActionRoleView() {
                     const transferFrom = transferOrigins[comment.id];
 
                     return (
-                      <div key={comment.id} className={`py-2.5 px-3 rounded-lg border-b transition-colors flex ${
-                        processed ? "opacity-60 bg-emerald-50/30" : isChecked ? "ring-2 ring-primary/30 bg-primary/3" : "bg-background"
+                      <div key={comment.id} className={`py-2.5 px-3 rounded-lg border-b transition-all duration-300 flex ${
+                        processed ? `opacity-70 ${PROCESS_CARD_BG[comment.process_status ?? ""] || "bg-muted/20"}` : isChecked ? "ring-2 ring-primary/30 bg-primary/3" : "bg-background"
                       }`}>
                         {/* 처리유형 좌측 색상 바 */}
                         {processed && comment.process_status && (
@@ -1217,8 +1234,12 @@ export function ActionRoleView() {
                               )}
                             </div>
                             {/* 중요 */}
-                            <button onClick={() => toggleImportant(comment.id)} className={`p-1 rounded transition-colors ${comment.important ? "text-amber-500 hover:text-amber-600" : "text-muted-foreground/40 hover:text-amber-500"}`} title="중요 표시">
-                              <Star className={`w-4 h-4 ${comment.important ? "fill-amber-400" : ""}`} />
+                            <button onClick={() => toggleImportant(comment.id)} className={`p-1 rounded transition-all duration-300 ${
+                              justStarred === comment.id ? "text-amber-500 scale-150" : comment.important ? "text-amber-500 hover:text-amber-600" : "text-muted-foreground/40 hover:text-amber-500"
+                            }`} title="중요 표시">
+                              <Star className={`w-4 h-4 transition-all duration-300 ${
+                                justStarred === comment.id ? "fill-amber-400 drop-shadow-[0_0_6px_rgba(245,158,11,0.7)]" : comment.important ? "fill-amber-400" : ""
+                              }`} />
                             </button>
                           </div>
                         </div>
