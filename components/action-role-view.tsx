@@ -126,6 +126,8 @@ export function ActionRoleView() {
   // 리뷰 뷰
   const [reviewFilter, setReviewFilter] = useState<"all" | "needs_discussion" | "important">("all");
   const [selectedReviewInstructor, setSelectedReviewInstructor] = useState<string | null>(null);
+  const [reviewResolving, setReviewResolving] = useState<Set<string>>(new Set());
+  const reviewResolveTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   // 완료 강사 숨김
   const [showCompleted, setShowCompleted] = useState(false);
@@ -236,6 +238,10 @@ export function ActionRoleView() {
   useEffect(() => {
     setSelectedReviewInstructor(null);
     setReviewFilter("all");
+    // 보류 중인 해결 타이머 모두 취소
+    for (const timer of reviewResolveTimers.current.values()) clearTimeout(timer);
+    reviewResolveTimers.current.clear();
+    setReviewResolving(new Set());
   }, [subView]);
 
   // 외부 클릭 시 이관 드롭다운 닫기
@@ -642,6 +648,46 @@ export function ActionRoleView() {
     } catch { toast.error("중요 표시 실패"); }
   };
 
+  // 리뷰 해결 (유예 후 자체해결로 전환)
+  const handleReviewResolve = (commentId: string) => {
+    setReviewResolving((prev) => new Set(prev).add(commentId));
+    const timer = setTimeout(async () => {
+      reviewResolveTimers.current.delete(commentId);
+      try {
+        const res = await fetch("/api/action-process", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ commentId, process_status: "self_resolved" as ProcessStatus }),
+        });
+        if (!res.ok) throw new Error();
+        setComments((prev) => prev.map((c) =>
+          c.id === commentId ? { ...c, process_status: "self_resolved" as ProcessStatus, processed_at: new Date().toISOString() } : c
+        ));
+      } catch {
+        toast.error("해결 처리 실패");
+      }
+      setReviewResolving((prev) => {
+        const next = new Set(prev);
+        next.delete(commentId);
+        return next;
+      });
+    }, 3000);
+    reviewResolveTimers.current.set(commentId, timer);
+  };
+
+  const handleReviewUndoResolve = (commentId: string) => {
+    const timer = reviewResolveTimers.current.get(commentId);
+    if (timer) {
+      clearTimeout(timer);
+      reviewResolveTimers.current.delete(commentId);
+    }
+    setReviewResolving((prev) => {
+      const next = new Set(prev);
+      next.delete(commentId);
+      return next;
+    });
+  };
+
   // 복사
   const copySelected = () => {
     const items = detailFiltered.filter((c) => selected.has(c.id));
@@ -936,45 +982,48 @@ export function ActionRoleView() {
                   selectedReviewSummary.comments.map((comment) => {
                     const isNeedsDiscussion = comment.process_status === "needs_discussion";
                     const isImportant = comment.important;
+                    const isResolving = reviewResolving.has(comment.id);
 
                     return (
-                      <div key={comment.id} className={`py-3 px-5 ${isNeedsDiscussion ? "bg-blue-50/30" : ""}`}>
+                      <div key={comment.id} className={`py-3 px-5 transition-all duration-300 ${isResolving ? "opacity-40 bg-green-50/50" : isNeedsDiscussion ? "bg-blue-50/30" : ""}`}>
                         <div className="flex items-start gap-2.5">
                           <div className="flex-1 min-w-0">
-                            <p className="text-[14px] leading-relaxed">{comment.original_text}</p>
-                            <div className="flex flex-wrap items-center gap-1.5 mt-1.5 text-[12px] text-muted-foreground">
-                              {/* 역할 뱃지 */}
-                              {comment.action_tag && (
-                                <span className={`text-[11px] py-0.5 px-1.5 rounded font-semibold border ${getActionTagColor(comment.action_tag)}`}>
-                                  {getActionTagLabel(comment.action_tag)}
-                                </span>
-                              )}
-                              {/* 감정 */}
-                              {comment.sentiment && (
-                                <span className={`text-[11px] py-0.5 px-1.5 rounded font-semibold ${
-                                  comment.sentiment === "positive" ? "bg-emerald-100 text-emerald-700"
-                                  : comment.sentiment === "negative" ? "bg-rose-100 text-rose-700"
-                                  : "bg-muted text-foreground"
-                                }`}>
-                                  {comment.sentiment === "positive" ? "긍정" : comment.sentiment === "negative" ? "부정" : "미구분"}
-                                </span>
-                              )}
-                              {/* 응답자 */}
-                              <span className="font-semibold text-foreground/60">{comment.respondent}</span>
-                              {/* 강의/기수 */}
-                              {comment._course && <span className="text-[11px] bg-muted px-1.5 py-0.5 rounded">{comment._course}</span>}
-                              {comment._cohort && <span className="text-[11px] bg-muted px-1.5 py-0.5 rounded">{comment._cohort}</span>}
-                              {/* 문항 */}
-                              <span className="text-[11px] bg-muted px-1.5 py-0.5 rounded">{FIELD_LABELS[comment.source_field] || comment.source_field}</span>
-                              {/* 처리 상태 */}
-                              {isNeedsDiscussion && (
-                                <span className={`text-[11px] py-0.5 px-1.5 rounded font-semibold border ${getProcessColor(comment.process_status)}`}>
-                                  {getProcessLabel(comment.process_status)}
-                                </span>
-                              )}
-                            </div>
+                            <p className={`text-[14px] leading-relaxed ${isResolving ? "line-through" : ""}`}>{comment.original_text}</p>
+                            {!isResolving && (
+                              <div className="flex flex-wrap items-center gap-1.5 mt-1.5 text-[12px] text-muted-foreground">
+                                {/* 역할 뱃지 */}
+                                {comment.action_tag && (
+                                  <span className={`text-[11px] py-0.5 px-1.5 rounded font-semibold border ${getActionTagColor(comment.action_tag)}`}>
+                                    {getActionTagLabel(comment.action_tag)}
+                                  </span>
+                                )}
+                                {/* 감정 */}
+                                {comment.sentiment && (
+                                  <span className={`text-[11px] py-0.5 px-1.5 rounded font-semibold ${
+                                    comment.sentiment === "positive" ? "bg-emerald-100 text-emerald-700"
+                                    : comment.sentiment === "negative" ? "bg-rose-100 text-rose-700"
+                                    : "bg-muted text-foreground"
+                                  }`}>
+                                    {comment.sentiment === "positive" ? "긍정" : comment.sentiment === "negative" ? "부정" : "미구분"}
+                                  </span>
+                                )}
+                                {/* 응답자 */}
+                                <span className="font-semibold text-foreground/60">{comment.respondent}</span>
+                                {/* 강의/기수 */}
+                                {comment._course && <span className="text-[11px] bg-muted px-1.5 py-0.5 rounded">{comment._course}</span>}
+                                {comment._cohort && <span className="text-[11px] bg-muted px-1.5 py-0.5 rounded">{comment._cohort}</span>}
+                                {/* 문항 */}
+                                <span className="text-[11px] bg-muted px-1.5 py-0.5 rounded">{FIELD_LABELS[comment.source_field] || comment.source_field}</span>
+                                {/* 처리 상태 */}
+                                {isNeedsDiscussion && (
+                                  <span className={`text-[11px] py-0.5 px-1.5 rounded font-semibold border ${getProcessColor(comment.process_status)}`}>
+                                    {getProcessLabel(comment.process_status)}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                             {/* 메모 강조 */}
-                            {isNeedsDiscussion && comment.process_memo && (
+                            {!isResolving && isNeedsDiscussion && comment.process_memo && (
                               <div className="mt-2 p-2 rounded-lg bg-blue-50 border border-blue-200 text-[13px] text-blue-700">
                                 <MessageCircle className="w-3.5 h-3.5 inline mr-1.5" />
                                 {comment.process_memo}
@@ -982,8 +1031,23 @@ export function ActionRoleView() {
                             )}
                           </div>
 
-                          {/* 중요 표시 */}
-                          <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                          {/* 오른쪽: 해결 버튼 or 되돌리기 + 중요 표시 */}
+                          <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
+                            {isResolving ? (
+                              <button
+                                onClick={() => handleReviewUndoResolve(comment.id)}
+                                className="text-[12px] px-3 py-1.5 rounded-lg border border-green-300 bg-green-50 text-green-700 hover:bg-green-100 transition-colors flex items-center gap-1 font-semibold"
+                              >
+                                <Undo2 className="w-3.5 h-3.5" />되돌리기
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleReviewResolve(comment.id)}
+                                className="text-[12px] px-3 py-1.5 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors flex items-center gap-1 font-semibold"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />해결
+                              </button>
+                            )}
                             {isImportant && (
                               <Star className="w-4 h-4 fill-amber-400 text-amber-500" />
                             )}
