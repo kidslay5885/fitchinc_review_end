@@ -55,7 +55,7 @@ const ACTION_ROLE_LABELS: Record<ActionTag, string> = {
   pd: "PD",
   dev: "개발",
   cs: "CS",
-  no_action: "액션없음",
+  no_action: "기타",
 };
 
 const VIEW_TAG_LABELS: Record<ViewTag, string> = {
@@ -135,6 +135,9 @@ export function ActionRoleView() {
   // 처리 메모
   const [memoInputId, setMemoInputId] = useState<string | null>(null);
   const [memoText, setMemoText] = useState("");
+
+  // 처리 버튼 피드백 (commentId:status → true)
+  const [justProcessed, setJustProcessed] = useState<string | null>(null);
 
   // 테마 접기/펼치기
   const [expandedThemes, setExpandedThemes] = useState<Set<string>>(new Set());
@@ -456,6 +459,10 @@ export function ActionRoleView() {
         body: JSON.stringify({ commentId, process_status: status }),
       });
       if (!res.ok) throw new Error();
+      // 체크 애니메이션 표시
+      const key = `${commentId}:${status}`;
+      setJustProcessed(key);
+      setTimeout(() => setJustProcessed((prev) => prev === key ? null : prev), 1000);
       setComments((prev) => prev.map((c) =>
         c.id === commentId ? { ...c, process_status: status, processed_at: new Date().toISOString() } : c
       ));
@@ -470,6 +477,9 @@ export function ActionRoleView() {
         body: JSON.stringify({ commentId, process_status: "needs_discussion" as ProcessStatus, process_memo: memoText }),
       });
       if (!res.ok) throw new Error();
+      const key = `${commentId}:needs_discussion`;
+      setJustProcessed(key);
+      setTimeout(() => setJustProcessed((prev) => prev === key ? null : prev), 1000);
       setComments((prev) => prev.map((c) =>
         c.id === commentId ? { ...c, process_status: "needs_discussion" as ProcessStatus, process_memo: memoText, processed_at: new Date().toISOString() } : c
       ));
@@ -687,13 +697,13 @@ export function ActionRoleView() {
                       <tr className="border-b"><td className="py-2 pr-3"><span className="px-1.5 py-0.5 rounded border bg-indigo-50 text-indigo-700 border-indigo-200 text-[12px] font-semibold">PD</span></td><td className="py-2 text-muted-foreground">영상 편집 — 화질, 편집, 화면 비율, 포커스, 영상 길이, 음질</td></tr>
                       <tr className="border-b"><td className="py-2 pr-3"><span className="px-1.5 py-0.5 rounded border bg-emerald-50 text-emerald-700 border-emerald-200 text-[12px] font-semibold">개발</span></td><td className="py-2 text-muted-foreground">시스템 수정 — 접속 오류, 로딩, 버그, 플랫폼 시스템, AI 툴</td></tr>
                       <tr className="border-b"><td className="py-2 pr-3"><span className="px-1.5 py-0.5 rounded border bg-cyan-50 text-cyan-700 border-cyan-200 text-[12px] font-semibold">CS</span></td><td className="py-2 text-muted-foreground">돈·계약 — 환불, 결제 오류, 수강권, 가격 불만, 과장 광고</td></tr>
-                      <tr><td className="py-2 pr-3"><span className="px-1.5 py-0.5 rounded border bg-gray-50 text-gray-500 border-gray-200 text-[12px] font-semibold">액션없음</span></td><td className="py-2 text-muted-foreground">처리 불필요 — 단순 감상, 의미없는 답변, 개인 사정, 막연한 기대</td></tr>
+                      <tr><td className="py-2 pr-3"><span className="px-1.5 py-0.5 rounded border bg-gray-50 text-gray-500 border-gray-200 text-[12px] font-semibold">기타</span></td><td className="py-2 text-muted-foreground">처리 불필요 — 단순 감상, 의미없는 답변, 개인 사정, 막연한 기대</td></tr>
                     </tbody>
                   </table>
                   <div className="mt-3 pt-3 border-t text-[11px] text-muted-foreground space-y-1">
                     <p>• 강사 관련 긍정 피드백(칭찬)도 <strong>강사</strong>로 분류</p>
                     <p>• 하나의 댓글에 여러 주제 → 가장 핵심적인 것 기준</p>
-                    <p>• 구체적 요청 없이 막연한 기대는 <strong>액션없음</strong></p>
+                    <p>• 구체적 요청 없이 막연한 기대는 <strong>기타</strong></p>
                   </div>
                 </div>
               </>
@@ -1137,12 +1147,15 @@ export function ActionRoleView() {
                               </button>
                             ) : (
                               <>
-                                {PROCESS_OPTIONS.map((opt) => (
-                                  <button key={opt.value} onClick={() => handleProcess(comment.id, opt.value)}
-                                    className={`text-[11px] px-1.5 py-1 rounded border transition-colors ${opt.bgColor}`} title={opt.label}>
-                                    {opt.label}
-                                  </button>
-                                ))}
+                                {PROCESS_OPTIONS.map((opt) => {
+                                  const isJust = justProcessed === `${comment.id}:${opt.value}`;
+                                  return (
+                                    <button key={opt.value} onClick={() => handleProcess(comment.id, opt.value)}
+                                      className={`text-[11px] px-1.5 py-1 rounded border transition-all duration-300 ${isJust ? "bg-emerald-500 text-white border-emerald-500 scale-105" : opt.bgColor}`} title={opt.label}>
+                                      {isJust ? <Check className="w-3.5 h-3.5 inline" /> : opt.label}
+                                    </button>
+                                  );
+                                })}
                               </>
                             )}
                             {/* 이관 */}

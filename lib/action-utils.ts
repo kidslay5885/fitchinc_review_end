@@ -14,7 +14,7 @@ export const ACTION_TAGS: {
   { value: "pd", label: "PD", aiLabel: "PD", color: "text-indigo-700", bgColor: "bg-indigo-50 text-indigo-700 border-indigo-200" },
   { value: "dev", label: "개발", aiLabel: "개발", color: "text-emerald-700", bgColor: "bg-emerald-50 text-emerald-700 border-emerald-200" },
   { value: "cs", label: "CS", aiLabel: "CS", color: "text-cyan-700", bgColor: "bg-cyan-50 text-cyan-700 border-cyan-200" },
-  { value: "no_action", label: "액션없음", aiLabel: "액션없음", color: "text-gray-500", bgColor: "bg-gray-50 text-gray-500 border-gray-200" },
+  { value: "no_action", label: "기타", aiLabel: "액션없음", color: "text-gray-500", bgColor: "bg-gray-50 text-gray-500 border-gray-200" },
 ];
 
 // AI 출력 한글 → DB 영문 매핑
