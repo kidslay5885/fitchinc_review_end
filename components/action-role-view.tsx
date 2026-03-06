@@ -677,30 +677,35 @@ export function ActionRoleView() {
     }
   };
 
-  // 리뷰 해결 (유예 후 자체해결로 전환)
+  // 리뷰 해결 (유예 후 자체해결로 전환 — 낙관적 업데이트)
   const handleReviewResolve = (commentId: string) => {
     setReviewResolving((prev) => new Set(prev).add(commentId));
-    const timer = setTimeout(async () => {
+    const timer = setTimeout(() => {
       reviewResolveTimers.current.delete(commentId);
-      try {
-        const res = await fetch("/api/action-process", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ commentId, process_status: "self_resolved" as ProcessStatus }),
-        });
-        if (!res.ok) throw new Error();
-        setComments((prev) => prev.map((c) =>
-          c.id === commentId ? { ...c, process_status: "self_resolved" as ProcessStatus, processed_at: new Date().toISOString() } : c
-        ));
-      } catch {
-        toast.error("해결 처리 실패");
-      }
+      // 즉시 로컬 상태 반영 (목록에서 제거)
+      setComments((prev) => prev.map((c) =>
+        c.id === commentId ? { ...c, process_status: "self_resolved" as ProcessStatus, processed_at: new Date().toISOString() } : c
+      ));
       setReviewResolving((prev) => {
         const next = new Set(prev);
         next.delete(commentId);
         return next;
       });
-    }, 3000);
+      // 백그라운드 API 호출
+      fetch("/api/action-process", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commentId, process_status: "self_resolved" as ProcessStatus }),
+      }).then((res) => {
+        if (!res.ok) throw new Error();
+      }).catch(() => {
+        // 실패 시 롤백
+        setComments((prev) => prev.map((c) =>
+          c.id === commentId ? { ...c, process_status: "needs_discussion" as ProcessStatus, processed_at: null } : c
+        ));
+        toast.error("해결 처리 실패");
+      });
+    }, 1000);
     reviewResolveTimers.current.set(commentId, timer);
   };
 
@@ -1643,8 +1648,9 @@ export function ActionRoleView() {
                                   const isJust = justProcessed === `${comment.id}:${opt.value}`;
                                   return (
                                     <button key={opt.value} onClick={() => handleProcess(comment.id, opt.value)}
-                                      className={`text-[11px] px-1.5 py-1 rounded border transition-all duration-300 min-w-[44px] text-center ${isJust ? `${PROCESS_CHECK_COLORS[opt.value]} text-white scale-105` : opt.bgColor}`} title={opt.label}>
-                                      {isJust ? <Check className="w-3.5 h-3.5 inline" /> : opt.label}
+                                      className={`relative text-[11px] px-1.5 py-1 rounded border transition-all duration-300 ${isJust ? `${PROCESS_CHECK_COLORS[opt.value]} text-white scale-105` : opt.bgColor}`} title={opt.label}>
+                                      <span className={isJust ? "invisible" : ""}>{opt.label}</span>
+                                      {isJust && <Check className="w-3.5 h-3.5 absolute inset-0 m-auto" />}
                                     </button>
                                   );
                                 })}
