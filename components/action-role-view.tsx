@@ -112,6 +112,7 @@ export function ActionRoleView() {
   const [cohortFilter, setCohortFilter] = useState("all");
   const [sourceFieldFilter, setSourceFieldFilter] = useState("all");
   const [sentimentFilter, setSentimentFilter] = useState<"all" | "positive" | "negative" | "neutral">("all");
+  const [processStatusFilter, setProcessStatusFilter] = useState<"all" | ProcessStatus>("all");
   const [detailSearch, setDetailSearch] = useState("");
 
   // 체크박스 + 복사
@@ -345,8 +346,9 @@ export function ActionRoleView() {
     if (!selectedSummary) return [];
     return selectedSummary.comments.filter((c) => {
       const processed = isProcessed(c);
-      if (viewMode === "unprocessed" && processed) return false;
+      if (viewMode === "unprocessed" && (processed || c.important)) return false;
       if (viewMode === "processed" && (!processed || c.important)) return false;
+      if (viewMode === "processed" && processStatusFilter !== "all" && c.process_status !== processStatusFilter) return false;
       if (viewMode === "important" && !c.important) return false;
       if (courseFilter !== "all" && c._course !== courseFilter) return false;
       if (cohortFilter !== "all" && c._cohort !== cohortFilter) return false;
@@ -362,7 +364,7 @@ export function ActionRoleView() {
       }
       return true;
     });
-  }, [selectedSummary, viewMode, courseFilter, cohortFilter, sourceFieldFilter, sentimentFilter, detailSearch]);
+  }, [selectedSummary, viewMode, courseFilter, cohortFilter, sourceFieldFilter, sentimentFilter, processStatusFilter, detailSearch]);
 
   // 탭별 건수
   const importantCount = useMemo(() => selectedSummary?.comments.filter((c) => c.important).length || 0, [selectedSummary]);
@@ -459,13 +461,15 @@ export function ActionRoleView() {
         body: JSON.stringify({ commentId, process_status: status }),
       });
       if (!res.ok) throw new Error();
-      // 체크 애니메이션 표시
+      // 체크 애니메이션 표시 후 상태 전환
       const key = `${commentId}:${status}`;
       setJustProcessed(key);
-      setTimeout(() => setJustProcessed((prev) => prev === key ? null : prev), 1000);
-      setComments((prev) => prev.map((c) =>
-        c.id === commentId ? { ...c, process_status: status, processed_at: new Date().toISOString() } : c
-      ));
+      setTimeout(() => {
+        setJustProcessed((prev) => prev === key ? null : prev);
+        setComments((prev) => prev.map((c) =>
+          c.id === commentId ? { ...c, process_status: status, processed_at: new Date().toISOString() } : c
+        ));
+      }, 700);
     } catch { toast.error("처리 상태 업데이트 실패"); }
   };
 
@@ -479,11 +483,13 @@ export function ActionRoleView() {
       if (!res.ok) throw new Error();
       const key = `${commentId}:needs_discussion`;
       setJustProcessed(key);
-      setTimeout(() => setJustProcessed((prev) => prev === key ? null : prev), 1000);
-      setComments((prev) => prev.map((c) =>
-        c.id === commentId ? { ...c, process_status: "needs_discussion" as ProcessStatus, process_memo: memoText, processed_at: new Date().toISOString() } : c
-      ));
       setMemoInputId(null); setMemoText("");
+      setTimeout(() => {
+        setJustProcessed((prev) => prev === key ? null : prev);
+        setComments((prev) => prev.map((c) =>
+          c.id === commentId ? { ...c, process_status: "needs_discussion" as ProcessStatus, process_memo: memoText, processed_at: new Date().toISOString() } : c
+        ));
+      }, 700);
     } catch { toast.error("처리 상태 업데이트 실패"); }
   };
 
@@ -956,7 +962,7 @@ export function ActionRoleView() {
                 ] as const).map((tab) => (
                   <button
                     key={tab.key}
-                    onClick={() => { setViewMode(tab.key); setSelected(new Set()); }}
+                    onClick={() => { setViewMode(tab.key); setSelected(new Set()); setProcessStatusFilter("all"); }}
                     className={`py-1 px-3 rounded-md text-[13px] font-semibold transition-colors flex items-center gap-1 ${
                       viewMode === tab.key
                         ? tab.key === "important"
@@ -998,6 +1004,14 @@ export function ActionRoleView() {
                 <option value="negative">부정</option>
                 <option value="neutral">미구분</option>
               </select>
+              {viewMode === "processed" && (
+                <select value={processStatusFilter} onChange={(e) => setProcessStatusFilter(e.target.value as typeof processStatusFilter)} className="text-[12px] border rounded-lg px-2 py-1 bg-background">
+                  <option value="all">전체 처리유형</option>
+                  {PROCESS_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              )}
 
               {/* 엑셀 내보내기 */}
               <button onClick={exportToExcel} disabled={detailFiltered.length === 0} className="text-[12px] px-2.5 py-1 rounded-lg border hover:bg-accent transition-colors disabled:opacity-40 flex items-center gap-1">
