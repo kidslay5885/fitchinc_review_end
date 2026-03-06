@@ -81,6 +81,12 @@ const PROCESS_CARD_BG: Record<string, string> = {
   next_cohort: "bg-amber-50/40",
   no_action_needed: "bg-gray-50/40",
 };
+const PROCESS_CHECK_COLORS: Record<string, string> = {
+  self_resolved: "bg-green-500 border-green-500",
+  needs_discussion: "bg-blue-500 border-blue-500",
+  next_cohort: "bg-amber-500 border-amber-500",
+  no_action_needed: "bg-gray-500 border-gray-500",
+};
 
 interface InstructorSummary {
   instructor: string;
@@ -1209,7 +1215,7 @@ export function ActionRoleView() {
                                   const isJust = justProcessed === `${comment.id}:${opt.value}`;
                                   return (
                                     <button key={opt.value} onClick={() => handleProcess(comment.id, opt.value)}
-                                      className={`text-[11px] px-1.5 py-1 rounded border transition-all duration-300 ${isJust ? "bg-emerald-500 text-white border-emerald-500 scale-105" : opt.bgColor}`} title={opt.label}>
+                                      className={`text-[11px] px-1.5 py-1 rounded border transition-all duration-300 ${isJust ? `${PROCESS_CHECK_COLORS[opt.value]} text-white scale-105` : opt.bgColor}`} title={opt.label}>
                                       {isJust ? <Check className="w-3.5 h-3.5 inline" /> : opt.label}
                                     </button>
                                   );
