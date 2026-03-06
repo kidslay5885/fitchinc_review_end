@@ -69,6 +69,13 @@ const PLATFORM_COLORS: Record<string, { bg: string; text: string; border: string
 };
 const DEFAULT_PLATFORM_COLOR = { bg: "bg-muted", text: "text-foreground", border: "border-border" };
 
+const PROCESS_BAR_COLORS: Record<string, string> = {
+  self_resolved: "bg-green-500",
+  needs_discussion: "bg-blue-500",
+  next_cohort: "bg-amber-500",
+  no_action_needed: "bg-gray-400",
+};
+
 interface InstructorSummary {
   instructor: string;
   platform: string;
@@ -376,6 +383,15 @@ export function ActionRoleView() {
     (selectedSummary?.total || 0) - processedCount - importantCount,
     [selectedSummary, processedCount, importantCount]
   );
+  const processStatusCounts = useMemo(() => {
+    if (!selectedSummary) return {} as Record<ProcessStatus, number>;
+    const counts = {} as Record<ProcessStatus, number>;
+    for (const opt of PROCESS_OPTIONS) counts[opt.value] = 0;
+    for (const c of selectedSummary.comments) {
+      if (isProcessed(c) && !c.important && c.process_status) counts[c.process_status] = (counts[c.process_status] || 0) + 1;
+    }
+    return counts;
+  }, [selectedSummary]);
 
   // scope key (강사 선택 시)
   const selectedScopeKey = useMemo(() => {
@@ -1005,12 +1021,19 @@ export function ActionRoleView() {
                 <option value="neutral">미구분</option>
               </select>
               {viewMode === "processed" && (
-                <select value={processStatusFilter} onChange={(e) => setProcessStatusFilter(e.target.value as typeof processStatusFilter)} className="text-[12px] border rounded-lg px-2 py-1 bg-background">
-                  <option value="all">전체 처리유형</option>
+                <div className="flex gap-0.5 bg-muted rounded-lg p-0.5 border ml-1">
+                  <button
+                    onClick={() => setProcessStatusFilter("all")}
+                    className={`py-0.5 px-2 rounded-md text-[11px] font-semibold transition-colors ${processStatusFilter === "all" ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                  >전체 {processedCount}</button>
                   {PROCESS_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    <button
+                      key={opt.value}
+                      onClick={() => setProcessStatusFilter(processStatusFilter === opt.value ? "all" : opt.value)}
+                      className={`py-0.5 px-2 rounded-md text-[11px] font-semibold transition-colors ${processStatusFilter === opt.value ? `bg-card shadow-sm ${opt.color}` : "text-muted-foreground hover:text-foreground"}`}
+                    >{opt.label} {processStatusCounts[opt.value] || 0}</button>
                   ))}
-                </select>
+                </div>
               )}
 
               {/* 엑셀 내보내기 */}
@@ -1084,10 +1107,14 @@ export function ActionRoleView() {
                     const transferFrom = transferOrigins[comment.id];
 
                     return (
-                      <div key={comment.id} className={`py-2.5 px-3 rounded-lg border-b transition-colors ${
-                        processed ? "opacity-50 bg-emerald-50/30" : isChecked ? "ring-2 ring-primary/30 bg-primary/3" : "bg-background"
+                      <div key={comment.id} className={`py-2.5 px-3 rounded-lg border-b transition-colors flex ${
+                        processed ? "opacity-60 bg-emerald-50/30" : isChecked ? "ring-2 ring-primary/30 bg-primary/3" : "bg-background"
                       }`}>
-                        <div className="flex items-start gap-2.5">
+                        {/* 처리유형 좌측 색상 바 */}
+                        {processed && comment.process_status && (
+                          <div className={`w-[3px] rounded-full shrink-0 mr-2.5 ${PROCESS_BAR_COLORS[comment.process_status] || "bg-gray-300"}`} />
+                        )}
+                        <div className="flex items-start gap-2.5 flex-1 min-w-0">
                           {/* 체크박스 */}
                           <label className="mt-0.5 cursor-pointer shrink-0">
                             <input type="checkbox" checked={isChecked} onChange={() => {
