@@ -90,7 +90,7 @@ function LandingScreen({
       mode: "role" as AppMode,
       icon: <MessageSquare className="w-8 h-8" />,
       title: "직무별 피드백",
-      desc: "액션 기반 분류 + 역할별\n처리 + 상태 대시보드",
+      desc: "액션 기반 분류 + 직무별\n처리 + 점검 현황",
       color: "text-violet-600",
       bg: "hover:border-violet-300 hover:bg-violet-50/50",
     },

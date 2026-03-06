@@ -850,16 +850,16 @@ export function ActionRoleView() {
             <h1 className="text-[18px] font-extrabold">직무별 피드백</h1>
             <div className="flex gap-0.5 bg-muted rounded-lg p-0.5 border">
               <button onClick={() => setSubView("roles")} className="py-1.5 px-4 rounded-md text-[13px] font-semibold text-muted-foreground hover:text-foreground transition-colors">
-                역할별
+                직무별
               </button>
               <button className="py-1.5 px-4 rounded-md text-[13px] font-semibold bg-card text-primary shadow-sm transition-colors flex items-center gap-1.5">
-                리뷰
+                논의 필요
                 {reviewTotalCount > 0 && (
                   <span className="text-[11px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full font-bold">{reviewTotalCount}</span>
                 )}
               </button>
               <button onClick={() => setSubView("dashboard")} className="py-1.5 px-4 rounded-md text-[13px] font-semibold text-muted-foreground hover:text-foreground transition-colors">
-                상태 대시보드
+                점검 현황
               </button>
             </div>
           </div>
@@ -897,7 +897,7 @@ export function ActionRoleView() {
               <div className="text-[14px] font-bold">
                 {reviewFilter === "all" ? "협의 필요 또는 중요 표시된 피드백이 없습니다" : reviewFilter === "needs_discussion" ? "협의 필요 피드백이 없습니다" : "중요 표시된 피드백이 없습니다"}
               </div>
-              <div className="text-[13px] mt-1">역할별 뷰에서 처리 상태를 지정하거나 중요 표시를 하세요</div>
+              <div className="text-[13px] mt-1">직무별 뷰에서 처리 상태를 지정하거나 중요 표시를 하세요</div>
             </div>
           )}
 
@@ -1102,16 +1102,16 @@ export function ActionRoleView() {
             <h1 className="text-[18px] font-extrabold">직무별 피드백</h1>
             <div className="flex gap-0.5 bg-muted rounded-lg p-0.5 border">
               <button onClick={() => setSubView("roles")} className="py-1.5 px-4 rounded-md text-[13px] font-semibold text-muted-foreground hover:text-foreground transition-colors">
-                역할별
+                직무별
               </button>
               <button onClick={() => setSubView("review")} className="py-1.5 px-4 rounded-md text-[13px] font-semibold text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5">
-                리뷰
+                논의 필요
                 {reviewTotalCount > 0 && (
                   <span className="text-[11px] bg-muted-foreground/10 px-1.5 py-0.5 rounded-full font-bold">{reviewTotalCount}</span>
                 )}
               </button>
               <button className="py-1.5 px-4 rounded-md text-[13px] font-semibold bg-card text-primary shadow-sm transition-colors">
-                상태 대시보드
+                점검 현황
               </button>
             </div>
           </div>
@@ -1172,19 +1172,19 @@ export function ActionRoleView() {
             )}
           </div>
 
-          {/* 서브탭 (역할별 / 리뷰 / 대시보드) */}
+          {/* 서브탭 (직무별 / 논의 필요 / 점검 현황) */}
           <div className="flex gap-0.5 bg-muted rounded-lg p-0.5 border">
             <button className="py-1.5 px-4 rounded-md text-[13px] font-semibold bg-card text-primary shadow-sm transition-colors">
-              역할별
+              직무별
             </button>
             <button onClick={() => setSubView("review")} className="py-1.5 px-4 rounded-md text-[13px] font-semibold text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5">
-              리뷰
+              논의 필요
               {reviewTotalCount > 0 && (
                 <span className="text-[11px] bg-muted-foreground/10 px-1.5 py-0.5 rounded-full font-bold">{reviewTotalCount}</span>
               )}
             </button>
             <button onClick={() => setSubView("dashboard")} className="py-1.5 px-4 rounded-md text-[13px] font-semibold text-muted-foreground hover:text-foreground transition-colors">
-              상태 대시보드
+              점검 현황
             </button>
           </div>
 
@@ -1643,7 +1643,7 @@ export function ActionRoleView() {
                                   const isJust = justProcessed === `${comment.id}:${opt.value}`;
                                   return (
                                     <button key={opt.value} onClick={() => handleProcess(comment.id, opt.value)}
-                                      className={`text-[11px] px-1.5 py-1 rounded border transition-all duration-300 ${isJust ? `${PROCESS_CHECK_COLORS[opt.value]} text-white scale-105` : opt.bgColor}`} title={opt.label}>
+                                      className={`text-[11px] px-1.5 py-1 rounded border transition-all duration-300 min-w-[44px] text-center ${isJust ? `${PROCESS_CHECK_COLORS[opt.value]} text-white scale-105` : opt.bgColor}`} title={opt.label}>
                                       {isJust ? <Check className="w-3.5 h-3.5 inline" /> : opt.label}
                                     </button>
                                   );
