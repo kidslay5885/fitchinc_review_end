@@ -313,7 +313,7 @@ export function ActionRoleView() {
       if (c.sentiment === "positive") s.positive++;
       else if (c.sentiment === "negative") s.negative++;
       else s.neutral++;
-      if (isProcessed(c)) s.processed++;
+      if (isProcessed(c) || c.important) s.processed++;
       if (c.important) s.important++;
       s.comments.push(c);
     }
@@ -868,7 +868,7 @@ export function ActionRoleView() {
                       setTimeout(() => detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
                     }
                   }}
-                  className={`relative flex flex-col items-center p-4 rounded-xl border-2 transition-all duration-150 text-center ${
+                  className={`relative flex flex-col items-center justify-between p-4 rounded-xl border-2 transition-all duration-150 text-center min-h-[220px] ${
                     isActive ? "border-primary bg-primary/5 shadow-md" : "border-border bg-card hover:border-primary/40 hover:shadow-sm"
                   } ${isCompleted ? "opacity-60" : ""}`}
                 >
@@ -876,23 +876,27 @@ export function ActionRoleView() {
                     <span className="absolute top-1.5 left-1.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold px-1.5 py-0.5 rounded">✓ 완료</span>
                   )}
 
-                  {/* 프로필 사진 */}
-                  <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center overflow-hidden shrink-0 ring-2 ring-border/40 mb-2">
-                    {photo?.photo ? (
-                      <img src={photo.photo} alt="" className="w-full h-full object-cover" style={{ objectPosition: photo.photoPosition || "center 2%" }} />
-                    ) : (
-                      <User className="w-5 h-5 text-muted-foreground" />
-                    )}
+                  {/* 상단: 프로필 + 이름 + 플랫폼 */}
+                  <div className="flex flex-col items-center">
+                    <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center overflow-hidden shrink-0 ring-2 ring-border/40 mb-2">
+                      {photo?.photo ? (
+                        <img src={photo.photo} alt="" className="w-full h-full object-cover" style={{ objectPosition: photo.photoPosition || "center 2%" }} />
+                      ) : (
+                        <User className="w-5 h-5 text-muted-foreground" />
+                      )}
+                    </div>
+
+                    <span className="text-[15px] font-bold truncate w-full">{s.instructor}</span>
+                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border mt-0.5 ${pColor.bg} ${pColor.text} ${pColor.border}`}>
+                      {s.platform}
+                    </span>
+                    {s.courses.length > 1 && <span className="text-[11px] text-muted-foreground mt-1">{s.courses.length}개 강의</span>}
                   </div>
 
-                  <span className="text-[15px] font-bold truncate w-full">{s.instructor}</span>
-                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border mt-0.5 ${pColor.bg} ${pColor.text} ${pColor.border}`}>
-                    {s.platform}
-                  </span>
-                  {s.courses.length > 1 && <span className="text-[11px] text-muted-foreground mt-1">{s.courses.length}개 강의</span>}
-
+                  {/* 하단: 건수 + 감정바 + 처리율 (항상 하단 고정) */}
+                  <div className="w-full mt-auto pt-2">
                   {/* 건수 + 아이콘 */}
-                  <div className="flex items-center gap-1.5 mt-2.5 w-full">
+                  <div className="flex items-center gap-1.5 w-full">
                     <span className="text-[20px] font-extrabold text-primary">{s.total}</span>
                     <span className="text-[12px] text-muted-foreground">건</span>
                     {(s.important > 0 || s.processed > 0) && <div className="flex-1" />}
@@ -926,6 +930,7 @@ export function ActionRoleView() {
                       <div className="bg-blue-400 transition-all" style={{ width: `${procPct}%` }} />
                     </div>
                     <div className="text-[10px] text-muted-foreground mt-0.5">처리 {procPct}%</div>
+                  </div>
                   </div>
 
                   {isActive && (
