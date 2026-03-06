@@ -565,7 +565,7 @@ export function ActionRoleView() {
     setTransferDropdownId(null);
   }, [comments]);
 
-  // 처리 상태
+  // 처리 상태 (낙관적 업데이트 + 체크 애니메이션 유지)
   const handleProcess = async (commentId: string, status: ProcessStatus) => {
     const option = PROCESS_OPTIONS.find((o) => o.value === status);
     if (option?.memoRequired) {
@@ -573,79 +573,108 @@ export function ActionRoleView() {
       setMemoText("");
       return;
     }
+    // 체크 애니메이션 먼저, 700ms 후 상태 반영 (목록에서 자연스럽게 제거)
+    const key = `${commentId}:${status}`;
+    setJustProcessed(key);
+    // 백그라운드 API 호출 (애니메이션과 병렬)
+    const apiCall = fetch("/api/action-process", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ commentId, process_status: status }),
+    });
+    setTimeout(() => {
+      setJustProcessed((prev) => prev === key ? null : prev);
+      setComments((prev) => prev.map((c) =>
+        c.id === commentId ? { ...c, process_status: status, processed_at: new Date().toISOString() } : c
+      ));
+    }, 400);
     try {
-      const res = await fetch("/api/action-process", {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ commentId, process_status: status }),
-      });
+      const res = await apiCall;
       if (!res.ok) throw new Error();
-      // 체크 애니메이션 표시 후 상태 전환
-      const key = `${commentId}:${status}`;
-      setJustProcessed(key);
-      setTimeout(() => {
-        setJustProcessed((prev) => prev === key ? null : prev);
-        setComments((prev) => prev.map((c) =>
-          c.id === commentId ? { ...c, process_status: status, processed_at: new Date().toISOString() } : c
-        ));
-      }, 700);
-    } catch { toast.error("처리 상태 업데이트 실패"); }
+    } catch {
+      // 실패 시 롤백
+      setComments((prev) => prev.map((c) =>
+        c.id === commentId ? { ...c, process_status: null, processed_at: null } : c
+      ));
+      toast.error("처리 상태 업데이트 실패");
+    }
   };
 
   const handleProcessWithMemo = async (commentId: string) => {
     if (!memoText.trim()) { toast.error("메모를 입력해주세요"); return; }
+    const savedMemo = memoText;
+    const key = `${commentId}:needs_discussion`;
+    setJustProcessed(key);
+    setMemoInputId(null); setMemoText("");
+    // 백그라운드 API 호출 (애니메이션과 병렬)
+    const apiCall = fetch("/api/action-process", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ commentId, process_status: "needs_discussion" as ProcessStatus, process_memo: savedMemo }),
+    });
+    setTimeout(() => {
+      setJustProcessed((prev) => prev === key ? null : prev);
+      setComments((prev) => prev.map((c) =>
+        c.id === commentId ? { ...c, process_status: "needs_discussion" as ProcessStatus, process_memo: savedMemo, processed_at: new Date().toISOString() } : c
+      ));
+    }, 400);
     try {
-      const res = await fetch("/api/action-process", {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ commentId, process_status: "needs_discussion" as ProcessStatus, process_memo: memoText }),
-      });
+      const res = await apiCall;
       if (!res.ok) throw new Error();
-      const key = `${commentId}:needs_discussion`;
-      setJustProcessed(key);
-      setMemoInputId(null); setMemoText("");
-      setTimeout(() => {
-        setJustProcessed((prev) => prev === key ? null : prev);
-        setComments((prev) => prev.map((c) =>
-          c.id === commentId ? { ...c, process_status: "needs_discussion" as ProcessStatus, process_memo: memoText, processed_at: new Date().toISOString() } : c
-        ));
-      }, 700);
-    } catch { toast.error("처리 상태 업데이트 실패"); }
+    } catch {
+      setComments((prev) => prev.map((c) =>
+        c.id === commentId ? { ...c, process_status: null, process_memo: "", processed_at: null } : c
+      ));
+      toast.error("처리 상태 업데이트 실패");
+    }
   };
 
   const handleUndoProcess = async (commentId: string) => {
+    // 기존 상태 백업 (롤백용)
+    const prev = comments.find((c) => c.id === commentId);
+    const backup = prev ? { process_status: prev.process_status, process_memo: (prev as any).process_memo, processed_at: prev.processed_at } : null;
+    // 즉시 로컬 상태 반영
+    setComments((prev) => prev.map((c) =>
+      c.id === commentId ? { ...c, process_status: null, process_memo: "", processed_at: null } : c
+    ));
     try {
       const res = await fetch("/api/action-process", {
         method: "DELETE", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ commentId }),
       });
       if (!res.ok) throw new Error();
-      setComments((prev) => prev.map((c) =>
-        c.id === commentId ? { ...c, process_status: null, process_memo: "", processed_at: null } : c
-      ));
-    } catch { toast.error("처리 취소 실패"); }
+    } catch {
+      // 실패 시 롤백
+      if (backup) {
+        setComments((prev) => prev.map((c) =>
+          c.id === commentId ? { ...c, ...backup } : c
+        ));
+      }
+      toast.error("처리 취소 실패");
+    }
   };
 
-  // 중요 표시
+  // 중요 표시 (낙관적 업데이트)
   const toggleImportant = async (commentId: string) => {
     const comment = comments.find((c) => c.id === commentId);
     if (!comment) return;
     const newVal = !comment.important;
+    // 즉시 로컬 상태 반영 + 애니메이션
+    setComments((prev) => prev.map((c) => c.id === commentId ? { ...c, important: newVal } : c));
+    if (newVal) {
+      setJustStarred(commentId);
+      setTimeout(() => setJustStarred((prev) => prev === commentId ? null : prev), 600);
+    }
+    // 백그라운드 API 호출
     try {
       const res = await fetch("/api/action-process", {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ commentId, important: newVal }),
       });
       if (!res.ok) throw new Error();
-      if (newVal) {
-        // 별 반짝 애니메이션 후 상태 전환
-        setJustStarred(commentId);
-        setTimeout(() => {
-          setJustStarred((prev) => prev === commentId ? null : prev);
-          setComments((prev) => prev.map((c) => c.id === commentId ? { ...c, important: newVal } : c));
-        }, 600);
-      } else {
-        setComments((prev) => prev.map((c) => c.id === commentId ? { ...c, important: newVal } : c));
-      }
-    } catch { toast.error("중요 표시 실패"); }
+    } catch {
+      // 실패 시 롤백
+      setComments((prev) => prev.map((c) => c.id === commentId ? { ...c, important: !newVal } : c));
+      toast.error("중요 표시 실패");
+    }
   };
 
   // 리뷰 해결 (유예 후 자체해결로 전환)
