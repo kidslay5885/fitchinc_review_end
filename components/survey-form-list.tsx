@@ -263,7 +263,7 @@ export function SurveyFormList({ onEdit, onNew, onResults, onBack, refreshKey }:
 
   // 결과 보기 상태
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [responseData, setResponseData] = useState<Record<string, { responses: FormResponse[]; count: number; loading: boolean }>>({});
+  const [responseData, setResponseData] = useState<Record<string, { responses: FormResponse[]; count: number; total: number; loading: boolean; loadingMore: boolean }>>({});
 
   const fetchForms = async () => {
     setLoading(true);
@@ -340,20 +340,49 @@ export function SurveyFormList({ onEdit, onNew, onResults, onBack, refreshKey }:
 
     setResponseData((prev) => ({
       ...prev,
-      [formId]: { responses: [], count: 0, loading: true },
+      [formId]: { responses: [], count: 0, total: 0, loading: true, loadingMore: false },
     }));
 
     try {
-      const res = await fetch(`/api/survey-forms/responses?formId=${formId}`);
+      const res = await fetch(`/api/survey-forms/responses?formId=${formId}&mode=list&limit=50`);
       const data = await res.json();
       setResponseData((prev) => ({
         ...prev,
-        [formId]: { responses: data.responses || [], count: data.count || 0, loading: false },
+        [formId]: { responses: data.responses || [], count: data.count || 0, total: data.total || 0, loading: false, loadingMore: false },
       }));
     } catch {
       setResponseData((prev) => ({
         ...prev,
-        [formId]: { responses: [], count: 0, loading: false },
+        [formId]: { responses: [], count: 0, total: 0, loading: false, loadingMore: false },
+      }));
+    }
+  };
+
+  const handleLoadMore = async (formId: string) => {
+    const rd = responseData[formId];
+    if (!rd || rd.loadingMore) return;
+
+    setResponseData((prev) => ({
+      ...prev,
+      [formId]: { ...prev[formId], loadingMore: true },
+    }));
+
+    try {
+      const offset = rd.responses.length;
+      const res = await fetch(`/api/survey-forms/responses?formId=${formId}&mode=list&limit=50&offset=${offset}`);
+      const data = await res.json();
+      setResponseData((prev) => ({
+        ...prev,
+        [formId]: {
+          ...prev[formId],
+          responses: [...prev[formId].responses, ...(data.responses || [])],
+          loadingMore: false,
+        },
+      }));
+    } catch {
+      setResponseData((prev) => ({
+        ...prev,
+        [formId]: { ...prev[formId], loadingMore: false },
       }));
     }
   };
@@ -611,8 +640,13 @@ export function SurveyFormList({ onEdit, onNew, onResults, onBack, refreshKey }:
                       <div>
                         <div className="flex items-center justify-between mb-3">
                           <span className="text-[13px] font-bold">
-                            총 {rd.responses.length}명 응답
+                            총 {rd.total}명 응답
                           </span>
+                          {rd.responses.length < rd.total && (
+                            <span className="text-[11px] text-muted-foreground">
+                              최근 {rd.responses.length}건 표시 중
+                            </span>
+                          )}
                         </div>
 
                         {/* 응답 테이블 */}
@@ -660,6 +694,26 @@ export function SurveyFormList({ onEdit, onNew, onResults, onBack, refreshKey }:
                             </tbody>
                           </table>
                         </div>
+
+                        {/* 더보기 버튼 */}
+                        {rd.responses.length < rd.total && (
+                          <div className="flex justify-center mt-3">
+                            <button
+                              onClick={() => handleLoadMore(form.id)}
+                              disabled={rd.loadingMore}
+                              className="px-4 py-2 rounded-lg border text-[12px] font-semibold text-muted-foreground hover:bg-accent transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                            >
+                              {rd.loadingMore ? (
+                                <>
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  불러오는 중...
+                                </>
+                              ) : (
+                                `${rd.total - rd.responses.length}건 더보기`
+                              )}
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

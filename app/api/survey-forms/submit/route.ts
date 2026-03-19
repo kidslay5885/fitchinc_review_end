@@ -120,26 +120,22 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 5. response_count 증분
-    await supabase.rpc("increment_response_count", { survey_id_param: surveyId }).then(({ error }) => {
+    // 5. response_count 증분 (atomic)
+    const { error: rpcError } = await supabase.rpc("increment_response_count", { survey_id_param: surveyId });
+    if (rpcError) {
       // RPC가 없으면 수동 업데이트
-      if (error) {
-        supabase
+      const { data: current } = await supabase
+        .from("surveys")
+        .select("response_count")
+        .eq("id", surveyId)
+        .single();
+      if (current) {
+        await supabase
           .from("surveys")
-          .select("response_count")
-          .eq("id", surveyId)
-          .single()
-          .then(({ data }) => {
-            if (data) {
-              supabase
-                .from("surveys")
-                .update({ response_count: (data.response_count || 0) + 1 })
-                .eq("id", surveyId)
-                .then(() => {});
-            }
-          });
+          .update({ response_count: (current.response_count || 0) + 1 })
+          .eq("id", surveyId);
       }
-    });
+    }
 
     return NextResponse.json({ ok: true, surveyId, commentCount: comments.length });
   } catch (error: unknown) {

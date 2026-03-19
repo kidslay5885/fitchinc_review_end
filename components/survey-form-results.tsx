@@ -121,11 +121,18 @@ function FieldResultCard({
   index: number;
 }) {
   const [open, setOpen] = useState(true);
-  const values = useMemo(
-    () => responses.map((r) => getFieldValue(r, field)),
+  const valuesWithIndex = useMemo(
+    () => responses.map((r, i) => ({ text: getFieldValue(r, field), idx: i })),
     [responses, field]
   );
-  const nonEmpty = useMemo(() => values.filter((v) => v.trim()), [values]);
+  const nonEmptyTextsWithIndex = useMemo(
+    () => valuesWithIndex.filter((v) => v.text.trim()),
+    [valuesWithIndex]
+  );
+  const nonEmptyTexts = useMemo(
+    () => nonEmptyTextsWithIndex.map((v) => v.text),
+    [nonEmptyTextsWithIndex]
+  );
 
   // 서술형: 텍스트 목록
   if (field.type === "textarea") {
@@ -141,7 +148,7 @@ function FieldResultCard({
             </span>
             <span className="text-[13px] font-bold">{field.label}</span>
             <span className="text-[12px] text-muted-foreground">
-              ({nonEmpty.length}건)
+              ({nonEmptyTextsWithIndex.length}건)
             </span>
           </div>
           {open ? (
@@ -152,15 +159,13 @@ function FieldResultCard({
         </button>
         {open && (
           <div className="mt-3 space-y-2 max-h-[400px] overflow-y-auto">
-            {nonEmpty.length === 0 ? (
+            {nonEmptyTextsWithIndex.length === 0 ? (
               <div className="text-[12px] text-muted-foreground text-center py-6">
                 응답 없음
               </div>
             ) : (
-              nonEmpty.map((text, i) => {
-                const name = responses.find(
-                  (r) => getFieldValue(r, field) === text
-                )?.name;
+              nonEmptyTextsWithIndex.map(({ text, idx }, i) => {
+                const name = responses[idx]?.name;
                 return (
                   <div
                     key={i}
@@ -184,7 +189,7 @@ function FieldResultCard({
 
   // radio / select → 도넛 차트
   if (field.type === "radio" || field.type === "select") {
-    const counts = tally(nonEmpty);
+    const counts = tally(nonEmptyTexts);
     const chartData = toChartData(counts);
     return (
       <ChartCard
@@ -197,7 +202,7 @@ function FieldResultCard({
           </span>
           <span className="text-[13px] font-bold">{field.label}</span>
           <span className="text-[12px] text-muted-foreground">
-            ({nonEmpty.length}건)
+            ({nonEmptyTexts.length}건)
           </span>
         </div>
         {chartData.length > 0 && <DonutChart data={chartData} />}
@@ -209,7 +214,7 @@ function FieldResultCard({
   if (field.type === "scale") {
     const min = field.scaleMin ?? 1;
     const max = field.scaleMax ?? 5;
-    const counts = tallyScale(nonEmpty, min, max);
+    const counts = tallyScale(nonEmptyTexts, min, max);
     const chartData = Object.entries(counts).map(([name, value]) => ({
       name,
       value,
@@ -217,7 +222,7 @@ function FieldResultCard({
     return (
       <ChartCard
         title=""
-        empty={nonEmpty.length === 0}
+        empty={nonEmptyTexts.length === 0}
       >
         <div className="flex items-center gap-2 -mt-3 mb-3">
           <span className="text-[12px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded">
@@ -225,17 +230,17 @@ function FieldResultCard({
           </span>
           <span className="text-[13px] font-bold">{field.label}</span>
           <span className="text-[12px] text-muted-foreground">
-            ({nonEmpty.length}건)
+            ({nonEmptyTexts.length}건)
           </span>
         </div>
-        {nonEmpty.length > 0 && <HBarChart data={chartData} />}
+        {nonEmptyTexts.length > 0 && <HBarChart data={chartData} />}
       </ChartCard>
     );
   }
 
   // text / number → ListBar (빈도)
   if (field.type === "text" || field.type === "number") {
-    const counts = tally(nonEmpty);
+    const counts = tally(nonEmptyTexts);
     const chartData = toChartData(counts);
     return (
       <ChartCard
@@ -248,7 +253,7 @@ function FieldResultCard({
           </span>
           <span className="text-[13px] font-bold">{field.label}</span>
           <span className="text-[12px] text-muted-foreground">
-            ({nonEmpty.length}건)
+            ({nonEmptyTexts.length}건)
           </span>
         </div>
         {chartData.length > 0 && <ListBar data={chartData} />}

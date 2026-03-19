@@ -605,7 +605,6 @@ function FormManagementView({ onHome }: { onHome: () => void }) {
           form={resultsTarget}
           onBack={() => {
             setView("list");
-            setRefreshKey((k) => k + 1);
           }}
           onEdit={() => {
             setEditTarget(resultsTarget);
