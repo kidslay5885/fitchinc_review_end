@@ -275,8 +275,10 @@ export function ActionRoleView() {
     counts["unclassified"] = 0;
     for (const c of comments) {
       if (c.action_tag) {
-        counts[c.action_tag] = (counts[c.action_tag] || 0) + 1;
-        counts["all"]++;
+        if (!isProcessed(c)) {
+          counts[c.action_tag] = (counts[c.action_tag] || 0) + 1;
+          counts["all"]++;
+        }
       } else {
         counts["unclassified"]++;
       }
