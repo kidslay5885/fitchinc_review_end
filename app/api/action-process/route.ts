@@ -126,20 +126,19 @@ export async function GET(req: NextRequest) {
     }
 
     // 역할별 통계 집계
-    const stats: Record<string, { total: number; processed: number; important: number; byStatus: Record<string, number> }> = {};
+    const stats: Record<string, { total: number; processed: number; byStatus: Record<string, number> }> = {};
 
     for (const c of comments || []) {
       const tag = c.action_tag as string;
       if (!stats[tag]) {
-        stats[tag] = { total: 0, processed: 0, important: 0, byStatus: {} };
+        stats[tag] = { total: 0, processed: 0, byStatus: {} };
       }
       stats[tag].total++;
       if (c.process_status) {
         stats[tag].processed++;
-        stats[tag].byStatus[c.process_status] = (stats[tag].byStatus[c.process_status] || 0) + 1;
-      }
-      if (c.important) {
-        stats[tag].important++;
+        // 마이그레이션: no_action_needed → self_resolved (기존 DB 데이터 호환)
+        const status = c.process_status === "no_action_needed" ? "self_resolved" : c.process_status;
+        stats[tag].byStatus[status] = (stats[tag].byStatus[status] || 0) + 1;
       }
     }
 

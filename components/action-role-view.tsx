@@ -22,7 +22,6 @@ import {
   Search,
   ChevronRight,
   ChevronDown,
-  Star,
   Undo2,
   Sparkles,
   Layers,
@@ -30,7 +29,6 @@ import {
   EyeOff,
   User,
   CheckCircle2,
-  ArrowRightLeft,
   Copy,
   Check,
   X,
@@ -47,7 +45,7 @@ import { ShareLinkDialog } from "./share-link-dialog";
 // ===== 타입 & 상수 =====
 
 type ViewTag = ActionTag | "all";
-type ViewMode = "unprocessed" | "processed" | "important";
+type ViewMode = "unprocessed" | "processed";
 type SubView = "roles" | "dashboard" | "review";
 
 const ACTION_ROLE_LABELS: Record<ActionTag, string> = {
@@ -74,19 +72,16 @@ const PROCESS_BAR_COLORS: Record<string, string> = {
   self_resolved: "bg-green-500",
   needs_discussion: "bg-blue-500",
   next_cohort: "bg-amber-500",
-  no_action_needed: "bg-gray-400",
 };
 const PROCESS_CARD_BG: Record<string, string> = {
   self_resolved: "bg-green-50/40",
   needs_discussion: "bg-blue-50/40",
   next_cohort: "bg-amber-50/40",
-  no_action_needed: "bg-gray-50/40",
 };
 const PROCESS_CHECK_COLORS: Record<string, string> = {
   self_resolved: "bg-green-500 border-green-500",
   needs_discussion: "bg-blue-500 border-blue-500",
   next_cohort: "bg-amber-500 border-amber-500",
-  no_action_needed: "bg-gray-500 border-gray-500",
 };
 
 interface InstructorSummary {
@@ -98,7 +93,6 @@ interface InstructorSummary {
   negative: number;
   neutral: number;
   processed: number;
-  important: number;
   comments: CommentWithAction[];
 }
 
@@ -124,7 +118,9 @@ export function ActionRoleView() {
   const [selectedInstructor, setSelectedInstructor] = useState<string | null>(null);
 
   // 리뷰 뷰
-  const [reviewFilter, setReviewFilter] = useState<"all" | "needs_discussion" | "important">("all");
+  const [reviewFilter, setReviewFilter] = useState<"all" | "needs_discussion">("all");
+  const [reviewPlatformFilter, setReviewPlatformFilter] = useState("all");
+  const [reviewSearch, setReviewSearch] = useState("");
   const [selectedReviewInstructor, setSelectedReviewInstructor] = useState<string | null>(null);
   const [reviewResolving, setReviewResolving] = useState<Set<string>>(new Set());
   const reviewResolveTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
@@ -165,8 +161,6 @@ export function ActionRoleView() {
 
   // 처리 버튼 피드백 (commentId:status → true)
   const [justProcessed, setJustProcessed] = useState<string | null>(null);
-  // 중요 표시 애니메이션 (commentId)
-  const [justStarred, setJustStarred] = useState<string | null>(null);
 
   // 테마 접기/펼치기
   const [expandedThemes, setExpandedThemes] = useState<Set<string>>(new Set());
@@ -194,7 +188,11 @@ export function ActionRoleView() {
         if (seen.has(c.id)) return false;
         seen.add(c.id);
         return true;
-      });
+      }).map((c) => ({
+        ...c,
+        // 마이그레이션: no_action_needed → self_resolved (기존 DB 데이터 호환)
+        process_status: (c.process_status as string) === "no_action_needed" ? "self_resolved" as ProcessStatus : c.process_status,
+      }));
       setComments(unique.filter(isClassifiableComment));
       setLoaded(true);
     } catch {
@@ -238,6 +236,8 @@ export function ActionRoleView() {
   useEffect(() => {
     setSelectedReviewInstructor(null);
     setReviewFilter("all");
+    setReviewPlatformFilter("all");
+    setReviewSearch("");
     // 보류 중인 해결 타이머 모두 취소
     for (const timer of reviewResolveTimers.current.values()) clearTimeout(timer);
     reviewResolveTimers.current.clear();
@@ -320,7 +320,7 @@ export function ActionRoleView() {
       if (!map.has(key)) {
         map.set(key, {
           instructor: c._instructor, platform: c._platform, courses: [],
-          total: 0, positive: 0, negative: 0, neutral: 0, processed: 0, important: 0, comments: [],
+          total: 0, positive: 0, negative: 0, neutral: 0, processed: 0, comments: [],
         });
         courseSets.set(key, new Set());
       }
@@ -330,8 +330,7 @@ export function ActionRoleView() {
       if (c.sentiment === "positive") s.positive++;
       else if (c.sentiment === "negative") s.negative++;
       else s.neutral++;
-      if (isProcessed(c) || c.important) s.processed++;
-      if (c.important) s.important++;
+      if (isProcessed(c)) s.processed++;
       s.comments.push(c);
     }
 
@@ -364,32 +363,19 @@ export function ActionRoleView() {
 
   // ===== 리뷰 뷰 파생 데이터 =====
 
-  const reviewNeedsDiscussionCount = useMemo(() =>
+  const reviewTotalCount = useMemo(() =>
     comments.filter(c => c.action_tag && c.process_status === "needs_discussion").length,
     [comments]
   );
 
-  const reviewImportantCount = useMemo(() =>
-    comments.filter(c => c.action_tag && c.important).length,
-    [comments]
-  );
-
-  const reviewTotalCount = useMemo(() => {
-    const seen = new Set<string>();
-    for (const c of comments) {
-      if (c.action_tag && (c.process_status === "needs_discussion" || c.important)) {
-        seen.add(c.id);
-      }
-    }
-    return seen.size;
+  const reviewFilteredComments = useMemo(() => {
+    return comments.filter(c => c.action_tag && c.process_status === "needs_discussion");
   }, [comments]);
 
-  const reviewFilteredComments = useMemo(() => {
-    const base = comments.filter(c => c.action_tag && (c.process_status === "needs_discussion" || c.important));
-    if (reviewFilter === "all") return base;
-    if (reviewFilter === "needs_discussion") return base.filter(c => c.process_status === "needs_discussion");
-    return base.filter(c => c.important);
-  }, [comments, reviewFilter]);
+  const reviewPlatformLabels = useMemo(() => {
+    const set = new Set(reviewFilteredComments.map(c => c._platform).filter(Boolean));
+    return Array.from(set).sort();
+  }, [reviewFilteredComments]);
 
   const reviewInstructorSummaries = useMemo(() => {
     const map = new Map<string, {
@@ -397,7 +383,6 @@ export function ActionRoleView() {
       platform: string;
       total: number;
       needsDiscussion: number;
-      important: number;
       tagBreakdown: Record<string, number>;
       comments: CommentWithAction[];
     }>();
@@ -410,7 +395,6 @@ export function ActionRoleView() {
           platform: c._platform,
           total: 0,
           needsDiscussion: 0,
-          important: 0,
           tagBreakdown: {},
           comments: [],
         });
@@ -418,15 +402,22 @@ export function ActionRoleView() {
       const s = map.get(key)!;
       s.total++;
       if (c.process_status === "needs_discussion") s.needsDiscussion++;
-      if (c.important) s.important++;
       if (c.action_tag) {
         s.tagBreakdown[c.action_tag] = (s.tagBreakdown[c.action_tag] || 0) + 1;
       }
       s.comments.push(c);
     }
 
-    return Array.from(map.values()).sort((a, b) => b.total - a.total);
-  }, [reviewFilteredComments]);
+    let result = Array.from(map.values());
+    if (reviewPlatformFilter !== "all") {
+      result = result.filter(s => s.platform === reviewPlatformFilter);
+    }
+    if (reviewSearch) {
+      const q = reviewSearch.toLowerCase();
+      result = result.filter(s => s.instructor.toLowerCase().includes(q) || s.platform.toLowerCase().includes(q));
+    }
+    return result.sort((a, b) => b.total - a.total);
+  }, [reviewFilteredComments, reviewPlatformFilter, reviewSearch]);
 
   const selectedReviewSummary = useMemo(
     () => reviewInstructorSummaries.find(s => `${s.platform}|${s.instructor}` === selectedReviewInstructor) || null,
@@ -455,10 +446,9 @@ export function ActionRoleView() {
     if (!selectedSummary) return [];
     return selectedSummary.comments.filter((c) => {
       const processed = isProcessed(c);
-      if (viewMode === "unprocessed" && (processed || c.important)) return false;
-      if (viewMode === "processed" && (!processed || c.important)) return false;
+      if (viewMode === "unprocessed" && processed) return false;
+      if (viewMode === "processed" && !processed) return false;
       if (viewMode === "processed" && processStatusFilter !== "all" && c.process_status !== processStatusFilter) return false;
-      if (viewMode === "important" && !c.important) return false;
       if (courseFilter !== "all" && c._course !== courseFilter) return false;
       if (cohortFilter !== "all" && c._cohort !== cohortFilter) return false;
       if (sourceFieldFilter !== "all" && c.source_field !== sourceFieldFilter) return false;
@@ -476,21 +466,20 @@ export function ActionRoleView() {
   }, [selectedSummary, viewMode, courseFilter, cohortFilter, sourceFieldFilter, sentimentFilter, processStatusFilter, detailSearch]);
 
   // 탭별 건수
-  const importantCount = useMemo(() => selectedSummary?.comments.filter((c) => c.important).length || 0, [selectedSummary]);
   const processedCount = useMemo(() =>
-    selectedSummary?.comments.filter((c) => isProcessed(c) && !c.important).length || 0,
+    selectedSummary?.comments.filter((c) => isProcessed(c)).length || 0,
     [selectedSummary]
   );
   const unprocessedCount = useMemo(() =>
-    (selectedSummary?.total || 0) - processedCount - importantCount,
-    [selectedSummary, processedCount, importantCount]
+    (selectedSummary?.total || 0) - processedCount,
+    [selectedSummary, processedCount]
   );
   const processStatusCounts = useMemo(() => {
     if (!selectedSummary) return {} as Record<ProcessStatus, number>;
     const counts = {} as Record<ProcessStatus, number>;
     for (const opt of PROCESS_OPTIONS) counts[opt.value] = 0;
     for (const c of selectedSummary.comments) {
-      if (isProcessed(c) && !c.important && c.process_status) counts[c.process_status] = (counts[c.process_status] || 0) + 1;
+      if (isProcessed(c) && c.process_status) counts[c.process_status] = (counts[c.process_status] || 0) + 1;
     }
     return counts;
   }, [selectedSummary]);
@@ -649,31 +638,6 @@ export function ActionRoleView() {
         ));
       }
       toast.error("처리 취소 실패");
-    }
-  };
-
-  // 중요 표시 (낙관적 업데이트)
-  const toggleImportant = async (commentId: string) => {
-    const comment = comments.find((c) => c.id === commentId);
-    if (!comment) return;
-    const newVal = !comment.important;
-    // 즉시 로컬 상태 반영 + 애니메이션
-    setComments((prev) => prev.map((c) => c.id === commentId ? { ...c, important: newVal } : c));
-    if (newVal) {
-      setJustStarred(commentId);
-      setTimeout(() => setJustStarred((prev) => prev === commentId ? null : prev), 600);
-    }
-    // 백그라운드 API 호출
-    try {
-      const res = await fetch("/api/action-process", {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ commentId, important: newVal }),
-      });
-      if (!res.ok) throw new Error();
-    } catch {
-      // 실패 시 롤백
-      setComments((prev) => prev.map((c) => c.id === commentId ? { ...c, important: !newVal } : c));
-      toast.error("중요 표시 실패");
     }
   };
 
@@ -869,40 +833,42 @@ export function ActionRoleView() {
             </div>
           </div>
 
-          {/* 필터 바 */}
-          <div className="flex gap-0.5 bg-muted rounded-lg p-0.5 border mb-4">
-            <button
-              onClick={() => setReviewFilter("all")}
-              className={`py-1.5 px-4 rounded-md text-[13px] font-semibold transition-colors ${reviewFilter === "all" ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-            >
-              전체 <span className="text-[11px] opacity-60">{reviewTotalCount}</span>
-            </button>
-            <button
-              onClick={() => setReviewFilter("needs_discussion")}
-              className={`py-1.5 px-4 rounded-md text-[13px] font-semibold transition-colors flex items-center gap-1 ${reviewFilter === "needs_discussion" ? "bg-card text-blue-600 shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-            >
-              <MessageCircle className="w-3.5 h-3.5" />
-              협의 필요 <span className="text-[11px] opacity-60">{reviewNeedsDiscussionCount}</span>
-            </button>
-            <button
-              onClick={() => setReviewFilter("important")}
-              className={`py-1.5 px-4 rounded-md text-[13px] font-semibold transition-colors flex items-center gap-1 ${reviewFilter === "important" ? "bg-card text-amber-600 shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-            >
-              <Star className={`w-3.5 h-3.5 ${reviewFilter === "important" ? "fill-amber-400" : ""}`} />
-              중요 <span className="text-[11px] opacity-60">{reviewImportantCount}</span>
-            </button>
+          {/* 건수 표시 */}
+          <div className="text-[13px] text-muted-foreground font-semibold mb-4">
+            협의 필요 {reviewTotalCount}건
+          </div>
+
+          {/* 플랫폼 필터 + 강사 검색 */}
+          <div className="flex items-center gap-2 mb-4">
+            {reviewPlatformLabels.length > 1 && (
+              <select
+                value={reviewPlatformFilter}
+                onChange={(e) => { setReviewPlatformFilter(e.target.value); setSelectedReviewInstructor(null); }}
+                className="py-1.5 px-2.5 rounded-lg border text-[14px] bg-card"
+              >
+                <option value="all">전체 플랫폼</option>
+                {reviewPlatformLabels.map(l => <option key={l} value={l}>{l}</option>)}
+              </select>
+            )}
+            <div className="relative flex-1 min-w-[140px] max-w-[280px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+              <input
+                value={reviewSearch}
+                onChange={(e) => setReviewSearch(e.target.value)}
+                placeholder="강사 검색..."
+                className="w-full py-1.5 pl-8 pr-3 rounded-lg border text-[14px] bg-card"
+              />
+            </div>
           </div>
 
           {/* 빈 상태 */}
           {reviewInstructorSummaries.length === 0 && (
             <div className="text-center py-12 text-muted-foreground">
               <div className="text-[30px] opacity-25 mb-2">
-                {reviewFilter === "needs_discussion" ? <MessageCircle className="w-8 h-8 mx-auto" /> : reviewFilter === "important" ? <Star className="w-8 h-8 mx-auto" /> : "📋"}
+                <MessageCircle className="w-8 h-8 mx-auto" />
               </div>
-              <div className="text-[14px] font-bold">
-                {reviewFilter === "all" ? "협의 필요 또는 중요 표시된 피드백이 없습니다" : reviewFilter === "needs_discussion" ? "협의 필요 피드백이 없습니다" : "중요 표시된 피드백이 없습니다"}
-              </div>
-              <div className="text-[13px] mt-1">직무별 뷰에서 처리 상태를 지정하거나 중요 표시를 하세요</div>
+              <div className="text-[14px] font-bold">협의 필요 피드백이 없습니다</div>
+              <div className="text-[13px] mt-1">직무별 뷰에서 처리 상태를 지정하세요</div>
             </div>
           )}
 
@@ -952,12 +918,6 @@ export function ActionRoleView() {
                           <span className="text-[12px] font-semibold text-blue-600">협의 {s.needsDiscussion}건</span>
                         </div>
                       )}
-                      {s.important > 0 && (
-                        <div className="flex items-center gap-1.5 justify-center">
-                          <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
-                          <span className="text-[12px] font-semibold text-amber-600">중요 {s.important}건</span>
-                        </div>
-                      )}
 
                       {/* 역할 분포 */}
                       {Object.keys(s.tagBreakdown).length > 0 && (
@@ -997,11 +957,6 @@ export function ActionRoleView() {
                     <MessageCircle className="w-3.5 h-3.5" />{selectedReviewSummary.needsDiscussion}
                   </span>
                 )}
-                {selectedReviewSummary.important > 0 && (
-                  <span className="text-[12px] text-amber-500 flex items-center gap-1">
-                    <Star className="w-3.5 h-3.5 fill-amber-400" />{selectedReviewSummary.important}
-                  </span>
-                )}
                 <div className="flex-1" />
                 <button onClick={() => setSelectedReviewInstructor(null)} className="p-1 rounded-lg hover:bg-accent transition-colors">
                   <X className="w-4 h-4 text-muted-foreground" />
@@ -1015,7 +970,6 @@ export function ActionRoleView() {
                 ) : (
                   selectedReviewSummary.comments.map((comment) => {
                     const isNeedsDiscussion = comment.process_status === "needs_discussion";
-                    const isImportant = comment.important;
                     const isResolving = reviewResolving.has(comment.id);
 
                     return (
@@ -1081,9 +1035,6 @@ export function ActionRoleView() {
                               >
                                 <CheckCircle2 className="w-3.5 h-3.5" />해결
                               </button>
-                            )}
-                            {isImportant && (
-                              <Star className="w-4 h-4 fill-amber-400 text-amber-500" />
                             )}
                           </div>
                         </div>
@@ -1327,12 +1278,7 @@ export function ActionRoleView() {
                   <div className="flex items-center gap-1.5 w-full">
                     <span className="text-[20px] font-extrabold text-primary">{s.total}</span>
                     <span className="text-[12px] text-muted-foreground">건</span>
-                    {(s.important > 0 || s.processed > 0) && <div className="flex-1" />}
-                    {s.important > 0 && (
-                      <span className="flex items-center gap-0.5 text-[11px] text-amber-500 font-semibold">
-                        <Star className="w-3 h-3 fill-amber-400" />{s.important}
-                      </span>
-                    )}
+                    {s.processed > 0 && <div className="flex-1" />}
                     {s.processed > 0 && (
                       <span className="flex items-center gap-0.5 text-[11px] text-emerald-600 font-semibold">
                         <CheckCircle2 className="w-3 h-3" />{s.processed}
@@ -1430,22 +1376,18 @@ export function ActionRoleView() {
                 {([
                   { key: "unprocessed" as const, label: "미처리", count: unprocessedCount },
                   { key: "processed" as const, label: "처리완료", count: processedCount },
-                  { key: "important" as const, label: "중요", count: importantCount },
                 ] as const).map((tab) => (
                   <button
                     key={tab.key}
                     onClick={() => { setViewMode(tab.key); setSelected(new Set()); setProcessStatusFilter("all"); }}
                     className={`py-1 px-3 rounded-md text-[13px] font-semibold transition-colors flex items-center gap-1 ${
                       viewMode === tab.key
-                        ? tab.key === "important"
-                          ? "bg-card text-amber-600 shadow-sm"
-                          : tab.key === "processed"
-                            ? "bg-card text-emerald-600 shadow-sm"
-                            : "bg-card text-primary shadow-sm"
+                        ? tab.key === "processed"
+                          ? "bg-card text-emerald-600 shadow-sm"
+                          : "bg-card text-primary shadow-sm"
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    {tab.key === "important" && <Star className={`w-3 h-3 ${viewMode === "important" ? "fill-amber-400" : ""}`} />}
                     {tab.label} {tab.count}
                   </button>
                 ))}
@@ -1551,9 +1493,7 @@ export function ActionRoleView() {
             <div className="h-[calc(100vh-420px)] overflow-y-auto">
               {detailFiltered.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground text-[14px]">
-                  {viewMode === "important" ? "중요 표시된 피드백이 없습니다"
-                    : viewMode === "processed" ? "처리 완료된 피드백이 없습니다"
-                    : "미처리 피드백이 없습니다"}
+                  {viewMode === "processed" ? "처리 완료된 피드백이 없습니다" : "미처리 피드백이 없습니다"}
                 </div>
               ) : (
                 <div className="divide-y">
@@ -1659,8 +1599,8 @@ export function ActionRoleView() {
                             {/* 이관 */}
                             <div className="relative">
                               <button onClick={() => setTransferDropdownId(transferDropdownId === comment.id ? null : comment.id)}
-                                className="p-1 rounded transition-colors text-muted-foreground/40 hover:text-violet-600" title="이관">
-                                <ArrowRightLeft className="w-4 h-4" />
+                                className="text-[11px] px-1.5 py-1 rounded border transition-colors text-violet-600 bg-violet-50 hover:bg-violet-100 border-violet-200" title="이관">
+                                다른 부서
                               </button>
                               {transferDropdownId === comment.id && (
                                 <div className="absolute right-0 top-full mt-1 z-50 bg-card border rounded-lg shadow-lg py-1 min-w-[120px]">
@@ -1673,14 +1613,6 @@ export function ActionRoleView() {
                                 </div>
                               )}
                             </div>
-                            {/* 중요 */}
-                            <button onClick={() => toggleImportant(comment.id)} className={`p-1 rounded transition-all duration-300 ${
-                              justStarred === comment.id ? "text-amber-500 scale-150" : comment.important ? "text-amber-500 hover:text-amber-600" : "text-muted-foreground/40 hover:text-amber-500"
-                            }`} title="중요 표시">
-                              <Star className={`w-4 h-4 transition-all duration-300 ${
-                                justStarred === comment.id ? "fill-amber-400 drop-shadow-[0_0_6px_rgba(245,158,11,0.7)]" : comment.important ? "fill-amber-400" : ""
-                              }`} />
-                            </button>
                           </div>
                         </div>
                       </div>
@@ -1704,8 +1636,8 @@ export function ActionRoleView() {
                 {/* 대량 이관 */}
                 <div className="relative" ref={transferDropdownId === "__bulk__" ? transferDropdownRef : undefined}>
                   <button onClick={() => setTransferDropdownId(transferDropdownId === "__bulk__" ? null : "__bulk__")}
-                    className="py-1 px-3 rounded-lg bg-violet-600 text-white text-[12px] font-bold hover:bg-violet-700 transition-colors flex items-center gap-1">
-                    <ArrowRightLeft className="w-3.5 h-3.5" />이관
+                    className="py-1 px-3 rounded-lg bg-violet-600 text-white text-[12px] font-bold hover:bg-violet-700 transition-colors">
+                    다른 부서로 이관
                   </button>
                   {transferDropdownId === "__bulk__" && (
                     <div className="absolute bottom-full mb-1 right-0 z-50 bg-card border rounded-lg shadow-lg py-1 min-w-[120px]">

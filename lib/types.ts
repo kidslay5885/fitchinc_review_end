@@ -164,7 +164,7 @@ export interface AnalyzeResult {
 
 export type ActionTag = 'instructor' | 'pm' | 'pd' | 'dev' | 'cs' | 'no_action';
 
-export type ProcessStatus = 'self_resolved' | 'needs_discussion' | 'next_cohort' | 'no_action_needed';
+export type ProcessStatus = 'self_resolved' | 'needs_discussion' | 'next_cohort';
 
 export interface CommentWithAction extends Comment {
   action_tag: ActionTag | null;

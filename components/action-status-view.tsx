@@ -12,7 +12,7 @@ import {
   isProcessed,
 } from "@/lib/action-utils";
 import { FIELD_LABELS } from "@/lib/feedback-utils";
-import { Star, AlertTriangle, MessageSquare, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, MessageSquare, CheckCircle2 } from "lucide-react";
 
 interface ActionStatusViewProps {
   comments: CommentWithAction[];
@@ -23,11 +23,11 @@ export function ActionStatusView({ comments }: ActionStatusViewProps) {
   const tagStats = useMemo(() => {
     const stats: Record<
       string,
-      { total: number; processed: number; important: number; byStatus: Record<string, number> }
+      { total: number; processed: number; byStatus: Record<string, number> }
     > = {};
 
     for (const tag of ACTION_TAG_ORDER) {
-      stats[tag] = { total: 0, processed: 0, important: 0, byStatus: {} };
+      stats[tag] = { total: 0, processed: 0, byStatus: {} };
     }
 
     for (const c of comments) {
@@ -41,7 +41,6 @@ export function ActionStatusView({ comments }: ActionStatusViewProps) {
           stats[tag].byStatus[c.process_status] = (stats[tag].byStatus[c.process_status] || 0) + 1;
         }
       }
-      if (c.important) stats[tag].important++;
     }
 
     return stats;
@@ -50,11 +49,6 @@ export function ActionStatusView({ comments }: ActionStatusViewProps) {
   // "협의 필요" 댓글
   const needsDiscussion = useMemo(() => {
     return comments.filter((c) => c.process_status === "needs_discussion");
-  }, [comments]);
-
-  // "중요" 댓글
-  const importantComments = useMemo(() => {
-    return comments.filter((c) => c.important);
   }, [comments]);
 
   // 전체 통계
@@ -101,12 +95,6 @@ export function ActionStatusView({ comments }: ActionStatusViewProps) {
                     style={{ width: `${pct}%` }}
                   />
                 </div>
-                {stat.important > 0 && (
-                  <div className="flex items-center gap-1 mt-1.5 text-xs">
-                    <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                    중요 {stat.important}
-                  </div>
-                )}
               </div>
             );
           })}
@@ -196,37 +184,6 @@ export function ActionStatusView({ comments }: ActionStatusViewProps) {
         </div>
       )}
 
-      {/* "중요" 패널 */}
-      {importantComments.length > 0 && (
-        <div>
-          <h2 className="text-sm font-semibold mb-3 flex items-center gap-2">
-            <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
-            중요 표시 ({importantComments.length}건)
-          </h2>
-          <div className="rounded-xl border bg-card divide-y max-h-[400px] overflow-y-auto">
-            {importantComments.map((c) => (
-              <div key={c.id} className="p-4">
-                <div className="flex items-start gap-3">
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded border shrink-0 mt-0.5 ${getActionTagColor(c.action_tag)}`}>
-                    {getActionTagLabel(c.action_tag)}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm">{c.original_text}</p>
-                    <div className="flex gap-2 mt-1">
-                      <span className="text-[10px] text-muted-foreground">{c._instructor} · {c._course} {c._cohort}</span>
-                      {c.process_status && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded border bg-muted">
-                          {getProcessLabel(c.process_status)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

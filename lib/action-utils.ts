@@ -46,10 +46,9 @@ export const PROCESS_OPTIONS: {
   bgColor: string;
   memoRequired: boolean;
 }[] = [
-  { value: "self_resolved", label: "자체 해결", color: "text-green-700", bgColor: "bg-green-50 hover:bg-green-100 border-green-300", memoRequired: false },
+  { value: "self_resolved", label: "검토완료", color: "text-green-700", bgColor: "bg-green-50 hover:bg-green-100 border-green-300", memoRequired: false },
   { value: "needs_discussion", label: "협의 필요", color: "text-blue-700", bgColor: "bg-blue-50 hover:bg-blue-100 border-blue-300", memoRequired: true },
   { value: "next_cohort", label: "다음 기수", color: "text-amber-700", bgColor: "bg-amber-50 hover:bg-amber-100 border-amber-300", memoRequired: false },
-  { value: "no_action_needed", label: "불필요", color: "text-gray-500", bgColor: "bg-gray-50 hover:bg-gray-100 border-gray-300", memoRequired: false },
 ];
 
 // ===== 헬퍼 함수 =====
