@@ -4,9 +4,7 @@ import { GoogleGenAI } from "@google/genai";
 // Vercel 서버리스 함수 타임아웃 확장 (기본 10초 → 60초)
 export const maxDuration = 60;
 
-function getAI() {
-  return new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-}
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
 const TAG_VALUES = ["platform_pm", "platform_pd", "platform_cs", "platform_general", "platform_etc", "instructor"] as const;
 const SENTIMENT_VALUES = ["positive", "negative", "neutral"] as const;
@@ -46,7 +44,6 @@ ${items.map((item: { id: string; original_text: string }, i: number) => `[${i}] 
 }
 각 항목마다 반드시 한 개씩, commentId는 입력의 id와 정확히 일치해야 합니다.`;
 
-    const ai = getAI();
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: prompt,

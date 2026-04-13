@@ -1,5 +1,7 @@
 "use client";
 
+import React from "react";
+
 interface BarChartProps {
   data: { label: string; value: number }[];
   color?: string;
@@ -7,7 +9,7 @@ interface BarChartProps {
   maxOverride?: number;
 }
 
-export function BarChart({ data, color = "#3451B2", suffix = "", maxOverride }: BarChartProps) {
+export const BarChart = React.memo(function BarChart({ data, color = "#3451B2", suffix = "", maxOverride }: BarChartProps) {
   const max = maxOverride || Math.max(...data.map((d) => d.value), 1);
 
   return (
@@ -34,4 +36,4 @@ export function BarChart({ data, color = "#3451B2", suffix = "", maxOverride }: 
       })}
     </div>
   );
-}
+});

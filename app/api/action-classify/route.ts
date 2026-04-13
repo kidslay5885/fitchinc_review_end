@@ -6,9 +6,7 @@ import type { ActionTag } from "@/lib/types";
 
 export const maxDuration = 120;
 
-function getAI() {
-  return new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-}
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
 const BATCH_SIZE = 50;
 
@@ -67,7 +65,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "items 필요" }, { status: 400 });
     }
 
-    const ai = getAI();
     const supabase = getSupabase();
     let classified = 0;
     const results: { id: string; action_tag: ActionTag }[] = [];

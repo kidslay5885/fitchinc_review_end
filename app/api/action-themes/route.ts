@@ -6,12 +6,10 @@ import type { ActionTag } from "@/lib/types";
 
 export const maxDuration = 120;
 
-function getAI() {
-  return new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-}
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
 async function assignThemes(
-  ai: ReturnType<typeof getAI>,
+  ai: GoogleGenAI,
   tagLabel: string,
   comments: { id: string; original_text: string }[]
 ): Promise<{ themes: { name: string; indices: number[] }[] }> {
@@ -62,7 +60,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "scope_key, action_tag, comments 필요" }, { status: 400 });
     }
 
-    const ai = getAI();
     const supabase = getSupabase();
     const tagLabel = TAG_TO_AI_LABEL[action_tag] || action_tag;
 

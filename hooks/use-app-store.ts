@@ -359,6 +359,7 @@ const AppContext = createContext<{
   state: AppState;
   dispatch: Dispatch<Action>;
   loadCohortData: (platformName: string, instructorName: string, courseName: string, cohortLabel: string) => Promise<void>;
+  loadBatchCohortData: (platformName: string, instructorName: string, cohorts: { course: string; cohort: string }[]) => Promise<void>;
   refreshHierarchy: () => Promise<void>;
 } | null>(null);
 
@@ -541,22 +542,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       dispatch({ type: "HYDRATE", platforms });
 
-      // ★ localStorage에만 있는 사진을 백그라운드로 서버에 동기화
+      // ★ localStorage에만 있는 사진을 백그라운드로 서버에 병렬 동기화
       if (photosToSync.length > 0) {
-        for (const item of photosToSync) {
-          fetch("/api/app-settings", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              type: "instructor_photo",
-              platform: item.platform,
-              instructor: item.instructor,
-              photo: item.photo,
-              photoPosition: item.photoPosition,
-              category: item.category,
-            }),
-          }).catch(() => { /* 백그라운드 동기화 실패 무시 */ });
-        }
+        Promise.all(
+          photosToSync.map((item) =>
+            fetch("/api/app-settings", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                type: "instructor_photo",
+                platform: item.platform,
+                instructor: item.instructor,
+                photo: item.photo,
+                photoPosition: item.photoPosition,
+                category: item.category,
+              }),
+            }).catch(() => { /* 백그라운드 동기화 실패 무시 */ })
+          )
+        );
         console.info(`[사진 동기화] localStorage → 서버: ${photosToSync.map((s) => s.instructor).join(", ")}`);
       }
     } catch (err) {
@@ -565,6 +568,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // 단건 조회 (하위 호환)
   const loadCohortData = useCallback(async (platformName: string, instructorName: string, courseName: string, cohortLabel: string) => {
     try {
       const params = new URLSearchParams({ platform: platformName, instructor: instructorName, course: courseName, cohort: cohortLabel });
@@ -590,13 +594,47 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // 일괄 조회 (한 번의 API 호출로 여러 기수 데이터 로딩)
+  const loadBatchCohortData = useCallback(async (platformName: string, instructorName: string, cohorts: { course: string; cohort: string }[]) => {
+    if (cohorts.length === 0) return;
+    // 단건이면 기존 GET 사용
+    if (cohorts.length === 1) {
+      return loadCohortData(platformName, instructorName, cohorts[0].course, cohorts[0].cohort);
+    }
+    try {
+      const res = await fetch("/api/responses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ platform: platformName, instructor: instructorName, cohorts }),
+      });
+      if (!res.ok) {
+        console.warn(`batch responses fetch failed (${res.status})`);
+        return;
+      }
+      const data = await res.json();
+      for (const item of data.results || []) {
+        dispatch({
+          type: "LOAD_COHORT_DATA",
+          platformName,
+          instructorName,
+          courseName: item.course,
+          cohortLabel: item.cohort,
+          preResponses: item.preResponses || [],
+          postResponses: item.postResponses || [],
+        });
+      }
+    } catch (err) {
+      console.warn("Batch cohort data load error:", err);
+    }
+  }, [loadCohortData]);
+
   useEffect(() => {
     refreshHierarchy();
   }, [refreshHierarchy]);
 
   return React.createElement(
     AppContext.Provider,
-    { value: { state, dispatch, loadCohortData, refreshHierarchy } },
+    { value: { state, dispatch, loadCohortData, loadBatchCohortData, refreshHierarchy } },
     children
   );
 }

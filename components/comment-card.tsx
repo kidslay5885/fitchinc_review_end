@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import type { Comment } from "@/lib/types";
 import { FIELD_LABELS } from "@/lib/feedback-utils";
 
@@ -32,7 +33,7 @@ const SENTIMENT_CYCLE: Record<string, "positive" | "negative" | "neutral"> = {
   neutral: "positive",
 };
 
-export function CommentCard({ comment, onToggleSentiment }: CommentCardProps) {
+export const CommentCard = React.memo(function CommentCard({ comment, onToggleSentiment }: CommentCardProps) {
   const sentiment = comment.sentiment || "neutral";
   const style = SENTIMENT_STYLES[sentiment];
 
@@ -66,4 +67,4 @@ export function CommentCard({ comment, onToggleSentiment }: CommentCardProps) {
       </div>
     </div>
   );
-}
+});

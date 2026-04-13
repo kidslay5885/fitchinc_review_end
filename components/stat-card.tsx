@@ -1,5 +1,7 @@
 "use client";
 
+import React from "react";
+
 interface StatCardProps {
   label: string;
   desc: string;
@@ -7,7 +9,7 @@ interface StatCardProps {
   src: string;
 }
 
-export function StatCard({ label, desc, num, src }: StatCardProps) {
+export const StatCard = React.memo(function StatCard({ label, desc, num, src }: StatCardProps) {
   return (
     <div className="bg-card rounded-[10px] border p-4 border-l-[3px] border-l-primary">
       <div className="flex justify-between items-start">
@@ -20,4 +22,4 @@ export function StatCard({ label, desc, num, src }: StatCardProps) {
       <div className="text-[10px] text-muted-foreground mt-2">📎 {src}</div>
     </div>
   );
-}
+});

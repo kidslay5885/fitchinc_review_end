@@ -191,7 +191,7 @@ function LandingScreen({
 }
 
 function DashboardContent({ tabs, readOnly = false }: { tabs: typeof TABS_DATA; readOnly?: boolean }) {
-  const { state, dispatch, loadCohortData, refreshHierarchy } = useAppStore();
+  const { state, dispatch, loadCohortData, loadBatchCohortData, refreshHierarchy } = useAppStore();
   const plat = useSelectedPlatform();
   const inst = useSelectedInstructor();
   const course = useSelectedCourse();
@@ -207,29 +207,35 @@ function DashboardContent({ tabs, readOnly = false }: { tabs: typeof TABS_DATA; 
 
   const [platDataLoading, setPlatDataLoading] = useState(false);
 
-  // 플랫폼 선택 · 강사 미선택 시 전체 기수 데이터 병렬 로딩
+  // 플랫폼 선택 · 강사 미선택 시 전체 기수 데이터 강사별 일괄 로딩
   useEffect(() => {
     if (!showPlatDash || !plat) return;
-    const allPlatCohorts = plat.instructors.flatMap((i) =>
-      i.courses.flatMap((cr) => cr.cohorts.map((co) => ({ inst: i, course: cr, cohort: co })))
-    );
-    const needsLoad = allPlatCohorts.filter(
-      ({ cohort: c }) => !c.dataLoaded && (c.hasPreSurvey || c.hasPostSurvey)
-    );
-    if (needsLoad.length === 0) {
+    // 강사별로 그룹핑하여 일괄 조회 (강사당 1번의 API 호출)
+    const batchByInstructor = new Map<string, { course: string; cohort: string }[]>();
+    for (const i of plat.instructors) {
+      for (const cr of i.courses) {
+        for (const co of cr.cohorts) {
+          if (!co.dataLoaded && (co.hasPreSurvey || co.hasPostSurvey)) {
+            if (!batchByInstructor.has(i.name)) batchByInstructor.set(i.name, []);
+            batchByInstructor.get(i.name)!.push({ course: cr.name, cohort: co.label });
+          }
+        }
+      }
+    }
+    if (batchByInstructor.size === 0) {
       setPlatDataLoading(false);
       return;
     }
     setPlatDataLoading(true);
     Promise.all(
-      needsLoad.map(({ inst: i, course: cr, cohort: co }) =>
-        loadCohortData(plat.name, i.name, cr.name, co.label)
+      Array.from(batchByInstructor.entries()).map(([instName, cohorts]) =>
+        loadBatchCohortData(plat.name, instName, cohorts)
       )
     ).finally(() => setPlatDataLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showPlatDash, plat?.id, plat?.instructors]);
 
-  // 강사/기수 선택 시 실제 데이터 지연 로딩
+  // 강사/기수 선택 시 실제 데이터 지연 로딩 (일괄 조회)
   useEffect(() => {
     if (!inst || !plat) return;
     const loadData = async () => {
@@ -241,13 +247,16 @@ function DashboardContent({ tabs, readOnly = false }: { tabs: typeof TABS_DATA; 
           await loadCohortData(plat.name, inst.name, ownerCourse?.name || "", cohort.label || "");
         }
       } else {
-        const promises = visibleCohorts
+        // 여러 기수를 일괄 조회
+        const needsLoad = visibleCohorts
           .filter((c) => !c.dataLoaded && (c.hasPreSurvey || c.hasPostSurvey))
           .map((c) => {
             const ownerCourse = (inst.courses || []).find((cr) => (cr.cohorts || []).some((co) => co.id === c.id));
-            return loadCohortData(plat.name, inst.name, ownerCourse?.name || "", c.label);
+            return { course: ownerCourse?.name || "", cohort: c.label };
           });
-        await Promise.all(promises);
+        if (needsLoad.length > 0) {
+          await loadBatchCohortData(plat.name, inst.name, needsLoad);
+        }
       }
       setDataLoading(false);
     };

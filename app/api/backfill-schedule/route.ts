@@ -22,33 +22,30 @@ export async function POST() {
       return NextResponse.json({ message: "설문 데이터 없음", updated: 0 });
     }
 
-    let updated = 0;
-    let skipped = 0;
+    // 업데이트 대상 필터링 (DB 호출 없이 메모리에서)
+    const updates: { id: string; pm: string; start_date: string; end_date: string }[] = [];
 
     for (const s of surveys) {
       const schedule = findSchedule(s.platform, s.instructor, s.cohort, s.course);
-      if (!schedule) {
-        skipped++;
-        continue;
-      }
-
-      // 이미 동일한 값이면 스킵
-      if (s.pm === schedule.pm && s.start_date === schedule.startDate && s.end_date === schedule.endDate) {
-        skipped++;
-        continue;
-      }
-
-      const { error: updateError } = await supabase
-        .from("surveys")
-        .update({
-          pm: schedule.pm,
-          start_date: schedule.startDate,
-          end_date: schedule.endDate,
-        })
-        .eq("id", s.id);
-
-      if (!updateError) updated++;
+      if (!schedule) continue;
+      if (s.pm === schedule.pm && s.start_date === schedule.startDate && s.end_date === schedule.endDate) continue;
+      updates.push({ id: s.id, pm: schedule.pm, start_date: schedule.startDate, end_date: schedule.endDate });
     }
+
+    // 배치 병렬 업데이트 (50개씩)
+    let updated = 0;
+    const BATCH = 50;
+    for (let i = 0; i < updates.length; i += BATCH) {
+      const batch = updates.slice(i, i + BATCH);
+      const results = await Promise.all(
+        batch.map((u) =>
+          supabase.from("surveys").update({ pm: u.pm, start_date: u.start_date, end_date: u.end_date }).eq("id", u.id)
+        )
+      );
+      updated += results.filter((r) => !r.error).length;
+    }
+
+    const skipped = surveys.length - updates.length;
 
     return NextResponse.json({
       message: `스케줄 백필 완료: ${updated}건 업데이트, ${skipped}건 스킵`,

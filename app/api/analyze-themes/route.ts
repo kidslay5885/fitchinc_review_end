@@ -2,9 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 import { getSupabase } from "@/lib/supabase";
 
-function getAI() {
-  return new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-}
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
 // POST: 불만/제안/강점 테마 분류
 export async function POST(req: NextRequest) {
@@ -62,7 +60,7 @@ ${(hopeTexts || []).map((t: { name: string; text: string }, i: number) => `[${i}
 - 사전 설문 통계가 있으면 수강생 배경/특성을 참고하여 인사이트를 더 구체적으로 제시
 - JSON만 출력, 다른 텍스트 없이`;
 
-    const response = await getAI().models.generateContent({
+    const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: prompt,
     });

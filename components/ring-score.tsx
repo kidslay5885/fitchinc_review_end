@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface RingScoreProps {
@@ -70,7 +71,7 @@ function RingScoreContent({
   );
 }
 
-export function RingScore({ score, max = 10, size = 50, label, title, excluded }: RingScoreProps) {
+export const RingScore = React.memo(function RingScore({ score, max = 10, size = 50, label, title, excluded }: RingScoreProps) {
   const defaultTitle =
     label === "커리큘럼"
       ? "후기 설문의 커리큘럼 만족도 평균 점수입니다. (10점 만점)"
@@ -95,4 +96,4 @@ export function RingScore({ score, max = 10, size = 50, label, title, excluded }
       </TooltipContent>
     </Tooltip>
   );
-}
+});

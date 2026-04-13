@@ -5,9 +5,8 @@ import { getSupabase } from "@/lib/supabase";
 // Vercel 서버리스 함수 타임아웃 확장 (기본 10초 → 60초)
 export const maxDuration = 60;
 
-function getAI() {
-  return new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
-}
+// 모듈 레벨 싱글톤 (요청마다 재생성 방지)
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
 export async function POST(req: NextRequest) {
   try {
@@ -63,7 +62,7 @@ ${batch.map((c) => `[${c.index}] ${c.respondent} (${c.field}): "${c.text}"`).joi
 - neutral: 단순 사실 전달, 무의미, 짧은 응답 등
 - ".", "없습니다", "없음" 등 무의미한 답변은 neutral`;
 
-      const response = await getAI().models.generateContent({
+      const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
         contents: prompt,
       });
@@ -77,21 +76,18 @@ ${batch.map((c) => `[${c.index}] ${c.respondent} (${c.field}): "${c.text}"`).joi
         const results: { index: number; sentiment: string; summary: string }[] =
           JSON.parse(jsonMatch[0]);
 
-        for (const r of results) {
-          const globalIndex = offset + r.index;
-          if (globalIndex >= comments.length) continue;
-
-          const comment = comments[globalIndex];
-          await supabase
-            .from("comments")
-            .update({
-              sentiment: r.sentiment,
-              ai_summary: r.summary,
-            })
-            .eq("id", comment.id);
-
-          totalAnalyzed++;
-        }
+        // 유효한 결과만 필터링 후 병렬 업데이트
+        const validResults = results.filter((r) => (offset + r.index) < comments.length);
+        const updateResults = await Promise.all(
+          validResults.map((r) => {
+            const comment = comments[offset + r.index];
+            return supabase
+              .from("comments")
+              .update({ sentiment: r.sentiment, ai_summary: r.summary })
+              .eq("id", comment.id);
+          })
+        );
+        totalAnalyzed += updateResults.filter((r) => !r.error).length;
       } catch {
         console.error("JSON parse error for batch at offset", offset);
       }
