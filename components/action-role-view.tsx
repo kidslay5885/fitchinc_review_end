@@ -118,10 +118,11 @@ export function ActionRoleView() {
   const [selectedInstructor, setSelectedInstructor] = useState<string | null>(null);
 
   // 리뷰 뷰
-  const [reviewFilter, setReviewFilter] = useState<"all" | "needs_discussion">("all");
+  const [reviewFilter, setReviewFilter] = useState<"all" | "needs_discussion" | "next_cohort">("all");
   const [reviewPlatformFilter, setReviewPlatformFilter] = useState("all");
   const [reviewSearch, setReviewSearch] = useState("");
   const [selectedReviewInstructor, setSelectedReviewInstructor] = useState<string | null>(null);
+  const [reviewDetailFilter, setReviewDetailFilter] = useState<"all" | "needs_discussion" | "next_cohort">("all");
   const [reviewResolving, setReviewResolving] = useState<Set<string>>(new Set());
   const reviewResolveTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
@@ -236,6 +237,7 @@ export function ActionRoleView() {
   useEffect(() => {
     setSelectedReviewInstructor(null);
     setReviewFilter("all");
+    setReviewDetailFilter("all");
     setReviewPlatformFilter("all");
     setReviewSearch("");
     // 보류 중인 해결 타이머 모두 취소
@@ -366,13 +368,22 @@ export function ActionRoleView() {
   // ===== 리뷰 뷰 파생 데이터 =====
 
   const reviewTotalCount = useMemo(() =>
-    comments.filter(c => c.action_tag && c.process_status === "needs_discussion").length,
+    comments.filter(c => c.action_tag && (c.process_status === "needs_discussion" || c.process_status === "next_cohort")).length,
     [comments]
   );
 
   const reviewFilteredComments = useMemo(() => {
-    return comments.filter(c => c.action_tag && c.process_status === "needs_discussion");
+    return comments.filter(c => c.action_tag && (c.process_status === "needs_discussion" || c.process_status === "next_cohort"));
   }, [comments]);
+
+  const reviewNeedsDiscussionCount = useMemo(() =>
+    reviewFilteredComments.filter(c => c.process_status === "needs_discussion").length,
+    [reviewFilteredComments]
+  );
+  const reviewNextCohortCount = useMemo(() =>
+    reviewFilteredComments.filter(c => c.process_status === "next_cohort").length,
+    [reviewFilteredComments]
+  );
 
   const reviewPlatformLabels = useMemo(() => {
     const set = new Set(reviewFilteredComments.map(c => c._platform).filter(Boolean));
@@ -385,11 +396,16 @@ export function ActionRoleView() {
       platform: string;
       total: number;
       needsDiscussion: number;
+      nextCohort: number;
       tagBreakdown: Record<string, number>;
       comments: CommentWithAction[];
     }>();
 
-    for (const c of reviewFilteredComments) {
+    const filtered = reviewFilter === "all"
+      ? reviewFilteredComments
+      : reviewFilteredComments.filter(c => c.process_status === reviewFilter);
+
+    for (const c of filtered) {
       const key = `${c._platform}|${c._instructor}`;
       if (!map.has(key)) {
         map.set(key, {
@@ -397,6 +413,7 @@ export function ActionRoleView() {
           platform: c._platform,
           total: 0,
           needsDiscussion: 0,
+          nextCohort: 0,
           tagBreakdown: {},
           comments: [],
         });
@@ -404,6 +421,7 @@ export function ActionRoleView() {
       const s = map.get(key)!;
       s.total++;
       if (c.process_status === "needs_discussion") s.needsDiscussion++;
+      if (c.process_status === "next_cohort") s.nextCohort++;
       if (c.action_tag) {
         s.tagBreakdown[c.action_tag] = (s.tagBreakdown[c.action_tag] || 0) + 1;
       }
@@ -419,7 +437,7 @@ export function ActionRoleView() {
       result = result.filter(s => s.instructor.toLowerCase().includes(q) || s.platform.toLowerCase().includes(q));
     }
     return result.sort((a, b) => b.total - a.total);
-  }, [reviewFilteredComments, reviewPlatformFilter, reviewSearch]);
+  }, [reviewFilteredComments, reviewPlatformFilter, reviewSearch, reviewFilter]);
 
   const selectedReviewSummary = useMemo(
     () => reviewInstructorSummaries.find(s => `${s.platform}|${s.instructor}` === selectedReviewInstructor) || null,
@@ -645,6 +663,7 @@ export function ActionRoleView() {
 
   // 리뷰 해결 (유예 후 자체해결로 전환 — 낙관적 업데이트)
   const handleReviewResolve = (commentId: string) => {
+    const originalStatus = comments.find(c => c.id === commentId)?.process_status ?? "needs_discussion";
     setReviewResolving((prev) => new Set(prev).add(commentId));
     const timer = setTimeout(() => {
       reviewResolveTimers.current.delete(commentId);
@@ -665,9 +684,9 @@ export function ActionRoleView() {
       }).then((res) => {
         if (!res.ok) throw new Error();
       }).catch(() => {
-        // 실패 시 롤백
+        // 실패 시 원래 상태로 롤백
         setComments((prev) => prev.map((c) =>
-          c.id === commentId ? { ...c, process_status: "needs_discussion" as ProcessStatus, processed_at: null } : c
+          c.id === commentId ? { ...c, process_status: originalStatus as ProcessStatus, processed_at: null } : c
         ));
         toast.error("해결 처리 실패");
       });
@@ -835,9 +854,28 @@ export function ActionRoleView() {
             </div>
           </div>
 
-          {/* 건수 표시 */}
-          <div className="text-[13px] text-muted-foreground font-semibold mb-4">
-            협의 필요 {reviewTotalCount}건
+          {/* 건수 + 필터 */}
+          <div className="flex items-center gap-3 mb-4">
+            <div className="flex gap-0.5 bg-muted rounded-lg p-0.5 border">
+              <button
+                onClick={() => { setReviewFilter("all"); setSelectedReviewInstructor(null); }}
+                className={`py-1 px-2.5 rounded-md text-[12px] font-semibold transition-colors ${reviewFilter === "all" ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                전체 {reviewTotalCount}
+              </button>
+              <button
+                onClick={() => { setReviewFilter("needs_discussion"); setSelectedReviewInstructor(null); }}
+                className={`py-1 px-2.5 rounded-md text-[12px] font-semibold transition-colors ${reviewFilter === "needs_discussion" ? "bg-card text-blue-600 shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                협의 필요 {reviewNeedsDiscussionCount}
+              </button>
+              <button
+                onClick={() => { setReviewFilter("next_cohort"); setSelectedReviewInstructor(null); }}
+                className={`py-1 px-2.5 rounded-md text-[12px] font-semibold transition-colors ${reviewFilter === "next_cohort" ? "bg-card text-amber-600 shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                다음 기수 {reviewNextCohortCount}
+              </button>
+            </div>
           </div>
 
           {/* 플랫폼 필터 + 강사 검색 */}
@@ -869,7 +907,9 @@ export function ActionRoleView() {
               <div className="text-[30px] opacity-25 mb-2">
                 <MessageCircle className="w-8 h-8 mx-auto" />
               </div>
-              <div className="text-[14px] font-bold">협의 필요 피드백이 없습니다</div>
+              <div className="text-[14px] font-bold">
+                {reviewFilter === "next_cohort" ? "다음 기수 피드백이 없습니다" : reviewFilter === "needs_discussion" ? "협의 필요 피드백이 없습니다" : "논의 필요 피드백이 없습니다"}
+              </div>
               <div className="text-[13px] mt-1">직무별 뷰에서 처리 상태를 지정하세요</div>
             </div>
           )}
@@ -890,6 +930,7 @@ export function ActionRoleView() {
                       if (isActive) { setSelectedReviewInstructor(null); }
                       else {
                         setSelectedReviewInstructor(key);
+                        setReviewDetailFilter("all");
                         setTimeout(() => reviewDetailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
                       }
                     }}
@@ -918,6 +959,12 @@ export function ActionRoleView() {
                         <div className="flex items-center gap-1.5 justify-center">
                           <MessageCircle className="w-3.5 h-3.5 text-blue-500" />
                           <span className="text-[12px] font-semibold text-blue-600">협의 {s.needsDiscussion}건</span>
+                        </div>
+                      )}
+                      {s.nextCohort > 0 && (
+                        <div className="flex items-center gap-1.5 justify-center">
+                          <ChevronRight className="w-3.5 h-3.5 text-amber-500" />
+                          <span className="text-[12px] font-semibold text-amber-600">다음 기수 {s.nextCohort}건</span>
                         </div>
                       )}
 
@@ -956,7 +1003,12 @@ export function ActionRoleView() {
                 <span className="text-[13px] font-bold text-primary">{selectedReviewSummary.total}건</span>
                 {selectedReviewSummary.needsDiscussion > 0 && (
                   <span className="text-[12px] text-blue-600 flex items-center gap-1">
-                    <MessageCircle className="w-3.5 h-3.5" />{selectedReviewSummary.needsDiscussion}
+                    <MessageCircle className="w-3.5 h-3.5" />협의 {selectedReviewSummary.needsDiscussion}
+                  </span>
+                )}
+                {selectedReviewSummary.nextCohort > 0 && (
+                  <span className="text-[12px] text-amber-600 flex items-center gap-1">
+                    <ChevronRight className="w-3.5 h-3.5" />다음 기수 {selectedReviewSummary.nextCohort}
                   </span>
                 )}
                 <div className="flex-1" />
@@ -965,17 +1017,44 @@ export function ActionRoleView() {
                 </button>
               </div>
 
+              {/* 상세 필터 탭 */}
+              {selectedReviewSummary.total > 0 && (
+                <div className="flex items-center gap-2 px-5 py-2.5 border-b bg-muted/20">
+                  <div className="flex gap-0.5 bg-muted rounded-lg p-0.5 border">
+                    <button
+                      onClick={() => setReviewDetailFilter("all")}
+                      className={`py-1 px-2.5 rounded-md text-[12px] font-semibold transition-colors ${reviewDetailFilter === "all" ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                    >
+                      전체 {selectedReviewSummary.total}
+                    </button>
+                    <button
+                      onClick={() => setReviewDetailFilter("needs_discussion")}
+                      className={`py-1 px-2.5 rounded-md text-[12px] font-semibold transition-colors ${reviewDetailFilter === "needs_discussion" ? "bg-card text-blue-600 shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                    >
+                      협의 필요 {selectedReviewSummary.needsDiscussion}
+                    </button>
+                    <button
+                      onClick={() => setReviewDetailFilter("next_cohort")}
+                      className={`py-1 px-2.5 rounded-md text-[12px] font-semibold transition-colors ${reviewDetailFilter === "next_cohort" ? "bg-card text-amber-600 shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                    >
+                      다음 기수 {selectedReviewSummary.nextCohort}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* 댓글 목록 */}
               <div className="max-h-[calc(100vh-420px)] overflow-y-auto divide-y">
-                {selectedReviewSummary.comments.length === 0 ? (
+                {selectedReviewSummary.comments.filter(c => reviewDetailFilter === "all" || c.process_status === reviewDetailFilter).length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground text-[14px]">해당 필터에 맞는 피드백이 없습니다</div>
                 ) : (
-                  selectedReviewSummary.comments.map((comment) => {
+                  selectedReviewSummary.comments.filter(c => reviewDetailFilter === "all" || c.process_status === reviewDetailFilter).map((comment) => {
                     const isNeedsDiscussion = comment.process_status === "needs_discussion";
+                    const isNextCohort = comment.process_status === "next_cohort";
                     const isResolving = reviewResolving.has(comment.id);
 
                     return (
-                      <div key={comment.id} className={`py-3 px-5 transition-all duration-300 ${isResolving ? "opacity-40 bg-green-50/50" : isNeedsDiscussion ? "bg-blue-50/30" : ""}`}>
+                      <div key={comment.id} className={`py-3 px-5 transition-all duration-300 ${isResolving ? "opacity-40 bg-green-50/50" : isNeedsDiscussion ? "bg-blue-50/30" : isNextCohort ? "bg-amber-50/30" : ""}`}>
                         <div className="flex items-start gap-2.5">
                           <div className="flex-1 min-w-0">
                             <p className={`text-[14px] leading-relaxed ${isResolving ? "line-through" : ""}`}>{comment.original_text}</p>
@@ -1005,7 +1084,7 @@ export function ActionRoleView() {
                                 {/* 문항 */}
                                 <span className="text-[11px] bg-muted px-1.5 py-0.5 rounded">{FIELD_LABELS[comment.source_field] || comment.source_field}</span>
                                 {/* 처리 상태 */}
-                                {isNeedsDiscussion && (
+                                {(isNeedsDiscussion || isNextCohort) && (
                                   <span className={`text-[11px] py-0.5 px-1.5 rounded font-semibold border ${getProcessColor(comment.process_status)}`}>
                                     {getProcessLabel(comment.process_status)}
                                   </span>
