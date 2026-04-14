@@ -16,6 +16,7 @@ import {
   TAG_TO_AI_LABEL,
 } from "@/lib/action-utils";
 import { FIELD_LABELS, FIELD_ORDER, isUsefulComment } from "@/lib/feedback-utils";
+import { getAppSettings } from "@/lib/app-settings-cache";
 import { useAppStore } from "@/hooks/use-app-store";
 import {
   Loader2,
@@ -194,9 +195,7 @@ export function ActionRoleView() {
 
   const loadTransferOrigins = useCallback(async () => {
     try {
-      const res = await fetch("/api/app-settings");
-      if (!res.ok) return;
-      const d = await res.json();
+      const d = await getAppSettings();
       if (d.transferOrigins && typeof d.transferOrigins === "object") {
         setTransferOrigins(d.transferOrigins);
       }

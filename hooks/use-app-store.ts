@@ -18,6 +18,7 @@ import type {
 } from "@/lib/types";
 import { generateId, allCohorts } from "@/lib/types";
 import { DEFAULT_PLATFORMS } from "@/lib/constants";
+import { getAppSettings } from "@/lib/app-settings-cache";
 
 
 // ---- State ----
@@ -446,24 +447,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const refreshHierarchy = useCallback(async () => {
     try {
       // ★ hierarchy + 사진/설정을 병렬로 동시 fetch (워터폴 제거)
-      const [hierarchyRes, settingsRes] = await Promise.all([
+      // app-settings는 공유 캐시를 경유 → 다른 컴포넌트 중복 호출 흡수
+      const [hierarchyRes, settings] = await Promise.all([
         fetch("/api/hierarchy", { cache: "no-store" }),
-        fetch("/api/app-settings", { cache: "no-store" }).catch(() => null),
+        getAppSettings().catch(() => ({} as Awaited<ReturnType<typeof getAppSettings>>)),
       ]);
 
       if (!hierarchyRes.ok) throw new Error(`hierarchy fetch failed: ${hierarchyRes.status}`);
       const data: HierarchyPlatform[] = await hierarchyRes.json();
 
-      // 사진/설정 파싱 (실패해도 계속 진행)
-      let instructorPhotos: Record<string, { photo?: string; photoPosition?: string; category?: string }> = {};
-      let cohortOrders: Record<string, string[]> = {};
-      if (settingsRes?.ok) {
-        try {
-          const json = await settingsRes.json();
-          instructorPhotos = json.instructorPhotos || {};
-          cohortOrders = json.cohortOrders || {};
-        } catch { /* ignore */ }
-      }
+      // 사진/설정 파싱
+      const instructorPhotos = settings.instructorPhotos || {};
+      const cohortOrders = settings.cohortOrders || {};
 
       // hierarchy API 데이터를 Platform[] 형태로 변환
       const platforms: Platform[] = DEFAULT_PLATFORMS.map((dp) => {

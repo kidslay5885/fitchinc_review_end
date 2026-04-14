@@ -21,30 +21,31 @@ async function fetchAll(
   return all;
 }
 
-// 병렬 페이지네이션 — 여러 page 범위를 동시에 요청, 짧은 응답이 나오면 종료
-// buildQuery: 호출할 때마다 "같은 필터를 가진 새 쿼리 빌더"를 반환해야 함 (range가 인스턴스를 점유하므로 재사용 불가)
+// 병렬 페이지네이션 — 첫 페이지에서 count를 받아 필요한 페이지만 병렬 요청
+// buildCountQuery/buildQuery: 호출마다 "같은 필터의 새 쿼리 빌더"를 반환해야 함
 async function fetchAllParallel(
+  buildCountQuery: () => ReturnType<ReturnType<SupabaseClient["from"]>["select"]>,
   buildQuery: () => ReturnType<ReturnType<SupabaseClient["from"]>["select"]>
 ): Promise<Record<string, unknown>[]> {
   const PAGE = 1000;
-  const CONCURRENCY = 6;
-  let all: Record<string, unknown>[] = [];
-  let nextFrom = 0;
-  while (true) {
-    const batch = await Promise.all(
-      Array.from({ length: CONCURRENCY }, (_, i) =>
-        buildQuery().range(nextFrom + i * PAGE, nextFrom + (i + 1) * PAGE - 1)
-      )
-    );
-    let done = false;
-    for (const r of batch) {
-      if (r.error) throw r.error;
-      const rows = (r.data as Record<string, unknown>[]) || [];
-      all = all.concat(rows);
-      if (rows.length < PAGE) done = true;
-    }
-    if (done) break;
-    nextFrom += CONCURRENCY * PAGE;
+  // 1) 첫 페이지 + exact count 동시 조회
+  const first = await buildCountQuery().range(0, PAGE - 1);
+  if (first.error) throw first.error;
+  const firstRows = (first.data as Record<string, unknown>[]) || [];
+  const total = typeof first.count === "number" ? first.count : firstRows.length;
+  if (total <= PAGE) return firstRows;
+
+  // 2) 남은 페이지 수만큼 정확히 병렬 요청
+  const pageCount = Math.ceil(total / PAGE);
+  const rest = await Promise.all(
+    Array.from({ length: pageCount - 1 }, (_, i) =>
+      buildQuery().range((i + 1) * PAGE, (i + 2) * PAGE - 1)
+    )
+  );
+  const all: Record<string, unknown>[] = [...firstRows];
+  for (const r of rest) {
+    if (r.error) throw r.error;
+    all.push(...((r.data as Record<string, unknown>[]) || []));
   }
   return all;
 }
@@ -109,23 +110,40 @@ export async function GET(req: NextRequest) {
 
       // 태그 기반 + 자동 매핑 댓글을 병렬 페이지네이션으로 조회
       const [taggedComments, autoComments] = await Promise.all([
-        fetchAllParallel(() =>
-          supabase
-            .from("comments")
-            .select("*")
-            .in("survey_id", surveyIds)
-            .in("tag", requestedTags)
-            .order("created_at")
+        fetchAllParallel(
+          () =>
+            supabase
+              .from("comments")
+              .select("*", { count: "exact" })
+              .in("survey_id", surveyIds)
+              .in("tag", requestedTags)
+              .order("created_at"),
+          () =>
+            supabase
+              .from("comments")
+              .select("*")
+              .in("survey_id", surveyIds)
+              .in("tag", requestedTags)
+              .order("created_at")
         ),
         autoFields.length > 0
-          ? fetchAllParallel(() =>
-              supabase
-                .from("comments")
-                .select("*")
-                .in("survey_id", surveyIds)
-                .is("tag", null)
-                .in("source_field", autoFields)
-                .order("created_at")
+          ? fetchAllParallel(
+              () =>
+                supabase
+                  .from("comments")
+                  .select("*", { count: "exact" })
+                  .in("survey_id", surveyIds)
+                  .is("tag", null)
+                  .in("source_field", autoFields)
+                  .order("created_at"),
+              () =>
+                supabase
+                  .from("comments")
+                  .select("*")
+                  .in("survey_id", surveyIds)
+                  .is("tag", null)
+                  .in("source_field", autoFields)
+                  .order("created_at")
             )
           : Promise.resolve([] as Record<string, unknown>[]),
       ]);

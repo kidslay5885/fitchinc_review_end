@@ -17,6 +17,7 @@ import {
   type PlatformSub,
 } from "@/lib/feedback-utils";
 import { Loader2, Search, Copy, Check, X, FileText, Sparkles, Download, Settings2, EyeOff, Eye } from "lucide-react";
+import { getAppSettings } from "@/lib/app-settings-cache";
 import { toast } from "sonner";
 
 type HubView = "untagged" | "instructor" | "platform" | "all";
@@ -81,8 +82,7 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
 
   // 제외 항목 + 숨긴 댓글 초기 로드
   useEffect(() => {
-    fetch("/api/app-settings")
-      .then((r) => r.json())
+    getAppSettings()
       .then((d) => {
         if (Array.isArray(d.excludedSourceFields) && d.excludedSourceFields.length > 0) {
           setExcludedFields(new Set(d.excludedSourceFields));

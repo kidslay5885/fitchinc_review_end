@@ -16,6 +16,7 @@ import { ChevronDown, ChevronUp, ClipboardList, X } from "lucide-react";
 import { toast } from "sonner";
 import { RingScore } from "@/components/ring-score";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { getAppSettings } from "@/lib/app-settings-cache";
 import {
   PieChart,
   Pie,
@@ -435,8 +436,7 @@ export function TabOverview({ instructor, course, cohort, platformName, readOnly
   const [blocklist, setBlocklist] = useState<string[]>([]);
 
   useEffect(() => {
-    fetch("/api/app-settings")
-      .then((r) => r.json())
+    getAppSettings()
       .then((d) => {
         if (Array.isArray(d.prevCourseBlocklist)) setBlocklist(d.prevCourseBlocklist);
       })

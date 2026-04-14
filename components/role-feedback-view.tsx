@@ -8,6 +8,7 @@ import {
   isUsefulComment,
 } from "@/lib/feedback-utils";
 import { useAppStore } from "@/hooks/use-app-store";
+import { getAppSettings } from "@/lib/app-settings-cache";
 import {
   Loader2,
   Search,
@@ -149,9 +150,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
   // 중요 표시 로드
   const loadStarredComments = async () => {
     try {
-      const res = await fetch("/api/app-settings");
-      if (!res.ok) return;
-      const d = await res.json();
+      const d = await getAppSettings();
       if (Array.isArray(d.starredComments) && d.starredComments.length > 0) {
         setStarredIds(new Set(d.starredComments));
       }
@@ -161,9 +160,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
   // 이관 출처 로드
   const loadTransferOrigins = async () => {
     try {
-      const res = await fetch("/api/app-settings");
-      if (!res.ok) return;
-      const d = await res.json();
+      const d = await getAppSettings();
       if (d.transferOrigins && typeof d.transferOrigins === "object") {
         setTransferOrigins(d.transferOrigins);
       }
