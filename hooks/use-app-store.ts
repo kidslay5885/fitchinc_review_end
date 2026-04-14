@@ -6,6 +6,7 @@ import React, {
   useReducer,
   useEffect,
   useCallback,
+  useRef,
   type Dispatch,
   type ReactNode,
 } from "react";
@@ -438,6 +439,10 @@ function buildInstructor(ai: HierarchyInstructor): Instructor {
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
 
+  // 기수 단위 in-flight 요청 추적 (중복 fetch 방지)
+  const inFlightRef = useRef<Map<string, Promise<void>>>(new Map());
+  const cohortKey = (p: string, i: string, c: string, co: string) => `${p}|${i}|${c}|${co}`;
+
   const refreshHierarchy = useCallback(async () => {
     try {
       // ★ hierarchy + 사진/설정을 병렬로 동시 fetch (워터폴 제거)
@@ -570,61 +575,114 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // 단건 조회 (하위 호환)
   const loadCohortData = useCallback(async (platformName: string, instructorName: string, courseName: string, cohortLabel: string) => {
-    try {
-      const params = new URLSearchParams({ platform: platformName, instructor: instructorName, course: courseName, cohort: cohortLabel });
-      const res = await fetch(`/api/responses?${params}`);
-      if (!res.ok) {
-        const body = await res.text().catch(() => "");
-        console.warn(`responses fetch failed (${res.status}): ${platformName}/${instructorName}/${courseName}/${cohortLabel}`, body);
-        return;
-      }
-      const data = await res.json();
+    const key = cohortKey(platformName, instructorName, courseName, cohortLabel);
+    const existing = inFlightRef.current.get(key);
+    if (existing) return existing;
 
-      dispatch({
-        type: "LOAD_COHORT_DATA",
-        platformName,
-        instructorName,
-        courseName,
-        cohortLabel,
-        preResponses: data.preResponses || [],
-        postResponses: data.postResponses || [],
-      });
-    } catch (err) {
-      console.warn("Cohort data load error:", err);
-    }
+    const promise = (async () => {
+      try {
+        const params = new URLSearchParams({ platform: platformName, instructor: instructorName, course: courseName, cohort: cohortLabel });
+        const res = await fetch(`/api/responses?${params}`);
+        if (!res.ok) {
+          const body = await res.text().catch(() => "");
+          console.warn(`responses fetch failed (${res.status}): ${platformName}/${instructorName}/${courseName}/${cohortLabel}`, body);
+          return;
+        }
+        const data = await res.json();
+
+        dispatch({
+          type: "LOAD_COHORT_DATA",
+          platformName,
+          instructorName,
+          courseName,
+          cohortLabel,
+          preResponses: data.preResponses || [],
+          postResponses: data.postResponses || [],
+        });
+      } catch (err) {
+        console.warn("Cohort data load error:", err);
+      } finally {
+        inFlightRef.current.delete(key);
+      }
+    })();
+    inFlightRef.current.set(key, promise);
+    return promise;
   }, []);
 
   // 일괄 조회 (한 번의 API 호출로 여러 기수 데이터 로딩)
   const loadBatchCohortData = useCallback(async (platformName: string, instructorName: string, cohorts: { course: string; cohort: string }[]) => {
     if (cohorts.length === 0) return;
-    // 단건이면 기존 GET 사용
-    if (cohorts.length === 1) {
-      return loadCohortData(platformName, instructorName, cohorts[0].course, cohorts[0].cohort);
+
+    // 이미 in-flight인 항목 분리
+    const pending: { course: string; cohort: string }[] = [];
+    const alreadyInFlight: Promise<void>[] = [];
+    for (const c of cohorts) {
+      const key = cohortKey(platformName, instructorName, c.course, c.cohort);
+      const existing = inFlightRef.current.get(key);
+      if (existing) {
+        alreadyInFlight.push(existing);
+      } else {
+        pending.push(c);
+      }
     }
-    try {
-      const res = await fetch("/api/responses", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ platform: platformName, instructor: instructorName, cohorts }),
-      });
-      if (!res.ok) {
-        console.warn(`batch responses fetch failed (${res.status})`);
-        return;
-      }
-      const data = await res.json();
-      for (const item of data.results || []) {
-        dispatch({
-          type: "LOAD_COHORT_DATA",
-          platformName,
-          instructorName,
-          courseName: item.course,
-          cohortLabel: item.cohort,
-          preResponses: item.preResponses || [],
-          postResponses: item.postResponses || [],
+
+    if (pending.length === 0) {
+      await Promise.all(alreadyInFlight);
+      return;
+    }
+
+    // 남은 것이 단건이면 GET 위임 (loadCohortData가 dedup 처리)
+    if (pending.length === 1) {
+      await Promise.all([
+        loadCohortData(platformName, instructorName, pending[0].course, pending[0].cohort),
+        ...alreadyInFlight,
+      ]);
+      return;
+    }
+
+    // 배치 POST
+    const batchPromise = (async () => {
+      try {
+        const res = await fetch("/api/responses", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ platform: platformName, instructor: instructorName, cohorts: pending }),
         });
+        if (!res.ok) {
+          console.warn(`batch responses fetch failed (${res.status})`);
+          return;
+        }
+        const data = await res.json();
+        for (const item of data.results || []) {
+          dispatch({
+            type: "LOAD_COHORT_DATA",
+            platformName,
+            instructorName,
+            courseName: item.course,
+            cohortLabel: item.cohort,
+            preResponses: item.preResponses || [],
+            postResponses: item.postResponses || [],
+          });
+        }
+      } catch (err) {
+        console.warn("Batch cohort data load error:", err);
       }
-    } catch (err) {
-      console.warn("Batch cohort data load error:", err);
+    })();
+
+    // pending 각 항목을 in-flight로 등록
+    for (const c of pending) {
+      inFlightRef.current.set(cohortKey(platformName, instructorName, c.course, c.cohort), batchPromise);
+    }
+
+    try {
+      await Promise.all([batchPromise, ...alreadyInFlight]);
+    } finally {
+      for (const c of pending) {
+        const key = cohortKey(platformName, instructorName, c.course, c.cohort);
+        if (inFlightRef.current.get(key) === batchPromise) {
+          inFlightRef.current.delete(key);
+        }
+      }
     }
   }, [loadCohortData]);
 

@@ -176,25 +176,14 @@ export function ActionRoleView() {
     setLoading(true);
     try {
       const tags = ["platform_pm", "platform_pd", "platform_cs", "platform_general", "platform_etc", "instructor"];
-      const results = await Promise.all(
-        tags.map((tag) =>
-          fetch(`/api/classify?tag=${tag}`)
-            .then((res) => (res.ok ? res.json() : []))
-            .catch(() => [])
-        )
-      );
-      const all: CommentWithAction[] = results.flat();
-      const seen = new Set<string>();
-      const unique = all.filter((c) => {
-        if (seen.has(c.id)) return false;
-        seen.add(c.id);
-        return true;
-      }).map((c) => ({
+      const res = await fetch(`/api/classify?tags=${tags.join(",")}`);
+      const data: CommentWithAction[] = res.ok ? await res.json() : [];
+      // 마이그레이션: no_action_needed → self_resolved (기존 DB 데이터 호환)
+      const migrated = data.map((c) => ({
         ...c,
-        // 마이그레이션: no_action_needed → self_resolved (기존 DB 데이터 호환)
         process_status: (c.process_status as string) === "no_action_needed" ? "self_resolved" as ProcessStatus : c.process_status,
       }));
-      setComments(unique.filter(isClassifiableComment));
+      setComments(migrated.filter(isClassifiableComment));
       setLoaded(true);
     } catch {
       toast.error("댓글 로드 실패");
