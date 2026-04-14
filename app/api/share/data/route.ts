@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
+import { fetchAllRanges } from "@/lib/supabase-paginate";
 
 const APP_SETTINGS_TABLE = "app_settings";
 
@@ -89,16 +90,18 @@ export async function GET(req: NextRequest) {
       return result;
     };
 
-    // 3) 응답 데이터 조회
+    // 3) 응답 데이터 조회 (1000행 제한 우회)
     const fetchResponses = async (ids: string[]) => {
       if (ids.length === 0) return [];
-      const { data, error } = await supabase
-        .from("survey_responses")
-        .select("*")
-        .in("survey_id", ids)
-        .order("created_at");
-      if (error) throw error;
-      return (data || []).map((r) => ({
+      const data = await fetchAllRanges<Record<string, unknown>>((from, to, withCount) =>
+        supabase
+          .from("survey_responses")
+          .select("*", withCount ? { count: "exact" } : undefined)
+          .in("survey_id", ids)
+          .order("created_at")
+          .range(from, to),
+      );
+      return (data as Array<Record<string, unknown>>).map((r) => ({
         id: r.id,
         name: "", // 개인정보 보호: 이름 비공개
         gender: String(r.gender ?? ""),
@@ -117,7 +120,7 @@ export async function GET(req: NextRequest) {
         pFree: String(r.p_free ?? ""),
         pRec: String(r.p_rec ?? ""),
         rawData: normalizeRawData(r.raw_data),
-        cohort: surveyIdToCohort[r.survey_id] || "",
+        cohort: surveyIdToCohort[r.survey_id as string] || "",
       }));
     };
 
@@ -155,23 +158,25 @@ export async function GET(req: NextRequest) {
       return { hiddenComments, instructorPhoto };
     };
 
-    // 5) 강사 태그 댓글 조회
+    // 5) 강사 태그 댓글 조회 (1000행 제한 우회)
     const fetchInstructorComments = async () => {
       if (allSurveyIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("comments")
-        .select("id, survey_id, original_text, sentiment, source_field, tag")
-        .in("survey_id", allSurveyIds)
-        .eq("tag", "instructor")
-        .neq("source_field", "hopePlatform") // 플랫폼 피드백 제외
-        .order("created_at");
-      if (error) throw error;
-      return (data || []).map((c) => ({
-        id: c.id,
+      const data = await fetchAllRanges<Record<string, unknown>>((from, to, withCount) =>
+        supabase
+          .from("comments")
+          .select("id, survey_id, original_text, sentiment, source_field, tag", withCount ? { count: "exact" } : undefined)
+          .in("survey_id", allSurveyIds)
+          .eq("tag", "instructor")
+          .neq("source_field", "hopePlatform") // 플랫폼 피드백 제외
+          .order("created_at")
+          .range(from, to),
+      );
+      return data.map((c) => ({
+        id: c.id as string,
         original_text: c.original_text,
         sentiment: c.sentiment,
         source_field: c.source_field,
-        cohort: surveyIdToCohort[c.survey_id] || "",
+        cohort: surveyIdToCohort[c.survey_id as string] || "",
       }));
     };
 

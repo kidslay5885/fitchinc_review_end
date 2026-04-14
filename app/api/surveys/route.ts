@@ -1,18 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
+import { fetchAllRanges } from "@/lib/supabase-paginate";
 
 export async function GET() {
   try {
     const supabase = getSupabase();
 
-    const { data, error } = await supabase
-      .from("surveys")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    const data = await fetchAllRanges<Record<string, unknown>>((from, to, withCount) =>
+      supabase
+        .from("surveys")
+        .select("*", withCount ? { count: "exact" } : undefined)
+        .order("created_at", { ascending: false })
+        .range(from, to),
+    );
 
     return NextResponse.json(data);
   } catch (error: unknown) {

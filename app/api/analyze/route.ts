@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 import { getSupabase } from "@/lib/supabase";
+import { fetchAllRanges } from "@/lib/supabase-paginate";
 
 // Vercel 서버리스 함수 타임아웃 확장 (기본 10초 → 60초)
 export const maxDuration = 60;
@@ -17,17 +18,16 @@ export async function POST(req: NextRequest) {
 
     const supabase = getSupabase();
 
-    const { data: comments, error: fetchError } = await supabase
-      .from("comments")
-      .select("*")
-      .eq("survey_id", surveyId)
-      .order("created_at");
+    const comments = await fetchAllRanges<Record<string, unknown>>((from, to, withCount) =>
+      supabase
+        .from("comments")
+        .select("*", withCount ? { count: "exact" } : undefined)
+        .eq("survey_id", surveyId)
+        .order("created_at")
+        .range(from, to),
+    );
 
-    if (fetchError) {
-      return NextResponse.json({ error: fetchError.message }, { status: 500 });
-    }
-
-    if (!comments || comments.length === 0) {
+    if (comments.length === 0) {
       return NextResponse.json({ analyzed: 0 });
     }
 

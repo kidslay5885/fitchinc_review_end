@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
+import { fetchAllRanges } from "@/lib/supabase-paginate";
 import { findSchedule } from "@/lib/schedule-data";
 
 /**
@@ -10,15 +11,23 @@ export async function POST() {
   try {
     const supabase = getSupabase();
 
-    const { data: surveys, error } = await supabase
-      .from("surveys")
-      .select("id, platform, instructor, course, cohort, pm, start_date, end_date");
+    const surveys = await fetchAllRanges<{
+      id: string;
+      platform: string | null;
+      instructor: string | null;
+      course: string | null;
+      cohort: string | null;
+      pm: string | null;
+      start_date: string | null;
+      end_date: string | null;
+    }>((from, to, withCount) =>
+      supabase
+        .from("surveys")
+        .select("id, platform, instructor, course, cohort, pm, start_date, end_date", withCount ? { count: "exact" } : undefined)
+        .range(from, to),
+    );
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    if (!surveys || surveys.length === 0) {
+    if (surveys.length === 0) {
       return NextResponse.json({ message: "설문 데이터 없음", updated: 0 });
     }
 

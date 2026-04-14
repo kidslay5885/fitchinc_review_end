@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
+import { fetchAllRanges } from "@/lib/supabase-paginate";
 import { resolveCourse } from "@/lib/course-registry";
 
 /**
@@ -11,16 +12,21 @@ export async function POST() {
   try {
     const supabase = getSupabase();
 
-    // 모든 surveys 조회
-    const { data: surveys, error } = await supabase
-      .from("surveys")
-      .select("id, filename, platform, instructor, course");
+    // 모든 surveys 조회 (1000행 제한 우회)
+    const surveys = await fetchAllRanges<{
+      id: string;
+      filename: string | null;
+      platform: string | null;
+      instructor: string | null;
+      course: string | null;
+    }>((from, to, withCount) =>
+      supabase
+        .from("surveys")
+        .select("id, filename, platform, instructor, course", withCount ? { count: "exact" } : undefined)
+        .range(from, to),
+    );
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    if (!surveys || surveys.length === 0) {
+    if (surveys.length === 0) {
       return NextResponse.json({ message: "설문 데이터 없음", updated: 0 });
     }
 

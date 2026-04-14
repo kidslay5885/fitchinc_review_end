@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
+import { fetchAllRanges } from "@/lib/supabase-paginate";
 
 // rawData(JSONB) 값을 모두 문자열로 정규화
 function normalizeRawData(raw: unknown): Record<string, string> {
@@ -108,16 +109,21 @@ export async function POST(req: NextRequest) {
       for (const c of it.cohorts) wantedKeys.add(`${it.name}||${c.course}||${c.cohort}`);
     }
 
-    // 해당 플랫폼의 요청 강사들 survey를 한 번에 조회
-    const { data: surveys, error: surveyError } = await supabase
-      .from("surveys")
-      .select("id, survey_type, instructor, course, cohort")
-      .eq("platform", platform)
-      .in("instructor", instructorNames);
-
-    if (surveyError) {
-      return NextResponse.json({ error: surveyError.message }, { status: 500 });
-    }
+    // 해당 플랫폼의 요청 강사들 survey를 한 번에 조회 (1000행 제한 우회)
+    const surveys = await fetchAllRanges<{
+      id: string;
+      survey_type: string | null;
+      instructor: string | null;
+      course: string | null;
+      cohort: string | null;
+    }>((from, to, withCount) =>
+      supabase
+        .from("surveys")
+        .select("id, survey_type, instructor, course, cohort", withCount ? { count: "exact" } : undefined)
+        .eq("platform", platform)
+        .in("instructor", instructorNames)
+        .range(from, to),
+    );
 
     // 결과 맵 초기화 (요청된 (강사, 코스, 기수)마다 빈 슬롯)
     const resultMap = new Map<
@@ -136,7 +142,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (!surveys || surveys.length === 0) {
+    if (surveys.length === 0) {
       return NextResponse.json({ results: Array.from(resultMap.values()) });
     }
 
@@ -191,28 +197,26 @@ export async function GET(req: NextRequest) {
 
     const supabase = getSupabase();
 
-    // 해당 조건의 survey 조회
-    let surveyQuery = supabase
-      .from("surveys")
-      .select("id, survey_type")
-      .eq("platform", platform)
-      .eq("instructor", instructor);
-
-    if (course != null) {
-      surveyQuery = surveyQuery.eq("course", course);
+    // 해당 조건의 survey 조회 (1000행 제한 우회)
+    let surveys: { id: string; survey_type: string | null }[];
+    try {
+      surveys = await fetchAllRanges<{ id: string; survey_type: string | null }>((from, to, withCount) => {
+        let q = supabase
+          .from("surveys")
+          .select("id, survey_type", withCount ? { count: "exact" } : undefined)
+          .eq("platform", platform)
+          .eq("instructor", instructor);
+        if (course != null) q = q.eq("course", course);
+        if (cohort) q = q.eq("cohort", cohort);
+        return q.range(from, to);
+      });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "surveys query error";
+      console.warn("surveys query error:", msg);
+      return NextResponse.json({ preResponses: [], postResponses: [], _error: msg });
     }
 
-    if (cohort) {
-      surveyQuery = surveyQuery.eq("cohort", cohort);
-    }
-
-    const { data: surveys, error: surveyError } = await surveyQuery;
-    if (surveyError) {
-      console.warn("surveys query error:", surveyError.message);
-      return NextResponse.json({ preResponses: [], postResponses: [], _error: surveyError.message });
-    }
-
-    if (!surveys || surveys.length === 0) {
+    if (surveys.length === 0) {
       return NextResponse.json({ preResponses: [], postResponses: [] });
     }
 

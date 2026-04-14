@@ -1,6 +1,7 @@
 import { getSupabase } from "@/lib/supabase";
 import { notFound } from "next/navigation";
 import { ShareInstructorView } from "@/components/share-instructor-view";
+import { fetchAllRanges } from "@/lib/supabase-paginate";
 
 interface SharePageProps {
   params: Promise<{ token: string }>;
@@ -68,21 +69,18 @@ export default async function SharePage({ params }: SharePageProps) {
   const { data: surveys } = await surveyQuery;
   const surveyIds = surveys?.map((s) => s.id) || [];
 
-  // 댓글 조회
+  // 댓글 조회 (1000행 제한 우회 — 페이지네이션)
   let comments: Record<string, unknown>[] = [];
   if (surveyIds.length > 0) {
-    let commentQuery = supabase
-      .from("comments")
-      .select("*")
-      .in("survey_id", surveyIds)
-      .order("created_at");
-
-    if (shareLink.filter_sentiment) {
-      commentQuery = commentQuery.eq("sentiment", shareLink.filter_sentiment);
-    }
-
-    const { data } = await commentQuery;
-    comments = data || [];
+    comments = await fetchAllRanges<Record<string, unknown>>((from, to, withCount) => {
+      let q = supabase
+        .from("comments")
+        .select("*", withCount ? { count: "exact" } : undefined)
+        .in("survey_id", surveyIds)
+        .order("created_at");
+      if (shareLink.filter_sentiment) q = q.eq("sentiment", shareLink.filter_sentiment);
+      return q.range(from, to);
+    });
   }
 
   const positiveComments = comments.filter((c) => c.sentiment === "positive");

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
+import { fetchAllRanges } from "@/lib/supabase-paginate";
 import type { ProcessStatus, ActionTag } from "@/lib/types";
 
 export const maxDuration = 30;
@@ -95,40 +96,36 @@ export async function GET(req: NextRequest) {
 
     const supabase = getSupabase();
 
-    // 해당 강사의 survey_id 목록 가져오기
-    let surveyQuery = supabase
-      .from("surveys")
-      .select("id");
+    // 해당 강사의 survey_id 목록 가져오기 (1000행 제한 우회)
+    const surveys = await fetchAllRanges<{ id: string }>((from, to, withCount) => {
+      let q = supabase
+        .from("surveys")
+        .select("id", withCount ? { count: "exact" } : undefined);
+      if (platform) q = q.eq("platform", platform);
+      if (instructor) q = q.eq("instructor", instructor);
+      return q.range(from, to);
+    });
 
-    if (platform) surveyQuery = surveyQuery.eq("platform", platform);
-    if (instructor) surveyQuery = surveyQuery.eq("instructor", instructor);
-
-    const { data: surveys, error: surveyError } = await surveyQuery;
-    if (surveyError) {
-      return NextResponse.json({ error: surveyError.message }, { status: 500 });
-    }
-
-    if (!surveys || surveys.length === 0) {
+    if (surveys.length === 0) {
       return NextResponse.json({ stats: {} });
     }
 
     const surveyIds = surveys.map((s) => s.id);
 
-    // action_tag가 있는 댓글들의 처리 통계
-    const { data: comments, error: commentsError } = await supabase
-      .from("comments")
-      .select("action_tag, process_status, important")
-      .in("survey_id", surveyIds)
-      .not("action_tag", "is", null);
-
-    if (commentsError) {
-      return NextResponse.json({ error: commentsError.message }, { status: 500 });
-    }
+    // action_tag가 있는 댓글들의 처리 통계 (1000행 제한 우회)
+    const comments = await fetchAllRanges<Record<string, unknown>>((from, to, withCount) =>
+      supabase
+        .from("comments")
+        .select("action_tag, process_status, important", withCount ? { count: "exact" } : undefined)
+        .in("survey_id", surveyIds)
+        .not("action_tag", "is", null)
+        .range(from, to),
+    );
 
     // 역할별 통계 집계
     const stats: Record<string, { total: number; processed: number; byStatus: Record<string, number> }> = {};
 
-    for (const c of comments || []) {
+    for (const c of comments) {
       const tag = c.action_tag as string;
       if (!stats[tag]) {
         stats[tag] = { total: 0, processed: 0, byStatus: {} };
@@ -137,7 +134,8 @@ export async function GET(req: NextRequest) {
       if (c.process_status) {
         stats[tag].processed++;
         // 마이그레이션: no_action_needed → self_resolved (기존 DB 데이터 호환)
-        const status = c.process_status === "no_action_needed" ? "self_resolved" : c.process_status;
+        const rawStatus = c.process_status as string;
+        const status = rawStatus === "no_action_needed" ? "self_resolved" : rawStatus;
         stats[tag].byStatus[status] = (stats[tag].byStatus[status] || 0) + 1;
       }
     }

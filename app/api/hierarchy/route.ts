@@ -1,27 +1,41 @@
 import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
+import { fetchAllRanges } from "@/lib/supabase-paginate";
 
 export async function GET() {
   try {
     const supabase = getSupabase();
 
-    const { data: surveys, error } = await supabase
-      .from("surveys")
-      .select("platform, instructor, course, cohort, survey_type, response_count, pm, start_date, end_date, total_students")
-      .not("platform", "is", null)
-      .not("instructor", "is", null)
-      .order("created_at");
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    const surveys = await fetchAllRanges<Record<string, unknown>>((from, to, withCount) =>
+      supabase
+        .from("surveys")
+        .select(
+          "platform, instructor, course, cohort, survey_type, response_count, pm, start_date, end_date, total_students",
+          withCount ? { count: "exact" } : undefined,
+        )
+        .not("platform", "is", null)
+        .not("instructor", "is", null)
+        .order("created_at")
+        .range(from, to),
+    );
 
     // 4단계 계층 빌드: platform → instructor → course → cohort
     // Map<platform, Map<instructor, Map<course, Set<cohort>>>>
     const platformMap = new Map<string, Map<string, Map<string, Set<string>>>>();
     const cohortMeta = new Map<string, { pm: string; startDate: string | null; endDate: string | null; totalStudents: number; preCount: number; postCount: number; hasPreSurvey: boolean; hasPostSurvey: boolean }>();
 
-    for (const s of surveys || []) {
+    for (const s of surveys as Array<{
+      platform: string | null;
+      instructor: string | null;
+      course: string | null;
+      cohort: string | null;
+      survey_type: string | null;
+      response_count: number | null;
+      pm: string | null;
+      start_date: string | null;
+      end_date: string | null;
+      total_students: number | null;
+    }>) {
       if (!s.platform || !s.instructor) continue;
 
       const courseName = s.course || "";
