@@ -181,8 +181,8 @@ export function UploadDialog({ onClose }: UploadDialogProps) {
       }
     }
 
-    // 업로드 완료 후 계층 새로고침
-    await refreshHierarchy();
+    // 업로드 완료 후 계층 새로고침 (캐시 무시)
+    await refreshHierarchy(true);
   };
 
   const allDone = files.every((f) => f.status === "done" || f.status === "error");

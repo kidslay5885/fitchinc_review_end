@@ -191,7 +191,7 @@ function LandingScreen({
 }
 
 function DashboardContent({ tabs, readOnly = false }: { tabs: typeof TABS_DATA; readOnly?: boolean }) {
-  const { state, dispatch, loadCohortData, loadBatchCohortData, refreshHierarchy } = useAppStore();
+  const { state, dispatch, loadCohortData, loadBatchCohortData, loadPlatformBatchData, refreshHierarchy } = useAppStore();
   const plat = useSelectedPlatform();
   const inst = useSelectedInstructor();
   const course = useSelectedCourse();
@@ -207,31 +207,27 @@ function DashboardContent({ tabs, readOnly = false }: { tabs: typeof TABS_DATA; 
 
   const [platDataLoading, setPlatDataLoading] = useState(false);
 
-  // 플랫폼 선택 · 강사 미선택 시 전체 기수 데이터 강사별 일괄 로딩
+  // 플랫폼 선택 · 강사 미선택 시 전체 기수 데이터 일괄 로딩 (1 HTTP로 여러 강사)
   useEffect(() => {
     if (!showPlatDash || !plat) return;
-    // 강사별로 그룹핑하여 일괄 조회 (강사당 1번의 API 호출)
-    const batchByInstructor = new Map<string, { course: string; cohort: string }[]>();
+    const instructors: { name: string; cohorts: { course: string; cohort: string }[] }[] = [];
     for (const i of plat.instructors) {
+      const cohorts: { course: string; cohort: string }[] = [];
       for (const cr of i.courses) {
         for (const co of cr.cohorts) {
           if (!co.dataLoaded && (co.hasPreSurvey || co.hasPostSurvey)) {
-            if (!batchByInstructor.has(i.name)) batchByInstructor.set(i.name, []);
-            batchByInstructor.get(i.name)!.push({ course: cr.name, cohort: co.label });
+            cohorts.push({ course: cr.name, cohort: co.label });
           }
         }
       }
+      if (cohorts.length > 0) instructors.push({ name: i.name, cohorts });
     }
-    if (batchByInstructor.size === 0) {
+    if (instructors.length === 0) {
       setPlatDataLoading(false);
       return;
     }
     setPlatDataLoading(true);
-    Promise.all(
-      Array.from(batchByInstructor.entries()).map(([instName, cohorts]) =>
-        loadBatchCohortData(plat.name, instName, cohorts)
-      )
-    ).finally(() => setPlatDataLoading(false));
+    loadPlatformBatchData(plat.name, instructors).finally(() => setPlatDataLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showPlatDash, plat?.id, plat?.instructors]);
 
@@ -330,11 +326,11 @@ function DashboardContent({ tabs, readOnly = false }: { tabs: typeof TABS_DATA; 
             const result = await res.json();
             if (!res.ok) throw new Error(result.error || "강의 삭제 실패");
             dispatch({ type: "DELETE_COURSE", instructorId: editInst.id, courseId });
-            await refreshHierarchy();
+            await refreshHierarchy(true);
             toast.success(result.message || "강의 삭제 완료");
           }}
           onClose={() => setEditInst(null)}
-          onRefresh={refreshHierarchy}
+          onRefresh={() => refreshHierarchy(true)}
         />
       )}
 

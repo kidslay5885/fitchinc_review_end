@@ -12,16 +12,46 @@ function normalizeRawData(raw: unknown): Record<string, string> {
   return result;
 }
 
-// survey_responses 조회 후 정규화
+// survey_responses 조회 후 정규화 — Supabase 1000행 제한 우회 위해 병렬 페이지네이션
 async function fetchResponses(supabase: ReturnType<typeof getSupabase>, ids: string[]) {
   if (ids.length === 0) return [];
-  const { data, error } = await supabase
+
+  const PAGE = 1000;
+
+  // 1) 첫 페이지 + 총 행수
+  const first = await supabase
     .from("survey_responses")
-    .select("*")
+    .select("*", { count: "exact" })
     .in("survey_id", ids)
-    .order("created_at");
-  if (error) throw error;
-  return (data || []).map((r) => ({
+    .order("created_at")
+    .range(0, PAGE - 1);
+  if (first.error) throw first.error;
+
+  const firstRows = (first.data as Record<string, unknown>[]) || [];
+  const total = typeof first.count === "number" ? first.count : firstRows.length;
+
+  let allRaw: Record<string, unknown>[] = firstRows;
+
+  // 2) 남은 페이지 병렬 요청
+  if (total > PAGE) {
+    const pageCount = Math.ceil(total / PAGE);
+    const rest = await Promise.all(
+      Array.from({ length: pageCount - 1 }, (_, i) =>
+        supabase
+          .from("survey_responses")
+          .select("*")
+          .in("survey_id", ids)
+          .order("created_at")
+          .range((i + 1) * PAGE, (i + 2) * PAGE - 1)
+      )
+    );
+    for (const r of rest) {
+      if (r.error) throw r.error;
+      allRaw = allRaw.concat((r.data as Record<string, unknown>[]) || []);
+    }
+  }
+
+  return allRaw.map((r) => ({
     id: r.id,
     survey_id: r.survey_id as string,
     name: String(r.name ?? ""),
@@ -44,70 +74,98 @@ async function fetchResponses(supabase: ReturnType<typeof getSupabase>, ids: str
   }));
 }
 
-// POST: 여러 기수 응답 데이터 일괄 조회
+// POST: 응답 데이터 일괄 조회
+// 지원 형식:
+//  - { platform, instructor, cohorts } → 단일 강사 (기존 호환)
+//  - { platform, instructors: [{ name, cohorts }] } → 여러 강사 한 번에 (플랫폼 진입 시 사용)
 export async function POST(req: NextRequest) {
   try {
-    const { platform, instructor, cohorts } = (await req.json()) as {
+    const body = (await req.json()) as {
       platform: string;
-      instructor: string;
-      cohorts: { course: string; cohort: string }[];
+      instructor?: string;
+      cohorts?: { course: string; cohort: string }[];
+      instructors?: { name: string; cohorts: { course: string; cohort: string }[] }[];
     };
+    const { platform } = body;
 
-    if (!platform || !instructor || !cohorts?.length) {
-      return NextResponse.json({ error: "platform, instructor, cohorts 필수" }, { status: 400 });
+    // 단일/다중 강사 입력을 다중 형태로 정규화
+    const items = body.instructors
+      ? body.instructors
+      : body.instructor && body.cohorts
+        ? [{ name: body.instructor, cohorts: body.cohorts }]
+        : [];
+
+    if (!platform || items.length === 0) {
+      return NextResponse.json({ error: "platform + (instructor,cohorts) 또는 instructors 필수" }, { status: 400 });
     }
 
     const supabase = getSupabase();
 
-    // 해당 강사의 모든 survey를 한 번에 조회
+    const instructorNames = items.map((it) => it.name);
+    // 요청된 (강사, 코스, 기수) 조합 집합
+    const wantedKeys = new Set<string>();
+    for (const it of items) {
+      for (const c of it.cohorts) wantedKeys.add(`${it.name}||${c.course}||${c.cohort}`);
+    }
+
+    // 해당 플랫폼의 요청 강사들 survey를 한 번에 조회
     const { data: surveys, error: surveyError } = await supabase
       .from("surveys")
-      .select("id, survey_type, course, cohort")
+      .select("id, survey_type, instructor, course, cohort")
       .eq("platform", platform)
-      .eq("instructor", instructor);
+      .in("instructor", instructorNames);
 
     if (surveyError) {
       return NextResponse.json({ error: surveyError.message }, { status: 500 });
     }
 
-    if (!surveys || surveys.length === 0) {
-      return NextResponse.json({ results: cohorts.map((c) => ({ course: c.course, cohort: c.cohort, preResponses: [], postResponses: [] })) });
+    // 결과 맵 초기화 (요청된 (강사, 코스, 기수)마다 빈 슬롯)
+    const resultMap = new Map<
+      string,
+      { instructor: string; course: string; cohort: string; preResponses: unknown[]; postResponses: unknown[] }
+    >();
+    for (const it of items) {
+      for (const c of it.cohorts) {
+        resultMap.set(`${it.name}||${c.course}||${c.cohort}`, {
+          instructor: it.name,
+          course: c.course,
+          cohort: c.cohort,
+          preResponses: [],
+          postResponses: [],
+        });
+      }
     }
 
-    // 요청된 기수별로 survey ID 분류
-    const cohortKeys = new Set(cohorts.map((c) => `${c.course}||${c.cohort}`));
+    if (!surveys || surveys.length === 0) {
+      return NextResponse.json({ results: Array.from(resultMap.values()) });
+    }
+
+    // surveyId → (강사, 코스, 기수) 매핑
     const preSurveyIds: string[] = [];
     const postSurveyIds: string[] = [];
-    // surveyId → cohort 매핑 (응답 분배용)
-    const surveyToCohort = new Map<string, string>();
+    const surveyToKey = new Map<string, string>();
 
     for (const s of surveys) {
-      const key = `${s.course || ""}||${s.cohort || ""}`;
-      if (!cohortKeys.has(key)) continue;
-      surveyToCohort.set(s.id, key);
+      const key = `${s.instructor || ""}||${s.course || ""}||${s.cohort || ""}`;
+      if (!wantedKeys.has(key)) continue;
+      surveyToKey.set(s.id, key);
       if (s.survey_type === "사전") preSurveyIds.push(s.id);
       else postSurveyIds.push(s.id);
     }
 
-    // 전체 응답을 2번의 쿼리로 한번에 조회
+    // pre / post 응답을 병렬 2쿼리로 한 번에
     const [allPre, allPost] = await Promise.all([
       fetchResponses(supabase, preSurveyIds),
       fetchResponses(supabase, postSurveyIds),
     ]);
 
-    // survey_id → cohort key 매핑으로 기수별 분배 (추가 쿼리 없이)
-    const resultMap = new Map<string, { course: string; cohort: string; preResponses: typeof allPre; postResponses: typeof allPost }>();
-    for (const c of cohorts) {
-      resultMap.set(`${c.course}||${c.cohort}`, { course: c.course, cohort: c.cohort, preResponses: [], postResponses: [] });
-    }
-
     for (const r of allPre) {
-      const key = surveyToCohort.get(r.survey_id);
-      if (key && resultMap.has(key)) resultMap.get(key)!.preResponses.push(r);
+      const k = surveyToKey.get(r.survey_id);
+      if (k && resultMap.has(k)) resultMap.get(k)!.preResponses.push(r);
     }
     for (const r of allPost) {
-      const key = surveyToCohort.get(r.survey_id);
-      if (key && resultMap.has(key)) resultMap.get(key)!.postResponses.push(r);
+      const k = surveyToKey.get(r.survey_id);
+      if (k && resultMap.has(k)) resultMap.get(k)!.postResponses.push(r);
     }
 
     return NextResponse.json({ results: Array.from(resultMap.values()) });

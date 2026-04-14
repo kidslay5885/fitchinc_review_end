@@ -362,7 +362,8 @@ const AppContext = createContext<{
   dispatch: Dispatch<Action>;
   loadCohortData: (platformName: string, instructorName: string, courseName: string, cohortLabel: string) => Promise<void>;
   loadBatchCohortData: (platformName: string, instructorName: string, cohorts: { course: string; cohort: string }[]) => Promise<void>;
-  refreshHierarchy: () => Promise<void>;
+  loadPlatformBatchData: (platformName: string, instructors: { name: string; cohorts: { course: string; cohort: string }[] }[]) => Promise<void>;
+  refreshHierarchy: (force?: boolean) => Promise<void>;
 } | null>(null);
 
 export function useAppStore() {
@@ -444,17 +445,41 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const inFlightRef = useRef<Map<string, Promise<void>>>(new Map());
   const cohortKey = (p: string, i: string, c: string, co: string) => `${p}|${i}|${c}|${co}`;
 
-  const refreshHierarchy = useCallback(async () => {
+  // /api/hierarchy 응답 캐시 (30초 TTL) + in-flight dedup
+  // StrictMode 이중 마운트나 세션 내 재진입에서 재조회 방지
+  const hierarchyCacheRef = useRef<{ at: number; data: HierarchyPlatform[] } | null>(null);
+  const hierarchyInFlightRef = useRef<Promise<HierarchyPlatform[]> | null>(null);
+  const HIERARCHY_TTL_MS = 30_000;
+
+  const refreshHierarchy = useCallback(async (force: boolean = false) => {
     try {
-      // ★ hierarchy + 사진/설정을 병렬로 동시 fetch (워터폴 제거)
-      // app-settings는 공유 캐시를 경유 → 다른 컴포넌트 중복 호출 흡수
-      const [hierarchyRes, settings] = await Promise.all([
-        fetch("/api/hierarchy", { cache: "no-store" }),
+      // hierarchy 데이터 로딩 (cache / in-flight / fetch)
+      const now = Date.now();
+      const cached = hierarchyCacheRef.current;
+      const hierarchyPromise: Promise<HierarchyPlatform[]> = (() => {
+        if (!force && cached && now - cached.at < HIERARCHY_TTL_MS) {
+          return Promise.resolve(cached.data);
+        }
+        if (!force && hierarchyInFlightRef.current) return hierarchyInFlightRef.current;
+        const p = (async () => {
+          const res = await fetch("/api/hierarchy", { cache: "no-store" });
+          if (!res.ok) throw new Error(`hierarchy fetch failed: ${res.status}`);
+          const json = (await res.json()) as HierarchyPlatform[];
+          hierarchyCacheRef.current = { at: Date.now(), data: json };
+          return json;
+        })();
+        hierarchyInFlightRef.current = p;
+        p.finally(() => {
+          if (hierarchyInFlightRef.current === p) hierarchyInFlightRef.current = null;
+        });
+        return p;
+      })();
+
+      // hierarchy + app-settings 병렬
+      const [data, settings] = await Promise.all([
+        hierarchyPromise,
         getAppSettings().catch(() => ({} as Awaited<ReturnType<typeof getAppSettings>>)),
       ]);
-
-      if (!hierarchyRes.ok) throw new Error(`hierarchy fetch failed: ${hierarchyRes.status}`);
-      const data: HierarchyPlatform[] = await hierarchyRes.json();
 
       // 사진/설정 파싱
       const instructorPhotos = settings.instructorPhotos || {};
@@ -681,13 +706,87 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [loadCohortData]);
 
+  // 플랫폼 단위 일괄 조회 — 여러 강사의 (코스/기수)를 1회 POST로
+  const loadPlatformBatchData = useCallback(async (
+    platformName: string,
+    instructors: { name: string; cohorts: { course: string; cohort: string }[] }[],
+  ) => {
+    if (instructors.length === 0) return;
+
+    // in-flight 필터링 — 이미 요청 중인 것은 제외
+    const filtered: { name: string; cohorts: { course: string; cohort: string }[] }[] = [];
+    const alreadyInFlight: Promise<void>[] = [];
+    for (const it of instructors) {
+      const pendingCohorts = it.cohorts.filter((c) => {
+        const key = cohortKey(platformName, it.name, c.course, c.cohort);
+        const existing = inFlightRef.current.get(key);
+        if (existing) alreadyInFlight.push(existing);
+        return !existing;
+      });
+      if (pendingCohorts.length > 0) filtered.push({ name: it.name, cohorts: pendingCohorts });
+    }
+
+    if (filtered.length === 0) {
+      await Promise.all(alreadyInFlight);
+      return;
+    }
+
+    const batchPromise = (async () => {
+      try {
+        const res = await fetch("/api/responses", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ platform: platformName, instructors: filtered }),
+        });
+        if (!res.ok) {
+          console.warn(`platform batch responses fetch failed (${res.status})`);
+          return;
+        }
+        const data = await res.json();
+        for (const item of data.results || []) {
+          dispatch({
+            type: "LOAD_COHORT_DATA",
+            platformName,
+            instructorName: item.instructor,
+            courseName: item.course,
+            cohortLabel: item.cohort,
+            preResponses: item.preResponses || [],
+            postResponses: item.postResponses || [],
+          });
+        }
+      } catch (err) {
+        console.warn("Platform batch data load error:", err);
+      }
+    })();
+
+    // filtered 각 항목을 in-flight로 등록
+    for (const it of filtered) {
+      for (const c of it.cohorts) {
+        inFlightRef.current.set(cohortKey(platformName, it.name, c.course, c.cohort), batchPromise);
+      }
+    }
+
+    try {
+      await Promise.all([batchPromise, ...alreadyInFlight]);
+    } finally {
+      for (const it of filtered) {
+        for (const c of it.cohorts) {
+          const key = cohortKey(platformName, it.name, c.course, c.cohort);
+          if (inFlightRef.current.get(key) === batchPromise) {
+            inFlightRef.current.delete(key);
+          }
+        }
+      }
+    }
+  }, []);
+
   useEffect(() => {
     refreshHierarchy();
   }, [refreshHierarchy]);
 
   return React.createElement(
     AppContext.Provider,
-    { value: { state, dispatch, loadCohortData, loadBatchCohortData, refreshHierarchy } },
+    { value: { state, dispatch, loadCohortData, loadBatchCohortData, loadPlatformBatchData, refreshHierarchy } },
     children
   );
 }
