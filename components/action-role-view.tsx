@@ -179,10 +179,11 @@ export function ActionRoleView() {
       const tags = ["platform_pm", "platform_pd", "platform_cs", "platform_general", "platform_etc", "instructor"];
       const res = await fetch(`/api/classify?tags=${tags.join(",")}`);
       const data: CommentWithAction[] = res.ok ? await res.json() : [];
-      // 마이그레이션: no_action_needed → self_resolved (기존 DB 데이터 호환)
+      // 마이그레이션: no_action_needed → self_resolved (기존 DB 데이터 호환) + resolved 기본값
       const migrated = data.map((c) => ({
         ...c,
         process_status: (c.process_status as string) === "no_action_needed" ? "self_resolved" as ProcessStatus : c.process_status,
+        resolved: c.resolved ?? false,
       }));
       setComments(migrated.filter(isClassifiableComment));
       setLoaded(true);
@@ -355,38 +356,38 @@ export function ActionRoleView() {
 
   // ===== 리뷰 뷰 파생 데이터 =====
 
-  const REVIEW_STATUSES = ["needs_discussion", "next_cohort", "self_resolved"] as const;
-
+  // 협의 필요 / 다음 기수 상태인 모든 댓글 (resolved 여부 무관)
   const reviewAllComments = useMemo(() =>
-    comments.filter(c => c.action_tag && c.process_status && REVIEW_STATUSES.includes(c.process_status as any)),
+    comments.filter(c => c.action_tag && (c.process_status === "needs_discussion" || c.process_status === "next_cohort")),
     [comments]
   );
 
-  const reviewTotalCount = useMemo(() =>
-    reviewAllComments.filter(c => c.process_status === "needs_discussion" || c.process_status === "next_cohort").length,
+  // 미해결 댓글 (resolved 가 아닌 것)
+  const reviewActiveComments = useMemo(() =>
+    reviewAllComments.filter(c => !c.resolved),
     [reviewAllComments]
   );
 
-  const reviewFilteredComments = useMemo(() => {
-    return reviewAllComments.filter(c => c.process_status === "needs_discussion" || c.process_status === "next_cohort");
-  }, [reviewAllComments]);
+  const reviewTotalCount = useMemo(() => reviewActiveComments.length, [reviewActiveComments]);
+
+  const reviewFilteredComments = reviewActiveComments;
 
   const reviewNeedsDiscussionCount = useMemo(() =>
-    reviewFilteredComments.filter(c => c.process_status === "needs_discussion").length,
-    [reviewFilteredComments]
+    reviewActiveComments.filter(c => c.process_status === "needs_discussion").length,
+    [reviewActiveComments]
   );
   const reviewNextCohortCount = useMemo(() =>
-    reviewFilteredComments.filter(c => c.process_status === "next_cohort").length,
-    [reviewFilteredComments]
+    reviewActiveComments.filter(c => c.process_status === "next_cohort").length,
+    [reviewActiveComments]
   );
   const reviewResolvedCount = useMemo(() =>
-    reviewAllComments.filter(c => c.process_status === "self_resolved").length,
+    reviewAllComments.filter(c => c.resolved).length,
     [reviewAllComments]
   );
 
   const reviewPlatformLabels = useMemo(() => {
     const source = reviewFilter === "resolved"
-      ? reviewAllComments.filter(c => c.process_status === "self_resolved")
+      ? reviewAllComments.filter(c => c.resolved)
       : reviewFilteredComments;
     const set = new Set(source.map(c => c._platform).filter(Boolean));
     return Array.from(set).sort();
@@ -404,7 +405,7 @@ export function ActionRoleView() {
     }>();
 
     const filtered = reviewFilter === "resolved"
-      ? reviewAllComments.filter(c => c.process_status === "self_resolved")
+      ? reviewAllComments.filter(c => c.resolved)
       : reviewFilter === "all"
         ? reviewFilteredComments
         : reviewFilteredComments.filter(c => c.process_status === reviewFilter);
@@ -665,15 +666,14 @@ export function ActionRoleView() {
     }
   };
 
-  // 리뷰 해결 (유예 후 자체해결로 전환 — 낙관적 업데이트)
+  // 리뷰 해결 (resolved=true로 전환 — process_status 유지)
   const handleReviewResolve = (commentId: string) => {
-    const originalStatus = comments.find(c => c.id === commentId)?.process_status ?? "needs_discussion";
     setReviewResolving((prev) => new Set(prev).add(commentId));
     const timer = setTimeout(() => {
       reviewResolveTimers.current.delete(commentId);
-      // 즉시 로컬 상태 반영 (목록에서 제거)
+      // 즉시 로컬 상태 반영 (resolved=true, process_status 유지)
       setComments((prev) => prev.map((c) =>
-        c.id === commentId ? { ...c, process_status: "self_resolved" as ProcessStatus, processed_at: new Date().toISOString() } : c
+        c.id === commentId ? { ...c, resolved: true } : c
       ));
       setReviewResolving((prev) => {
         const next = new Set(prev);
@@ -684,13 +684,13 @@ export function ActionRoleView() {
       fetch("/api/action-process", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ commentId, process_status: "self_resolved" as ProcessStatus }),
+        body: JSON.stringify({ commentId, resolved: true }),
       }).then((res) => {
         if (!res.ok) throw new Error();
       }).catch(() => {
-        // 실패 시 원래 상태로 롤백
+        // 실패 시 롤백
         setComments((prev) => prev.map((c) =>
-          c.id === commentId ? { ...c, process_status: originalStatus as ProcessStatus, processed_at: null } : c
+          c.id === commentId ? { ...c, resolved: false } : c
         ));
         toast.error("해결 처리 실패");
       });
@@ -699,15 +699,33 @@ export function ActionRoleView() {
   };
 
   const handleReviewUndoResolve = (commentId: string) => {
+    // 타이머 기반 취소 (아직 API 호출 전)
     const timer = reviewResolveTimers.current.get(commentId);
     if (timer) {
       clearTimeout(timer);
       reviewResolveTimers.current.delete(commentId);
+      setReviewResolving((prev) => {
+        const next = new Set(prev);
+        next.delete(commentId);
+        return next;
+      });
+      return;
     }
-    setReviewResolving((prev) => {
-      const next = new Set(prev);
-      next.delete(commentId);
-      return next;
+    // 이미 resolved=true인 상태 → DB에서 되돌리기
+    setComments((prev) => prev.map((c) =>
+      c.id === commentId ? { ...c, resolved: false } : c
+    ));
+    fetch("/api/action-process", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ commentId, resolved: false }),
+    }).then((res) => {
+      if (!res.ok) throw new Error();
+    }).catch(() => {
+      setComments((prev) => prev.map((c) =>
+        c.id === commentId ? { ...c, resolved: true } : c
+      ));
+      toast.error("해결 취소 실패");
     });
   };
 
@@ -1030,7 +1048,7 @@ export function ActionRoleView() {
               </div>
 
               {/* 상세 필터 탭 */}
-              {selectedReviewSummary.total > 0 && reviewFilter !== "resolved" && (
+              {selectedReviewSummary.total > 0 && (
                 <div className="flex items-center gap-2 px-5 py-2.5 border-b bg-muted/20">
                   <div className="flex gap-0.5 bg-muted rounded-lg p-0.5 border">
                     <button
@@ -1039,18 +1057,22 @@ export function ActionRoleView() {
                     >
                       전체 {selectedReviewSummary.total}
                     </button>
-                    <button
-                      onClick={() => setReviewDetailFilter("needs_discussion")}
-                      className={`py-1 px-2.5 rounded-md text-[12px] font-semibold transition-colors ${reviewDetailFilter === "needs_discussion" ? "bg-card text-blue-600 shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-                    >
-                      협의 필요 {selectedReviewSummary.needsDiscussion}
-                    </button>
-                    <button
-                      onClick={() => setReviewDetailFilter("next_cohort")}
-                      className={`py-1 px-2.5 rounded-md text-[12px] font-semibold transition-colors ${reviewDetailFilter === "next_cohort" ? "bg-card text-amber-600 shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-                    >
-                      다음 기수 {selectedReviewSummary.nextCohort}
-                    </button>
+                    {selectedReviewSummary.needsDiscussion > 0 && (
+                      <button
+                        onClick={() => setReviewDetailFilter("needs_discussion")}
+                        className={`py-1 px-2.5 rounded-md text-[12px] font-semibold transition-colors ${reviewDetailFilter === "needs_discussion" ? "bg-card text-blue-600 shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                      >
+                        협의 필요 {selectedReviewSummary.needsDiscussion}
+                      </button>
+                    )}
+                    {selectedReviewSummary.nextCohort > 0 && (
+                      <button
+                        onClick={() => setReviewDetailFilter("next_cohort")}
+                        className={`py-1 px-2.5 rounded-md text-[12px] font-semibold transition-colors ${reviewDetailFilter === "next_cohort" ? "bg-card text-amber-600 shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                      >
+                        다음 기수 {selectedReviewSummary.nextCohort}
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
@@ -1058,16 +1080,16 @@ export function ActionRoleView() {
               {/* 댓글 목록 */}
               <div className="max-h-[calc(100vh-420px)] overflow-y-auto divide-y">
                 {selectedReviewSummary.comments.filter(c =>
-                  reviewFilter === "resolved" || reviewDetailFilter === "all" || c.process_status === reviewDetailFilter
+                  reviewDetailFilter === "all" || c.process_status === reviewDetailFilter
                 ).length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground text-[14px]">해당 필터에 맞는 피드백이 없습니다</div>
                 ) : (
                   selectedReviewSummary.comments.filter(c =>
-                    reviewFilter === "resolved" || reviewDetailFilter === "all" || c.process_status === reviewDetailFilter
+                    reviewDetailFilter === "all" || c.process_status === reviewDetailFilter
                   ).map((comment) => {
                     const isNeedsDiscussion = comment.process_status === "needs_discussion";
                     const isNextCohort = comment.process_status === "next_cohort";
-                    const isResolved = comment.process_status === "self_resolved";
+                    const isResolved = !!comment.resolved;
                     const isResolving = reviewResolving.has(comment.id);
 
                     return (
@@ -1125,9 +1147,13 @@ export function ActionRoleView() {
                           {/* 오른쪽: 해결 버튼 or 되돌리기 or 해결 완료 표시 */}
                           <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
                             {isResolved ? (
-                              <span className="text-[12px] px-3 py-1.5 rounded-lg text-emerald-500 flex items-center gap-1 font-semibold">
+                              <button
+                                onClick={() => handleReviewUndoResolve(comment.id)}
+                                className="text-[12px] px-3 py-1.5 rounded-lg border border-emerald-200 text-emerald-500 hover:bg-emerald-50 transition-colors flex items-center gap-1 font-semibold"
+                                title="해결 취소"
+                              >
                                 <CheckCircle2 className="w-3.5 h-3.5" />완료
-                              </span>
+                              </button>
                             ) : isResolving ? (
                               <button
                                 onClick={() => handleReviewUndoResolve(comment.id)}

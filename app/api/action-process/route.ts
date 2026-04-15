@@ -8,12 +8,13 @@ export const maxDuration = 30;
 // PATCH: 댓글 처리 상태 / action_tag 업데이트
 export async function PATCH(req: NextRequest) {
   try {
-    const { commentId, process_status, process_memo, important, action_tag } = (await req.json()) as {
+    const { commentId, process_status, process_memo, important, action_tag, resolved } = (await req.json()) as {
       commentId: string;
       process_status?: ProcessStatus;
       process_memo?: string;
       important?: boolean;
       action_tag?: ActionTag;
+      resolved?: boolean;
     };
 
     if (!commentId) {
@@ -35,6 +36,9 @@ export async function PATCH(req: NextRequest) {
     }
     if (action_tag !== undefined) {
       updates.action_tag = action_tag;
+    }
+    if (resolved !== undefined) {
+      updates.resolved = resolved;
     }
 
     if (Object.keys(updates).length === 0) {
@@ -73,6 +77,7 @@ export async function DELETE(req: NextRequest) {
         process_status: null,
         process_memo: "",
         processed_at: null,
+        resolved: false,
       })
       .eq("id", commentId);
 
@@ -116,7 +121,7 @@ export async function GET(req: NextRequest) {
     const comments = await fetchAllRanges<Record<string, unknown>>((from, to, withCount) =>
       supabase
         .from("comments")
-        .select("action_tag, process_status, important", withCount ? { count: "exact" } : undefined)
+        .select("action_tag, process_status, important, resolved", withCount ? { count: "exact" } : undefined)
         .in("survey_id", surveyIds)
         .not("action_tag", "is", null)
         .range(from, to),
