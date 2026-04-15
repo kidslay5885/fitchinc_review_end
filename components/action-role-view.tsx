@@ -119,11 +119,11 @@ export function ActionRoleView() {
   const [selectedInstructor, setSelectedInstructor] = useState<string | null>(null);
 
   // 리뷰 뷰
-  const [reviewFilter, setReviewFilter] = useState<"all" | "needs_discussion" | "next_cohort">("all");
+  const [reviewFilter, setReviewFilter] = useState<"all" | "needs_discussion" | "next_cohort" | "resolved">("all");
   const [reviewPlatformFilter, setReviewPlatformFilter] = useState("all");
   const [reviewSearch, setReviewSearch] = useState("");
   const [selectedReviewInstructor, setSelectedReviewInstructor] = useState<string | null>(null);
-  const [reviewDetailFilter, setReviewDetailFilter] = useState<"all" | "needs_discussion" | "next_cohort">("all");
+  const [reviewDetailFilter, setReviewDetailFilter] = useState<"all" | "needs_discussion" | "next_cohort" | "resolved">("all");
   const [reviewResolving, setReviewResolving] = useState<Set<string>>(new Set());
   const reviewResolveTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
@@ -355,14 +355,21 @@ export function ActionRoleView() {
 
   // ===== 리뷰 뷰 파생 데이터 =====
 
-  const reviewTotalCount = useMemo(() =>
-    comments.filter(c => c.action_tag && (c.process_status === "needs_discussion" || c.process_status === "next_cohort")).length,
+  const REVIEW_STATUSES = ["needs_discussion", "next_cohort", "self_resolved"] as const;
+
+  const reviewAllComments = useMemo(() =>
+    comments.filter(c => c.action_tag && c.process_status && REVIEW_STATUSES.includes(c.process_status as any)),
     [comments]
   );
 
+  const reviewTotalCount = useMemo(() =>
+    reviewAllComments.filter(c => c.process_status === "needs_discussion" || c.process_status === "next_cohort").length,
+    [reviewAllComments]
+  );
+
   const reviewFilteredComments = useMemo(() => {
-    return comments.filter(c => c.action_tag && (c.process_status === "needs_discussion" || c.process_status === "next_cohort"));
-  }, [comments]);
+    return reviewAllComments.filter(c => c.process_status === "needs_discussion" || c.process_status === "next_cohort");
+  }, [reviewAllComments]);
 
   const reviewNeedsDiscussionCount = useMemo(() =>
     reviewFilteredComments.filter(c => c.process_status === "needs_discussion").length,
@@ -372,11 +379,18 @@ export function ActionRoleView() {
     reviewFilteredComments.filter(c => c.process_status === "next_cohort").length,
     [reviewFilteredComments]
   );
+  const reviewResolvedCount = useMemo(() =>
+    reviewAllComments.filter(c => c.process_status === "self_resolved").length,
+    [reviewAllComments]
+  );
 
   const reviewPlatformLabels = useMemo(() => {
-    const set = new Set(reviewFilteredComments.map(c => c._platform).filter(Boolean));
+    const source = reviewFilter === "resolved"
+      ? reviewAllComments.filter(c => c.process_status === "self_resolved")
+      : reviewFilteredComments;
+    const set = new Set(source.map(c => c._platform).filter(Boolean));
     return Array.from(set).sort();
-  }, [reviewFilteredComments]);
+  }, [reviewFilter, reviewAllComments, reviewFilteredComments]);
 
   const reviewInstructorSummaries = useMemo(() => {
     const map = new Map<string, {
@@ -389,9 +403,11 @@ export function ActionRoleView() {
       comments: CommentWithAction[];
     }>();
 
-    const filtered = reviewFilter === "all"
-      ? reviewFilteredComments
-      : reviewFilteredComments.filter(c => c.process_status === reviewFilter);
+    const filtered = reviewFilter === "resolved"
+      ? reviewAllComments.filter(c => c.process_status === "self_resolved")
+      : reviewFilter === "all"
+        ? reviewFilteredComments
+        : reviewFilteredComments.filter(c => c.process_status === reviewFilter);
 
     for (const c of filtered) {
       const key = `${c._platform}|${c._instructor}`;
@@ -425,7 +441,7 @@ export function ActionRoleView() {
       result = result.filter(s => s.instructor.toLowerCase().includes(q) || s.platform.toLowerCase().includes(q));
     }
     return result.sort((a, b) => b.total - a.total);
-  }, [reviewFilteredComments, reviewPlatformFilter, reviewSearch, reviewFilter]);
+  }, [reviewFilteredComments, reviewAllComments, reviewPlatformFilter, reviewSearch, reviewFilter]);
 
   const selectedReviewSummary = useMemo(
     () => reviewInstructorSummaries.find(s => `${s.platform}|${s.instructor}` === selectedReviewInstructor) || null,
@@ -863,6 +879,14 @@ export function ActionRoleView() {
               >
                 다음 기수 {reviewNextCohortCount}
               </button>
+              {reviewResolvedCount > 0 && (
+                <button
+                  onClick={() => { setReviewFilter("resolved"); setSelectedReviewInstructor(null); }}
+                  className={`py-1 px-2.5 rounded-md text-[12px] font-semibold transition-colors ${reviewFilter === "resolved" ? "bg-card text-emerald-600 shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  해결 완료 {reviewResolvedCount}
+                </button>
+              )}
             </div>
           </div>
 
@@ -896,7 +920,7 @@ export function ActionRoleView() {
                 <MessageCircle className="w-8 h-8 mx-auto" />
               </div>
               <div className="text-[14px] font-bold">
-                {reviewFilter === "next_cohort" ? "다음 기수 피드백이 없습니다" : reviewFilter === "needs_discussion" ? "협의 필요 피드백이 없습니다" : "논의 필요 피드백이 없습니다"}
+                {reviewFilter === "resolved" ? "해결 완료된 피드백이 없습니다" : reviewFilter === "next_cohort" ? "다음 기수 피드백이 없습니다" : reviewFilter === "needs_discussion" ? "협의 필요 피드백이 없습니다" : "논의 필요 피드백이 없습니다"}
               </div>
               <div className="text-[13px] mt-1">직무별 뷰에서 처리 상태를 지정하세요</div>
             </div>
@@ -1006,7 +1030,7 @@ export function ActionRoleView() {
               </div>
 
               {/* 상세 필터 탭 */}
-              {selectedReviewSummary.total > 0 && (
+              {selectedReviewSummary.total > 0 && reviewFilter !== "resolved" && (
                 <div className="flex items-center gap-2 px-5 py-2.5 border-b bg-muted/20">
                   <div className="flex gap-0.5 bg-muted rounded-lg p-0.5 border">
                     <button
@@ -1033,16 +1057,21 @@ export function ActionRoleView() {
 
               {/* 댓글 목록 */}
               <div className="max-h-[calc(100vh-420px)] overflow-y-auto divide-y">
-                {selectedReviewSummary.comments.filter(c => reviewDetailFilter === "all" || c.process_status === reviewDetailFilter).length === 0 ? (
+                {selectedReviewSummary.comments.filter(c =>
+                  reviewFilter === "resolved" || reviewDetailFilter === "all" || c.process_status === reviewDetailFilter
+                ).length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground text-[14px]">해당 필터에 맞는 피드백이 없습니다</div>
                 ) : (
-                  selectedReviewSummary.comments.filter(c => reviewDetailFilter === "all" || c.process_status === reviewDetailFilter).map((comment) => {
+                  selectedReviewSummary.comments.filter(c =>
+                    reviewFilter === "resolved" || reviewDetailFilter === "all" || c.process_status === reviewDetailFilter
+                  ).map((comment) => {
                     const isNeedsDiscussion = comment.process_status === "needs_discussion";
                     const isNextCohort = comment.process_status === "next_cohort";
+                    const isResolved = comment.process_status === "self_resolved";
                     const isResolving = reviewResolving.has(comment.id);
 
                     return (
-                      <div key={comment.id} className={`py-3 px-5 transition-all duration-300 ${isResolving ? "opacity-40 bg-green-50/50" : isNeedsDiscussion ? "bg-blue-50/30" : isNextCohort ? "bg-amber-50/30" : ""}`}>
+                      <div key={comment.id} className={`py-3 px-5 transition-all duration-300 ${isResolving ? "opacity-40 bg-green-50/50" : isResolved ? "bg-emerald-50/20" : isNeedsDiscussion ? "bg-blue-50/30" : isNextCohort ? "bg-amber-50/30" : ""}`}>
                         <div className="flex items-start gap-2.5">
                           <div className="flex-1 min-w-0">
                             <p className={`text-[14px] leading-relaxed ${isResolving ? "line-through" : ""}`}>{comment.original_text}</p>
@@ -1077,6 +1106,11 @@ export function ActionRoleView() {
                                     {getProcessLabel(comment.process_status)}
                                   </span>
                                 )}
+                                {isResolved && (
+                                  <span className="text-[11px] py-0.5 px-1.5 rounded font-semibold border bg-emerald-50 text-emerald-600 border-emerald-200">
+                                    해결 완료
+                                  </span>
+                                )}
                               </div>
                             )}
                             {/* 메모 강조 */}
@@ -1088,9 +1122,13 @@ export function ActionRoleView() {
                             )}
                           </div>
 
-                          {/* 오른쪽: 해결 버튼 or 되돌리기 + 중요 표시 */}
+                          {/* 오른쪽: 해결 버튼 or 되돌리기 or 해결 완료 표시 */}
                           <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
-                            {isResolving ? (
+                            {isResolved ? (
+                              <span className="text-[12px] px-3 py-1.5 rounded-lg text-emerald-500 flex items-center gap-1 font-semibold">
+                                <CheckCircle2 className="w-3.5 h-3.5" />완료
+                              </span>
+                            ) : isResolving ? (
                               <button
                                 onClick={() => handleReviewUndoResolve(comment.id)}
                                 className="text-[12px] px-3 py-1.5 rounded-lg border border-green-300 bg-green-50 text-green-700 hover:bg-green-100 transition-colors flex items-center gap-1 font-semibold"
