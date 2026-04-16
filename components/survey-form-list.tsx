@@ -445,6 +445,7 @@ function getGroupStatus(sent: number, total: number): GroupStatus {
 }
 
 function GiftManagementView() {
+  const [giftSubTab, setGiftSubTab] = useState<"gift" | "match">("gift");
   const [loading, setLoading] = useState(true);
   const [responses, setResponses] = useState<GiftResponse[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -639,6 +640,20 @@ function GiftManagementView() {
 
   return (
     <div>
+      {/* 서브탭: 기프티쇼 / 명단 매칭 */}
+      <div className="flex gap-0.5 bg-muted rounded-lg p-0.5 border mb-4 w-fit">
+        <button onClick={() => setGiftSubTab("gift")} className={`py-1.5 px-3 rounded-md text-[13px] font-semibold transition-colors flex items-center gap-1.5 ${giftSubTab === "gift" ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+          <Gift className="w-3.5 h-3.5" />발송 관리
+        </button>
+        <button onClick={() => setGiftSubTab("match")} className={`py-1.5 px-3 rounded-md text-[13px] font-semibold transition-colors flex items-center gap-1.5 ${giftSubTab === "match" ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+          <UserSearch className="w-3.5 h-3.5" />명단 매칭
+        </button>
+      </div>
+
+      {giftSubTab === "match" ? (
+        <NameMatchView />
+      ) : (
+      <>
       {/* ===== 전체 현황 (접기/펼치기) ===== */}
       <div className="bg-card rounded-xl border mb-4">
         <button
@@ -944,6 +959,8 @@ function GiftManagementView() {
           </div>
         </div>
       )}
+      </>
+      )}
     </div>
   );
 }
@@ -988,7 +1005,7 @@ function daysLeft(expiresAt: string | null) {
 }
 
 export function SurveyFormList({ onEdit, onNew, onResults, onBack, refreshKey }: Props) {
-  const [mainTab, setMainTab] = useState<"forms" | "gift" | "match">("forms");
+  const [mainTab, setMainTab] = useState<"forms" | "gift">("forms");
   const [forms, setForms] = useState<SurveyForm[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -1157,23 +1174,10 @@ export function SurveyFormList({ onEdit, onNew, onResults, onBack, refreshKey }:
           <Gift className="w-4 h-4" />
           기프티쇼 관리
         </button>
-        <button
-          onClick={() => setMainTab("match")}
-          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-bold transition-all ${
-            mainTab === "match"
-              ? "bg-primary text-primary-foreground"
-              : "bg-muted text-muted-foreground hover:bg-accent"
-          }`}
-        >
-          <UserSearch className="w-4 h-4" />
-          명단 매칭
-        </button>
       </div>
 
       {mainTab === "gift" ? (
         <GiftManagementView />
-      ) : mainTab === "match" ? (
-        <NameMatchView />
       ) : (
       <>
       <div className="flex items-center justify-between mb-5">
