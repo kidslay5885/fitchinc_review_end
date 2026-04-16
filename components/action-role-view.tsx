@@ -789,7 +789,7 @@ export function ActionRoleView() {
       let totalClassified = 0;
       for (let i = 0; i < targets.length; i += CHUNK) {
         const chunk = targets.slice(i, i + CHUNK);
-        setClassifyProgress(`${Math.min(i + CHUNK, targets.length)}/${targets.length}`);
+        setClassifyProgress(`${totalClassified}/${targets.length} 처리 중...`);
         const res = await fetch("/api/action-classify", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ items: chunk.map((c) => ({ id: c.id, original_text: c.original_text, source_field: c.source_field })) }),
@@ -801,6 +801,10 @@ export function ActionRoleView() {
             const m = new Map(results.map((r: { id: string; action_tag: ActionTag }) => [r.id, r.action_tag]));
             return prev.map((c) => { const t = m.get(c.id); return t ? { ...c, action_tag: t } : c; });
           });
+        }
+        // 청크 간 대기 (서버 rate limit 보호)
+        if (i + CHUNK < targets.length) {
+          await new Promise((r) => setTimeout(r, 2000));
         }
       }
       toast.success(`${totalClassified}건 분류 완료`);

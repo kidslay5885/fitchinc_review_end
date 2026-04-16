@@ -4,11 +4,13 @@ import { getSupabase } from "@/lib/supabase";
 import { AI_LABEL_TO_TAG } from "@/lib/action-utils";
 import type { ActionTag } from "@/lib/types";
 
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 
 const BATCH_SIZE = 50;
+const MAX_RETRIES = 3;
+const BASE_DELAY = 4000; // 배치 간 기본 대기 4초
 
 interface ClassifyItem {
   id: string;
@@ -17,7 +19,7 @@ interface ClassifyItem {
 }
 
 async function classifyBatch(
-  ai: ReturnType<typeof getAI>,
+  aiClient: GoogleGenAI,
   items: ClassifyItem[]
 ): Promise<{ index: number; tag: string }[]> {
   const prompt = `당신은 온라인 강의 플랫폼의 설문 댓글을 분류하는 전문가입니다.
@@ -42,7 +44,7 @@ ${items.map((c, i) => `[${i}] (${c.source_field}) ${c.original_text}`).join("\n"
 ## JSON 출력
 [{"index":0,"tag":"강사"},...]`;
 
-  const response = await ai.models.generateContent({
+  const response = await aiClient.models.generateContent({
     model: "gemini-2.5-flash",
     contents: prompt,
     config: { responseMimeType: "application/json" },
@@ -71,33 +73,43 @@ export async function POST(req: NextRequest) {
 
     for (let i = 0; i < items.length; i += BATCH_SIZE) {
       const batch = items.slice(i, i + BATCH_SIZE);
+      const batchNum = Math.floor(i / BATCH_SIZE) + 1;
 
-      try {
-        const aiResults = await classifyBatch(ai, batch);
-
-        for (const r of aiResults) {
-          if (r.index === undefined || !batch[r.index]) continue;
-          const item = batch[r.index];
-          const actionTag = AI_LABEL_TO_TAG[r.tag];
-          if (!actionTag) continue;
-
-          const { error } = await supabase
-            .from("comments")
-            .update({ action_tag: actionTag })
-            .eq("id", item.id);
-
-          if (!error) {
-            classified++;
-            results.push({ id: item.id, action_tag: actionTag });
+      let aiResults: { index: number; tag: string }[] = [];
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          aiResults = await classifyBatch(ai, batch);
+          break; // 성공하면 루프 탈출
+        } catch (e) {
+          console.error(`Batch ${batchNum} attempt ${attempt}/${MAX_RETRIES} error:`, e);
+          if (attempt < MAX_RETRIES) {
+            // 재시도 대기: 4초, 8초, ... (exponential backoff)
+            const retryDelay = BASE_DELAY * Math.pow(2, attempt - 1);
+            await new Promise((r) => setTimeout(r, retryDelay));
           }
         }
-      } catch (e) {
-        console.error(`Batch ${Math.floor(i / BATCH_SIZE) + 1} error:`, e);
+      }
+
+      for (const r of aiResults) {
+        if (r.index === undefined || !batch[r.index]) continue;
+        const item = batch[r.index];
+        const actionTag = AI_LABEL_TO_TAG[r.tag];
+        if (!actionTag) continue;
+
+        const { error } = await supabase
+          .from("comments")
+          .update({ action_tag: actionTag })
+          .eq("id", item.id);
+
+        if (!error) {
+          classified++;
+          results.push({ id: item.id, action_tag: actionTag });
+        }
       }
 
       // 배치 간 throttle
       if (i + BATCH_SIZE < items.length) {
-        await new Promise((r) => setTimeout(r, 1500));
+        await new Promise((r) => setTimeout(r, BASE_DELAY));
       }
     }
 
