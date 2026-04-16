@@ -778,6 +778,30 @@ export function ActionRoleView() {
     }
   };
 
+  // 일괄 검토완료
+  const [bulkProcessing, setBulkProcessing] = useState(false);
+  const handleBulkProcess = async (status: ProcessStatus) => {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+    setBulkProcessing(true);
+    try {
+      const res = await fetch("/api/action-process", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commentIds: ids, process_status: status }),
+      });
+      if (!res.ok) throw new Error();
+      setComments((prev) => prev.map((c) =>
+        ids.includes(c.id) ? { ...c, process_status: status, processed_at: new Date().toISOString() } : c
+      ));
+      setSelected(new Set());
+      toast.success(`${ids.length}건 ${PROCESS_OPTIONS.find((o) => o.value === status)?.label} 처리 완료`);
+    } catch {
+      toast.error("일괄 처리 실패");
+    } finally {
+      setBulkProcessing(false);
+    }
+  };
+
   // AI 일괄 분류
   const handleClassifyAll = async () => {
     const targets = comments.filter((c) => !c.action_tag);
@@ -1571,6 +1595,18 @@ export function ActionRoleView() {
                 </div>
               )}
 
+              {/* 전체 선택 (미처리 뷰) */}
+              {viewMode === "unprocessed" && detailFiltered.length > 0 && (
+                <button onClick={toggleSelectAll} className={`text-[12px] px-2.5 py-1 rounded-lg border transition-colors flex items-center gap-1 ${
+                  selected.size === detailFiltered.length && selected.size > 0
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "hover:bg-accent"
+                }`}>
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  {selected.size === detailFiltered.length && selected.size > 0 ? "선택 해제" : `전체 선택 (${detailFiltered.length})`}
+                </button>
+              )}
+
               {/* 엑셀 내보내기 */}
               <button onClick={exportToExcel} disabled={detailFiltered.length === 0} className="text-[12px] px-2.5 py-1 rounded-lg border hover:bg-accent transition-colors disabled:opacity-40 flex items-center gap-1">
                 <Download className="w-3.5 h-3.5" />엑셀
@@ -1770,6 +1806,15 @@ export function ActionRoleView() {
                   <X className="w-3 h-3" />해제
                 </button>
                 <div className="flex-1" />
+                {/* 일괄 검토완료 */}
+                <button
+                  onClick={() => handleBulkProcess("self_resolved")}
+                  disabled={bulkProcessing}
+                  className="py-1 px-3 rounded-lg text-[12px] font-bold transition-all bg-green-50 hover:bg-green-100 border border-green-300 text-green-700 flex items-center gap-1 disabled:opacity-40"
+                >
+                  {bulkProcessing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                  검토완료
+                </button>
                 {/* 대량 이관 */}
                 <div className="relative" ref={transferDropdownId === "__bulk__" ? transferDropdownRef : undefined}>
                   <button onClick={() => setTransferDropdownId(transferDropdownId === "__bulk__" ? null : "__bulk__")}
