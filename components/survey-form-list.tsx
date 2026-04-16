@@ -28,6 +28,7 @@ import {
   RotateCcw,
   Gift,
   ClipboardCopy,
+  UserSearch,
 } from "lucide-react";
 import type { FormField } from "@/lib/types";
 import {
@@ -161,6 +162,26 @@ function DefaultsModal({ onClose }: { onClose: () => void }) {
                   <option key={val} value={val}>{label}</option>
                 ))}
               </select>
+              {field.type === "scale" && (
+                <div className="flex items-center gap-0.5 flex-shrink-0">
+                  <input
+                    type="number"
+                    value={field.scaleMin ?? 1}
+                    onChange={(e) => updateField(field.key, { scaleMin: parseInt(e.target.value) || 1 })}
+                    className="w-8 text-[10px] text-center bg-muted px-0.5 py-0.5 rounded outline-none"
+                    min={0}
+                  />
+                  <span className="text-[10px] text-muted-foreground">~</span>
+                  <input
+                    type="number"
+                    value={field.scaleMax ?? 10}
+                    onChange={(e) => updateField(field.key, { scaleMax: parseInt(e.target.value) || 5 })}
+                    className="w-8 text-[10px] text-center bg-muted px-0.5 py-0.5 rounded outline-none"
+                    min={1}
+                  />
+                  <span className="text-[10px] text-muted-foreground">점</span>
+                </div>
+              )}
               <button
                 type="button"
                 onClick={() => updateField(field.key, { enabled: !field.enabled })}
@@ -211,6 +232,190 @@ function DefaultsModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ===== 명단 매칭 뷰 =====
+
+interface MatchResult {
+  responseId: string;
+  currentName: string;
+  matchedName: string;
+  phone: string;
+}
+
+function NameMatchView() {
+  const [pasteText, setPasteText] = useState("");
+  const [matches, setMatches] = useState<MatchResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const [applied, setApplied] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  const parsePastedData = (text: string): { name: string; phone: string }[] => {
+    const lines = text.trim().split("\n").filter(Boolean);
+    const entries: { name: string; phone: string }[] = [];
+    for (const line of lines) {
+      const parts = line.split("\t").map((s) => s.trim());
+      if (parts.length < 2) continue;
+      // 이름 + 전화번호 (순서 자동 감지)
+      const phoneIdx = parts.findIndex((p) => /^0\d{1,2}[\s-]?\d{3,4}[\s-]?\d{4}$/.test(p.replace(/\D/g, "").length >= 10 ? p : ""));
+      if (phoneIdx === -1) {
+        // 숫자가 10자리 이상인 컬럼을 전화번호로
+        const numIdx = parts.findIndex((p) => p.replace(/\D/g, "").length >= 10);
+        if (numIdx === -1) continue;
+        const nameIdx = numIdx === 0 ? 1 : 0;
+        entries.push({ name: parts[nameIdx], phone: parts[numIdx] });
+      } else {
+        const nameIdx = phoneIdx === 0 ? 1 : 0;
+        entries.push({ name: parts[nameIdx], phone: parts[phoneIdx] });
+      }
+    }
+    return entries;
+  };
+
+  const handleMatch = async () => {
+    const entries = parsePastedData(pasteText);
+    if (entries.length === 0) return;
+    setLoading(true);
+    setApplied(false);
+    try {
+      const res = await fetch("/api/match-names", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entries }),
+      });
+      if (res.ok) {
+        const { matches: m } = await res.json();
+        setMatches(m);
+        setSelected(new Set(m.map((r: MatchResult) => r.responseId)));
+      }
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleApply = async () => {
+    const updates = matches
+      .filter((m) => selected.has(m.responseId))
+      .map((m) => ({ responseId: m.responseId, name: m.matchedName }));
+    if (updates.length === 0) return;
+    setApplying(true);
+    try {
+      const res = await fetch("/api/match-names", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updates }),
+      });
+      if (res.ok) {
+        const { updated } = await res.json();
+        setApplied(true);
+        // 적용된 항목 제거
+        setMatches((prev) => prev.filter((m) => !selected.has(m.responseId)));
+        setSelected(new Set());
+        alert(`${updated}건 이름 업데이트 완료`);
+      }
+    } catch {
+      /* ignore */
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  const parsedCount = parsePastedData(pasteText).length;
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-[13px] text-blue-700">
+        <p className="font-bold mb-1">사용법</p>
+        <p>구글 시트에서 <strong>이름 + 전화번호</strong> 컬럼을 복사해서 아래에 붙여넣기 하세요.</p>
+        <p className="mt-1">설문 응답자 중 전화번호가 일치하는데 이름이 다르거나 비어있는 경우를 찾아줍니다.</p>
+      </div>
+
+      <div>
+        <textarea
+          value={pasteText}
+          onChange={(e) => setPasteText(e.target.value)}
+          placeholder={"홍길동\t010-1234-5678\n김철수\t010-5678-1234\n..."}
+          className="w-full h-40 border rounded-xl p-3 text-[13px] font-mono resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
+        />
+        <div className="flex items-center justify-between mt-2">
+          <span className="text-[12px] text-muted-foreground">
+            {parsedCount > 0 ? `${parsedCount}명 인식됨` : "데이터를 붙여넣기 하세요"}
+          </span>
+          <button
+            onClick={handleMatch}
+            disabled={parsedCount === 0 || loading}
+            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-[13px] font-bold hover:opacity-90 transition-opacity disabled:opacity-40 flex items-center gap-1.5"
+          >
+            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserSearch className="w-3.5 h-3.5" />}
+            매칭 검색
+          </button>
+        </div>
+      </div>
+
+      {/* 매칭 결과 */}
+      {matches.length > 0 && (
+        <div className="border rounded-xl overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-2.5 bg-muted/50 border-b">
+            <span className="text-[13px] font-bold">{matches.length}건 매칭됨</span>
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-1.5 text-[12px] text-muted-foreground cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selected.size === matches.length}
+                  onChange={() => {
+                    if (selected.size === matches.length) setSelected(new Set());
+                    else setSelected(new Set(matches.map((m) => m.responseId)));
+                  }}
+                  className="rounded"
+                />
+                전체 선택
+              </label>
+              <button
+                onClick={handleApply}
+                disabled={selected.size === 0 || applying}
+                className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-[12px] font-bold hover:opacity-90 transition-opacity disabled:opacity-40 flex items-center gap-1"
+              >
+                {applying ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                선택 적용 ({selected.size}건)
+              </button>
+            </div>
+          </div>
+          <div className="max-h-[400px] overflow-y-auto divide-y">
+            {matches.map((m) => (
+              <div key={m.responseId} className="flex items-center gap-3 px-4 py-2.5 text-[13px] hover:bg-muted/30">
+                <input
+                  type="checkbox"
+                  checked={selected.has(m.responseId)}
+                  onChange={() => {
+                    setSelected((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(m.responseId)) next.delete(m.responseId);
+                      else next.add(m.responseId);
+                      return next;
+                    });
+                  }}
+                  className="rounded"
+                />
+                <span className="text-muted-foreground font-mono text-[12px] min-w-[110px]">{m.phone}</span>
+                <span className="text-red-400 line-through min-w-[60px]">{m.currentName || "(없음)"}</span>
+                <span className="text-muted-foreground">→</span>
+                <span className="font-bold text-primary">{m.matchedName}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {matches.length === 0 && !loading && pasteText && parsedCount > 0 && (
+        <div className="text-center py-8 text-muted-foreground text-[14px]">
+          매칭 검색 버튼을 눌러주세요
+        </div>
+      )}
     </div>
   );
 }
@@ -537,7 +742,8 @@ function GiftManagementView() {
           <select
             value={filterCohort}
             onChange={(e) => { setFilterCohort(e.target.value); setSelected(new Set()); }}
-            className="text-[12px] bg-muted px-2 py-1 rounded-lg outline-none cursor-pointer"
+            disabled={filterInstructor === "전체"}
+            className={`text-[12px] bg-muted px-2 py-1 rounded-lg outline-none ${filterInstructor === "전체" ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
           >
             <option value="전체">전체</option>
             {cohorts.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -782,7 +988,7 @@ function daysLeft(expiresAt: string | null) {
 }
 
 export function SurveyFormList({ onEdit, onNew, onResults, onBack, refreshKey }: Props) {
-  const [mainTab, setMainTab] = useState<"forms" | "gift">("forms");
+  const [mainTab, setMainTab] = useState<"forms" | "gift" | "match">("forms");
   const [forms, setForms] = useState<SurveyForm[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -951,10 +1157,23 @@ export function SurveyFormList({ onEdit, onNew, onResults, onBack, refreshKey }:
           <Gift className="w-4 h-4" />
           기프티쇼 관리
         </button>
+        <button
+          onClick={() => setMainTab("match")}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-bold transition-all ${
+            mainTab === "match"
+              ? "bg-primary text-primary-foreground"
+              : "bg-muted text-muted-foreground hover:bg-accent"
+          }`}
+        >
+          <UserSearch className="w-4 h-4" />
+          명단 매칭
+        </button>
       </div>
 
       {mainTab === "gift" ? (
         <GiftManagementView />
+      ) : mainTab === "match" ? (
+        <NameMatchView />
       ) : (
       <>
       <div className="flex items-center justify-between mb-5">
