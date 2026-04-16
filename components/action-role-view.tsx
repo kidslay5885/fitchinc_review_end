@@ -336,7 +336,14 @@ export function ActionRoleView() {
       const q = search.toLowerCase();
       result = result.filter((s) => s.instructor.toLowerCase().includes(q) || s.platform.toLowerCase().includes(q));
     }
-    result.sort((a, b) => b.total - a.total);
+    // 플랫폼 그룹핑 (핏크닉 → 머니업클래스 → 기타) + 강사명 ㄱㄴㄷ순
+    const PLATFORM_ORDER: Record<string, number> = { "핏크닉": 0, "머니업클래스": 1 };
+    result.sort((a, b) => {
+      const pa = PLATFORM_ORDER[a.platform] ?? 99;
+      const pb = PLATFORM_ORDER[b.platform] ?? 99;
+      if (pa !== pb) return pa - pb;
+      return a.instructor.localeCompare(b.instructor, "ko");
+    });
     return result;
   }, [activeComments, platformFilter, search]);
 
@@ -441,7 +448,13 @@ export function ActionRoleView() {
       const q = reviewSearch.toLowerCase();
       result = result.filter(s => s.instructor.toLowerCase().includes(q) || s.platform.toLowerCase().includes(q));
     }
-    return result.sort((a, b) => b.total - a.total);
+    const PLATFORM_ORDER: Record<string, number> = { "핏크닉": 0, "머니업클래스": 1 };
+    return result.sort((a, b) => {
+      const pa = PLATFORM_ORDER[a.platform] ?? 99;
+      const pb = PLATFORM_ORDER[b.platform] ?? 99;
+      if (pa !== pb) return pa - pb;
+      return a.instructor.localeCompare(b.instructor, "ko");
+    });
   }, [reviewFilteredComments, reviewAllComments, reviewPlatformFilter, reviewSearch, reviewFilter]);
 
   const selectedReviewSummary = useMemo(
