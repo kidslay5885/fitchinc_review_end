@@ -22,6 +22,8 @@ import {
   Share2,
   Star,
   ArrowRightLeft,
+  Clock,
+  Merge,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ShareLinkDialog } from "@/components/share-link-dialog";
@@ -39,7 +41,7 @@ interface EnrichedComment extends Comment {
 interface InstructorSummary {
   instructor: string;
   platform: string;
-  courses: string[];
+  course: string;
   total: number;
   positive: number;
   negative: number;
@@ -386,18 +388,17 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
     return Array.from(set).sort();
   }, [comments]);
 
-  // 강사별 요약 카드 데이터 (항상 전체 댓글 기준, 확인완료 건수 포함)
+  // 강사별 요약 카드 데이터 (강의별 분리, 확인완료 건수 포함)
   const instructorSummaries = useMemo(() => {
     const map = new Map<string, InstructorSummary>();
-    const courseSets = new Map<string, Set<string>>();
     for (const c of comments) {
       if (platformFilter !== "all" && c._platform !== platformFilter) continue;
-      const key = `${c._platform}|${c._instructor}`;
+      const key = `${c._platform}|${c._instructor}|${c._course}`;
       if (!map.has(key)) {
         map.set(key, {
           instructor: c._instructor,
           platform: c._platform,
-          courses: [],
+          course: c._course,
           total: 0,
           positive: 0,
           negative: 0,
@@ -406,10 +407,8 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
           starred: 0,
           comments: [],
         });
-        courseSets.set(key, new Set());
       }
       const s = map.get(key)!;
-      if (c._course) courseSets.get(key)!.add(c._course);
       s.total++;
       if (c.sentiment === "positive") s.positive++;
       else if (c.sentiment === "negative") s.negative++;
@@ -418,30 +417,39 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
       if (starredIds.has(c.id)) s.starred++;
       s.comments.push(c);
     }
-    for (const [key, courses] of courseSets) {
-      map.get(key)!.courses = Array.from(courses).sort();
-    }
     let result = Array.from(map.values());
 
     if (search) {
       const q = search.toLowerCase();
       result = result.filter(
-        (s) => s.instructor.toLowerCase().includes(q) || s.platform.toLowerCase().includes(q)
+        (s) => s.instructor.toLowerCase().includes(q) || s.platform.toLowerCase().includes(q) || s.course.toLowerCase().includes(q)
       );
     }
 
-    // 플랫폼: 핏크닉 → 머니업클래스 → 기타, 같은 플랫폼 내 강사명 ㄱㄴㄷ순
+    // 플랫폼 → 강사명 → 강의명 순 정렬
     const platformOrder: Record<string, number> = { "핏크닉": 0, "머니업클래스": 1 };
     result.sort((a, b) => {
       const pa = platformOrder[a.platform] ?? 99;
       const pb = platformOrder[b.platform] ?? 99;
       if (pa !== pb) return pa - pb;
-      return a.instructor.localeCompare(b.instructor, "ko");
+      const nameCompare = a.instructor.localeCompare(b.instructor, "ko");
+      if (nameCompare !== 0) return nameCompare;
+      return a.course.localeCompare(b.course, "ko");
     });
     return result;
   }, [comments, platformFilter, search, confirmedIds, starredIds]);
 
-  // 완료 강사 수 + 표시 목록
+  // 동일 강사의 강의 수 (병합 알림용)
+  const instructorCourseCount = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const s of instructorSummaries) {
+      const key = `${s.platform}|${s.instructor}`;
+      map.set(key, (map.get(key) || 0) + 1);
+    }
+    return map;
+  }, [instructorSummaries]);
+
+  // 완료 카드 수 + 표시 목록
   const completedInstructorCount = useMemo(() =>
     instructorSummaries.filter(s => s.total > 0 && s.confirmed >= s.total).length,
     [instructorSummaries]
@@ -460,14 +468,14 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
 
   // 선택된 강사의 상세 데이터
   const selectedSummary = useMemo(
-    () => instructorSummaries.find((s) => `${s.platform}|${s.instructor}` === selectedInstructor) || null,
+    () => instructorSummaries.find((s) => `${s.platform}|${s.instructor}|${s.course}` === selectedInstructor) || null,
     [instructorSummaries, selectedInstructor]
   );
 
-  // 상세 뷰 강의 목록
+  // 상세 뷰 강의 목록 (강의별 분리이므로 항상 단일)
   const detailCourses = useMemo(() => {
     if (!selectedSummary) return [];
-    return selectedSummary.courses;
+    return [selectedSummary.course];
   }, [selectedSummary]);
 
   // 상세 뷰 기수/문항 목록
@@ -523,10 +531,10 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
     return selectedSummary.total - confirmedCount - starredCount;
   }, [selectedSummary, confirmedCount, starredCount]);
 
-  // showCompleted OFF → 선택된 강사가 완료 강사면 해제
+  // showCompleted OFF → 선택된 카드가 완료 상태면 해제
   useEffect(() => {
     if (showCompleted || !selectedInstructor) return;
-    const summary = instructorSummaries.find(s => `${s.platform}|${s.instructor}` === selectedInstructor);
+    const summary = instructorSummaries.find(s => `${s.platform}|${s.instructor}|${s.course}` === selectedInstructor);
     if (summary && summary.total > 0 && summary.confirmed >= summary.total) {
       setSelectedInstructor(null);
     }
@@ -573,7 +581,8 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
     const a = document.createElement("a");
     a.href = url;
     const instName = selectedSummary?.instructor || VIEW_ROLE_LABELS[role];
-    a.download = `${instName}_${VIEW_ROLE_LABELS[role]}_피드백_${new Date().toISOString().slice(0, 10)}.csv`;
+    const courseName = selectedSummary?.course ? `_${selectedSummary.course}` : "";
+    a.download = `${instName}${courseName}_${VIEW_ROLE_LABELS[role]}_피드백_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success(`${data.length}건 엑셀(CSV)로 내보냈습니다`);
@@ -646,7 +655,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
               }`}
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
-              완료 {completedInstructorCount}명 {showCompleted ? "숨기기" : "보기"}
+              완료 {completedInstructorCount}개 {showCompleted ? "숨기기" : "보기"}
             </button>
           )}
           <span className="text-[13px] text-muted-foreground font-semibold">
@@ -703,12 +712,13 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
         {loaded && visibleSummaries.length > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 mb-5">
             {visibleSummaries.map((s) => {
-              const key = `${s.platform}|${s.instructor}`;
+              const key = `${s.platform}|${s.instructor}|${s.course}`;
               const isActive = selectedInstructor === key;
               const pct = positivePercent(s);
-              const photo = photoMap.get(key);
+              const photo = photoMap.get(`${s.platform}|${s.instructor}`);
               const pColor = PLATFORM_COLORS[s.platform] || DEFAULT_PLATFORM_COLOR;
               const isCompleted = s.total > 0 && s.confirmed >= s.total;
+              const courseCount = instructorCourseCount.get(`${s.platform}|${s.instructor}`) || 1;
               return (
                 <button
                   key={key}
@@ -723,6 +733,12 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
                   {isCompleted && (
                     <span className="absolute top-1.5 left-1.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold px-1.5 py-0.5 rounded">
                       ✓ 완료
+                    </span>
+                  )}
+                  {/* 병합 뱃지 */}
+                  {courseCount >= 2 && (
+                    <span className="absolute top-1.5 right-1.5 flex items-center gap-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold px-1.5 py-0.5 rounded">
+                      <Merge className="w-3 h-3" />{courseCount}
                     </span>
                   )}
                   {/* 강사 프로필 사진 */}
@@ -740,21 +756,21 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
                   </div>
                   <span className="text-[15px] font-bold truncate w-full">{s.instructor}</span>
                   <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border mt-0.5 ${pColor.bg} ${pColor.text} ${pColor.border}`}>{s.platform}</span>
-                  {s.courses.length > 1 && (
-                    <span className="text-[11px] text-muted-foreground mt-1">{s.courses.length}개 강의</span>
+                  {s.course && (
+                    <span className="text-[11px] text-muted-foreground mt-1 truncate w-full">{s.course}</span>
                   )}
                   <div className="flex items-center gap-1.5 mt-2.5 w-full">
                     <span className="text-[20px] font-extrabold text-primary">{s.total}</span>
                     <span className="text-[12px] text-muted-foreground">건</span>
-                    {(s.starred > 0 || s.confirmed > 0) && <div className="flex-1" />}
+                    {(s.starred > 0 || s.total - s.confirmed > 0) && <div className="flex-1" />}
                     {s.starred > 0 && (
                       <span className="flex items-center gap-0.5 text-[11px] text-amber-500 font-semibold">
                         <Star className="w-3 h-3 fill-amber-400" />{s.starred}
                       </span>
                     )}
-                    {s.confirmed > 0 && (
-                      <span className="flex items-center gap-0.5 text-[11px] text-emerald-600 font-semibold">
-                        <CheckCircle2 className="w-3 h-3" />{s.confirmed}
+                    {s.total - s.confirmed > 0 && (
+                      <span className="flex items-center gap-0.5 text-[11px] text-orange-500 font-semibold">
+                        <Clock className="w-3 h-3" />{s.total - s.confirmed}
                       </span>
                     )}
                   </div>
@@ -812,6 +828,9 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
               {(() => { const pc = PLATFORM_COLORS[selectedSummary.platform] || DEFAULT_PLATFORM_COLOR; return (
                 <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${pc.bg} ${pc.text} ${pc.border}`}>{selectedSummary.platform}</span>
               ); })()}
+              {selectedSummary.course && (
+                <span className="text-[13px] font-semibold text-muted-foreground">{selectedSummary.course}</span>
+              )}
               <span className="text-[13px] font-bold text-primary">{detailFiltered.length}건</span>
               <div className="flex-1" />
               {(role === "instructor" || role === "all") && (
@@ -834,6 +853,17 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
                 접기
               </button>
             </div>
+
+            {/* 병합 안내 배너 */}
+            {(() => {
+              const cc = instructorCourseCount.get(`${selectedSummary.platform}|${selectedSummary.instructor}`) || 1;
+              return cc >= 2 ? (
+                <div className="flex items-center gap-2 px-5 py-2 bg-blue-50 border-b border-blue-200 text-blue-700 text-[13px]">
+                  <Merge className="w-4 h-4 shrink-0" />
+                  <span>이 강사의 <strong>{cc}개 강의</strong>를 병합해야 할 수 있습니다. 데이터 관리에서 강사 편집을 통해 병합하세요.</span>
+                </div>
+              ) : null;
+            })()}
 
             {/* 상세 필터 */}
             <div className="flex gap-2 items-center flex-wrap px-5 py-3 border-b bg-muted/20">

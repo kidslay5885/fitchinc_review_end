@@ -38,6 +38,7 @@ import {
   BarChart3,
   Info,
   MessageCircle,
+  Clock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ActionStatusView } from "./action-status-view";
@@ -1452,10 +1453,10 @@ export function ActionRoleView() {
                   <div className="flex items-center gap-1.5 w-full">
                     <span className="text-[20px] font-extrabold text-primary">{s.total}</span>
                     <span className="text-[12px] text-muted-foreground">건</span>
-                    {s.processed > 0 && <div className="flex-1" />}
-                    {s.processed > 0 && (
-                      <span className="flex items-center gap-0.5 text-[11px] text-emerald-600 font-semibold">
-                        <CheckCircle2 className="w-3 h-3" />{s.processed}
+                    {s.total - s.processed > 0 && <div className="flex-1" />}
+                    {s.total - s.processed > 0 && (
+                      <span className="flex items-center gap-0.5 text-[11px] text-orange-500 font-semibold">
+                        <Clock className="w-3 h-3" />{s.total - s.processed}
                       </span>
                     )}
                   </div>
