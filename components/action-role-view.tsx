@@ -39,7 +39,6 @@ import {
   Info,
   MessageCircle,
   Clock,
-  Merge,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ActionStatusView } from "./action-status-view";
@@ -90,7 +89,7 @@ const PROCESS_CHECK_COLORS: Record<string, string> = {
 interface InstructorSummary {
   instructor: string;
   platform: string;
-  course: string;
+  courses: string[];
   total: number;
   positive: number;
   negative: number;
@@ -304,20 +303,23 @@ export function ActionRoleView() {
     return map;
   }, [state.platforms]);
 
-  // 강사별 요약 (강의별 분리)
+  // 강사별 요약
   const instructorSummaries = useMemo(() => {
     const map = new Map<string, InstructorSummary>();
+    const courseSets = new Map<string, Set<string>>();
 
     for (const c of activeComments) {
       if (platformFilter !== "all" && c._platform !== platformFilter) continue;
-      const key = `${c._platform}|${c._instructor}|${c._course}`;
+      const key = `${c._platform}|${c._instructor}`;
       if (!map.has(key)) {
         map.set(key, {
-          instructor: c._instructor, platform: c._platform, course: c._course,
+          instructor: c._instructor, platform: c._platform, courses: [],
           total: 0, positive: 0, negative: 0, neutral: 0, processed: 0, comments: [],
         });
+        courseSets.set(key, new Set());
       }
       const s = map.get(key)!;
+      if (c._course) courseSets.get(key)!.add(c._course);
       s.total++;
       if (c.sentiment === "positive") s.positive++;
       else if (c.sentiment === "negative") s.negative++;
@@ -326,33 +328,25 @@ export function ActionRoleView() {
       s.comments.push(c);
     }
 
+    for (const [key, courses] of courseSets) {
+      map.get(key)!.courses = Array.from(courses).sort();
+    }
+
     let result = Array.from(map.values());
     if (search) {
       const q = search.toLowerCase();
-      result = result.filter((s) => s.instructor.toLowerCase().includes(q) || s.platform.toLowerCase().includes(q) || s.course.toLowerCase().includes(q));
+      result = result.filter((s) => s.instructor.toLowerCase().includes(q) || s.platform.toLowerCase().includes(q));
     }
-    // 플랫폼 → 강사명 → 강의명 순 정렬
+    // 플랫폼 그룹핑 (핏크닉 → 머니업클래스 → 기타) + 강사명 ㄱㄴㄷ순
     const PLATFORM_ORDER: Record<string, number> = { "핏크닉": 0, "머니업클래스": 1 };
     result.sort((a, b) => {
       const pa = PLATFORM_ORDER[a.platform] ?? 99;
       const pb = PLATFORM_ORDER[b.platform] ?? 99;
       if (pa !== pb) return pa - pb;
-      const nameCompare = a.instructor.localeCompare(b.instructor, "ko");
-      if (nameCompare !== 0) return nameCompare;
-      return a.course.localeCompare(b.course, "ko");
+      return a.instructor.localeCompare(b.instructor, "ko");
     });
     return result;
   }, [activeComments, platformFilter, search]);
-
-  // 동일 강사의 강의 수 (병합 알림용)
-  const instructorCourseCount = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const s of instructorSummaries) {
-      const key = `${s.platform}|${s.instructor}`;
-      map.set(key, (map.get(key) || 0) + 1);
-    }
-    return map;
-  }, [instructorSummaries]);
 
   const completedInstructorCount = useMemo(() =>
     instructorSummaries.filter((s) => s.total > 0 && s.processed >= s.total).length,
@@ -470,16 +464,19 @@ export function ActionRoleView() {
   );
 
   const selectedSummary = useMemo(
-    () => instructorSummaries.find((s) => `${s.platform}|${s.instructor}|${s.course}` === selectedInstructor) || null,
+    () => instructorSummaries.find((s) => `${s.platform}|${s.instructor}` === selectedInstructor) || null,
     [instructorSummaries, selectedInstructor]
   );
 
   // 상세 뷰 필터 옵션
-  const detailCourses = useMemo(() => selectedSummary ? [selectedSummary.course] : [], [selectedSummary]);
+  const detailCourses = useMemo(() => selectedSummary?.courses || [], [selectedSummary]);
   const detailCohorts = useMemo(() => {
     if (!selectedSummary) return [];
-    return Array.from(new Set(selectedSummary.comments.map((c) => c._cohort).filter(Boolean))).sort();
-  }, [selectedSummary]);
+    const filtered = courseFilter !== "all"
+      ? selectedSummary.comments.filter((c) => c._course === courseFilter)
+      : selectedSummary.comments;
+    return Array.from(new Set(filtered.map((c) => c._cohort).filter(Boolean))).sort();
+  }, [selectedSummary, courseFilter]);
   const detailSourceFields = useMemo(() => {
     if (!selectedSummary) return [];
     const set = new Set(selectedSummary.comments.map((c) => c.source_field));
@@ -552,10 +549,10 @@ export function ActionRoleView() {
     if (selectedScopeKey) loadThemes(selectedScopeKey);
   }, [selectedScopeKey, loadThemes]);
 
-  // showCompleted OFF 시 완료 카드 해제
+  // showCompleted OFF 시 완료 강사 해제
   useEffect(() => {
     if (!showCompleted && selectedInstructor) {
-      const s = instructorSummaries.find((s) => `${s.platform}|${s.instructor}|${s.course}` === selectedInstructor);
+      const s = instructorSummaries.find((s) => `${s.platform}|${s.instructor}` === selectedInstructor);
       if (s && s.total > 0 && s.processed >= s.total) setSelectedInstructor(null);
     }
   }, [showCompleted, selectedInstructor, instructorSummaries]);
@@ -783,8 +780,7 @@ export function ActionRoleView() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    const courseName = selectedSummary?.course ? `_${selectedSummary.course}` : "";
-    a.download = `${selectedSummary?.instructor || VIEW_TAG_LABELS[activeTag]}${courseName}_${VIEW_TAG_LABELS[activeTag]}_피드백_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `${selectedSummary?.instructor || VIEW_TAG_LABELS[activeTag]}_${VIEW_TAG_LABELS[activeTag]}_피드백_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success(`${data.length}건 엑셀(CSV)로 내보냈습니다`);
@@ -1389,7 +1385,7 @@ export function ActionRoleView() {
               }`}
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
-              완료 {completedInstructorCount}개 {showCompleted ? "숨기기" : "보기"}
+              완료 {completedInstructorCount}명 {showCompleted ? "숨기기" : "보기"}
             </button>
           )}
         </div>
@@ -1409,15 +1405,14 @@ export function ActionRoleView() {
         {visibleSummaries.length > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 mb-5">
             {visibleSummaries.map((s) => {
-              const key = `${s.platform}|${s.instructor}|${s.course}`;
-              const photo = photoMap.get(`${s.platform}|${s.instructor}`);
+              const key = `${s.platform}|${s.instructor}`;
+              const photo = photoMap.get(key);
               const pColor = PLATFORM_COLORS[s.platform] || DEFAULT_PLATFORM_COLOR;
               const isActive = selectedInstructor === key;
               const isCompleted = s.total > 0 && s.processed >= s.total;
               const pct = s.total > 0 ? Math.round((s.positive / s.total) * 100) : 0;
               const negPct = s.total > 0 ? Math.round((s.negative / s.total) * 100) : 0;
               const procPct = s.total > 0 ? Math.round((s.processed / s.total) * 100) : 0;
-              const courseCount = instructorCourseCount.get(`${s.platform}|${s.instructor}`) || 1;
 
               return (
                 <button
@@ -1437,11 +1432,6 @@ export function ActionRoleView() {
                   {isCompleted && (
                     <span className="absolute top-1.5 left-1.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold px-1.5 py-0.5 rounded">✓ 완료</span>
                   )}
-                  {courseCount >= 2 && (
-                    <span className="absolute top-1.5 right-1.5 flex items-center gap-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold px-1.5 py-0.5 rounded">
-                      <Merge className="w-3 h-3" />{courseCount}
-                    </span>
-                  )}
 
                   {/* 상단: 프로필 + 이름 + 플랫폼 */}
                   <div className="flex flex-col items-center">
@@ -1457,7 +1447,7 @@ export function ActionRoleView() {
                     <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border mt-0.5 ${pColor.bg} ${pColor.text} ${pColor.border}`}>
                       {s.platform}
                     </span>
-                    {s.course && <span className="text-[11px] text-muted-foreground mt-1 truncate w-full">{s.course}</span>}
+                    {s.courses.length > 1 && <span className="text-[11px] text-muted-foreground mt-1">{s.courses.length}개 강의</span>}
                   </div>
 
                   {/* 하단: 건수 + 감정바 + 처리율 (항상 하단 고정) */}
@@ -1519,9 +1509,6 @@ export function ActionRoleView() {
               <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${(PLATFORM_COLORS[selectedSummary.platform] || DEFAULT_PLATFORM_COLOR).bg} ${(PLATFORM_COLORS[selectedSummary.platform] || DEFAULT_PLATFORM_COLOR).text} ${(PLATFORM_COLORS[selectedSummary.platform] || DEFAULT_PLATFORM_COLOR).border}`}>
                 {selectedSummary.platform}
               </span>
-              {selectedSummary.course && (
-                <span className="text-[13px] font-semibold text-muted-foreground">{selectedSummary.course}</span>
-              )}
               {activeTag !== "all" && (
                 <span className={`text-[11px] px-2 py-0.5 rounded-full border ${getActionTagColor(activeTag)}`}>
                   {getActionTagLabel(activeTag)}
@@ -1560,17 +1547,6 @@ export function ActionRoleView() {
               </button>
             </div>
 
-            {/* 병합 안내 배너 */}
-            {(() => {
-              const cc = instructorCourseCount.get(`${selectedSummary.platform}|${selectedSummary.instructor}`) || 1;
-              return cc >= 2 ? (
-                <div className="flex items-center gap-2 px-5 py-2 bg-blue-50 border-b border-blue-200 text-blue-700 text-[13px]">
-                  <Merge className="w-4 h-4 shrink-0" />
-                  <span>이 강사의 <strong>{cc}개 강의</strong>를 병합해야 할 수 있습니다. 데이터 관리에서 강사 편집을 통해 병합하세요.</span>
-                </div>
-              ) : null;
-            })()}
-
             {/* 뷰모드 탭 + 필터 */}
             <div className="flex gap-2 items-center flex-wrap px-5 py-3 border-b bg-muted/20">
               {/* 뷰모드 탭 */}
@@ -1597,7 +1573,7 @@ export function ActionRoleView() {
 
               {/* 필터 셀렉트 */}
               {detailCourses.length > 1 && (
-                <select value={courseFilter} onChange={(e) => setCourseFilter(e.target.value)} className="text-[12px] border rounded-lg px-2 py-1 bg-background">
+                <select value={courseFilter} onChange={(e) => { setCourseFilter(e.target.value); setCohortFilter("all"); }} className="text-[12px] border rounded-lg px-2 py-1 bg-background">
                   <option value="all">전체 강의</option>
                   {detailCourses.map((l) => <option key={l} value={l}>{l}</option>)}
                 </select>
