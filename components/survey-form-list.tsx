@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import type { SurveyForm } from "@/lib/types";
 import {
   Copy,
@@ -29,6 +29,9 @@ import {
   Gift,
   ClipboardCopy,
   UserSearch,
+  ChevronRight,
+  CheckCircle2,
+  Undo2,
 } from "lucide-react";
 import type { FormField } from "@/lib/types";
 import {
@@ -250,7 +253,8 @@ function NameMatchView() {
   const [matches, setMatches] = useState<MatchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState(false);
-  const [applied, setApplied] = useState(false);
+  const [searched, setSearched] = useState(false);
+  const [totalChecked, setTotalChecked] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const parsePastedData = (text: string): { name: string; phone: string }[] => {
@@ -279,7 +283,7 @@ function NameMatchView() {
     const entries = parsePastedData(pasteText);
     if (entries.length === 0) return;
     setLoading(true);
-    setApplied(false);
+    setSearched(false);
     try {
       const res = await fetch("/api/match-names", {
         method: "POST",
@@ -287,9 +291,11 @@ function NameMatchView() {
         body: JSON.stringify({ entries }),
       });
       if (res.ok) {
-        const { matches: m } = await res.json();
+        const { matches: m, totalChecked: tc } = await res.json();
         setMatches(m);
+        setTotalChecked(tc || 0);
         setSelected(new Set(m.map((r: MatchResult) => r.responseId)));
+        setSearched(true);
       }
     } catch {
       /* ignore */
@@ -413,7 +419,10 @@ function NameMatchView() {
 
       {matches.length === 0 && !loading && pasteText && parsedCount > 0 && (
         <div className="text-center py-8 text-muted-foreground text-[14px]">
-          매칭 검색 버튼을 눌러주세요
+          {searched
+            ? <><p className="font-bold">매칭할 대상이 없습니다</p><p className="text-[12px] mt-1">응답 {totalChecked}건 확인 — 이름이 모두 일치하거나 전화번호가 일치하는 응답이 없습니다</p></>
+            : "매칭 검색 버튼을 눌러주세요"
+          }
         </div>
       )}
     </div>
@@ -448,16 +457,10 @@ function GiftManagementView() {
   const [giftSubTab, setGiftSubTab] = useState<"gift" | "match">("gift");
   const [loading, setLoading] = useState(true);
   const [responses, setResponses] = useState<GiftResponse[]>([]);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [filterInstructor, setFilterInstructor] = useState("전체");
-  const [filterCohort, setFilterCohort] = useState("전체");
-  const [filterStatus, setFilterStatus] = useState<"전체" | "미발송" | "발송완료">("전체");
-  const [overviewFilter, setOverviewFilter] = useState<Set<GroupStatus>>(new Set(["완료", "진행중", "시작 전"]));
   const [updating, setUpdating] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [showAmountModal, setShowAmountModal] = useState(false);
-  const [amountInput, setAmountInput] = useState("");
-  const [overviewOpen, setOverviewOpen] = useState(false);
+  const [copiedGroup, setCopiedGroup] = useState<string | null>(null);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [showSent, setShowSent] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -474,115 +477,65 @@ function GiftManagementView() {
     })();
   }, []);
 
-  // 필터 옵션: 강사 목록 + 강사→기수 연동
-  const instructors = [...new Set(responses.map((r) => r.instructor))].filter(Boolean).sort();
-  const cohorts = filterInstructor === "전체"
-    ? [...new Set(responses.map((r) => r.cohort))].filter(Boolean).sort()
-    : [...new Set(responses.filter((r) => r.instructor === filterInstructor).map((r) => r.cohort))].filter(Boolean).sort();
-
-  // 강사 변경 시 기수 리셋
-  const handleInstructorChange = (v: string) => {
-    setFilterInstructor(v);
-    setFilterCohort("전체");
-    setSelected(new Set());
-  };
-
-  // 강사+기수별 그룹 현황
-  const groups = (() => {
-    const map: Record<string, { instructor: string; cohort: string; total: number; sent: number; totalAmount: number }> = {};
+  // 강사+기수별 그룹
+  const groups = useMemo(() => {
+    const map = new Map<string, { key: string; instructor: string; cohort: string; responses: GiftResponse[]; sent: number }>();
     for (const r of responses) {
       const key = `${r.instructor}||${r.cohort}`;
-      if (!map[key]) map[key] = { instructor: r.instructor, cohort: r.cohort, total: 0, sent: 0, totalAmount: 0 };
-      map[key].total++;
-      if (r.gift_sent) map[key].sent++;
-      map[key].totalAmount += r.gift_amount || 0;
+      if (!map.has(key)) map.set(key, { key, instructor: r.instructor, cohort: r.cohort, responses: [], sent: 0 });
+      const g = map.get(key)!;
+      g.responses.push(r);
+      if (r.gift_sent) g.sent++;
     }
-    return Object.values(map).sort((a, b) => {
-      if (a.instructor !== b.instructor) return a.instructor.localeCompare(b.instructor);
-      return a.cohort.localeCompare(b.cohort);
+    return Array.from(map.values()).sort((a, b) => {
+      if (a.instructor !== b.instructor) return a.instructor.localeCompare(b.instructor, "ko");
+      return a.cohort.localeCompare(b.cohort, "ko");
     });
-  })();
+  }, [responses]);
 
-  const filteredGroups = groups.filter((g) => overviewFilter.has(getGroupStatus(g.sent, g.total)));
-
-  const toggleOverviewFilter = (status: GroupStatus) => {
-    setOverviewFilter((prev) => {
-      const next = new Set(prev);
-      if (next.has(status)) {
-        if (next.size > 1) next.delete(status);
-      } else {
-        next.add(status);
-      }
-      return next;
-    });
-  };
+  const unsentGroups = groups.filter((g) => g.sent < g.responses.length);
+  const sentGroups = groups.filter((g) => g.sent === g.responses.length && g.responses.length > 0);
 
   const totalAll = responses.length;
   const sentAll = responses.filter((r) => r.gift_sent).length;
-  const unsentAll = totalAll - sentAll;
 
-  // 필터링된 응답
-  const filtered = responses.filter((r) => {
-    if (filterInstructor !== "전체" && r.instructor !== filterInstructor) return false;
-    if (filterCohort !== "전체" && r.cohort !== filterCohort) return false;
-    if (filterStatus === "미발송" && r.gift_sent) return false;
-    if (filterStatus === "발송완료" && !r.gift_sent) return false;
-    return true;
-  });
+  // 미발송 카드는 기본 펼침
+  useEffect(() => {
+    setExpandedGroups(new Set(unsentGroups.map((g) => g.key)));
+  }, [responses]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const unsentCount = filtered.filter((r) => !r.gift_sent).length;
-  const sentCount = filtered.filter((r) => r.gift_sent).length;
-
-  const allSelected = filtered.length > 0 && filtered.every((r) => selected.has(r.id));
-
-  const toggleSelectAll = () => {
-    if (allSelected) {
-      setSelected(new Set());
-    } else {
-      setSelected(new Set(filtered.map((r) => r.id)));
-    }
-  };
-
-  const toggleSelect = (id: string) => {
-    setSelected((prev) => {
+  const toggleExpand = (key: string) => {
+    setExpandedGroups((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(key)) next.delete(key); else next.add(key);
       return next;
     });
   };
 
-  const handleCopy = () => {
-    const targets = selected.size > 0
-      ? filtered.filter((r) => selected.has(r.id))
-      : filtered.filter((r) => !r.gift_sent);
+  const handleCopyGroup = (group: typeof groups[0]) => {
+    const targets = group.responses.filter((r) => !r.gift_sent);
     if (targets.length === 0) return;
     const text = targets.map((r) => `${r.name}\t${r.phone || ""}`).join("\n");
     navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setCopiedGroup(group.key);
+    setTimeout(() => setCopiedGroup(null), 2000);
   };
 
-  const handleGiftToggle = async (gift_sent: boolean) => {
-    const ids = [...selected];
+  const handleSendGroup = async (group: typeof groups[0]) => {
+    const ids = group.responses.filter((r) => !r.gift_sent).map((r) => r.id);
     if (ids.length === 0) return;
     setUpdating(true);
     try {
       const res = await fetch("/api/gift-status", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ responseIds: ids, gift_sent }),
+        body: JSON.stringify({ responseIds: ids, gift_sent: true }),
       });
       if (res.ok) {
         const now = new Date().toISOString();
         setResponses((prev) =>
-          prev.map((r) =>
-            ids.includes(r.id)
-              ? { ...r, gift_sent, gift_sent_at: gift_sent ? now : null }
-              : r
-          )
+          prev.map((r) => ids.includes(r.id) ? { ...r, gift_sent: true, gift_sent_at: now } : r)
         );
-        setSelected(new Set());
       }
     } catch {
       console.error("발송 상태 변경 실패");
@@ -591,56 +544,40 @@ function GiftManagementView() {
     }
   };
 
-  const handleGroupClick = (instructor: string, cohort: string) => {
-    setFilterInstructor(instructor);
-    setFilterCohort(cohort);
-    setFilterStatus("전체");
-    setSelected(new Set());
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-16">
-        <Loader2 className="w-6 h-6 animate-spin text-primary" />
-        <span className="ml-2 text-[13px] text-muted-foreground">기프티쇼 데이터 불러오는 중...</span>
-      </div>
-    );
-  }
-
-  const handleAmountSubmit = async () => {
-    const amount = parseInt(amountInput.replace(/\D/g, ""));
-    if (isNaN(amount) || amount < 0) return;
-    const ids = [...selected];
+  const handleUndoGroup = async (group: typeof groups[0]) => {
+    const ids = group.responses.filter((r) => r.gift_sent).map((r) => r.id);
     if (ids.length === 0) return;
     setUpdating(true);
     try {
       const res = await fetch("/api/gift-status", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ responseIds: ids, gift_amount: amount }),
+        body: JSON.stringify({ responseIds: ids, gift_sent: false }),
       });
       if (res.ok) {
         setResponses((prev) =>
-          prev.map((r) => ids.includes(r.id) ? { ...r, gift_amount: amount } : r)
+          prev.map((r) => ids.includes(r.id) ? { ...r, gift_sent: false, gift_sent_at: null } : r)
         );
-        setShowAmountModal(false);
-        setAmountInput("");
-        setSelected(new Set());
       }
     } catch {
-      console.error("금액 변경 실패");
+      console.error("발송 취소 실패");
     } finally {
       setUpdating(false);
     }
   };
 
-  const doneCount = groups.filter((g) => g.sent === g.total && g.total > 0).length;
-  const inProgressCount = groups.filter((g) => g.sent > 0 && g.sent < g.total).length;
-  const notStartedCount = groups.filter((g) => g.sent === 0).length;
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+        <span className="ml-2 text-[13px] text-muted-foreground">데이터 불러오는 중...</span>
+      </div>
+    );
+  }
 
   return (
     <div>
-      {/* 서브탭: 기프티쇼 / 명단 매칭 */}
+      {/* 서브탭: 발송 관리 / 명단 매칭 */}
       <div className="flex gap-0.5 bg-muted rounded-lg p-0.5 border mb-4 w-fit">
         <button onClick={() => setGiftSubTab("gift")} className={`py-1.5 px-3 rounded-md text-[13px] font-semibold transition-colors flex items-center gap-1.5 ${giftSubTab === "gift" ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
           <Gift className="w-3.5 h-3.5" />발송 관리
@@ -654,309 +591,142 @@ function GiftManagementView() {
         <NameMatchView />
       ) : (
       <>
-      {/* ===== 전체 현황 (접기/펼치기) ===== */}
-      <div className="bg-card rounded-xl border mb-4">
-        <button
-          onClick={() => setOverviewOpen(!overviewOpen)}
-          className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors rounded-xl"
-        >
-          <div className="flex items-center gap-2">
-            <h3 className="text-[14px] font-bold">전체 현황</h3>
-            <div className="flex items-center gap-1.5">
-              {doneCount > 0 && <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-bold">완료 {doneCount}</span>}
-              {inProgressCount > 0 && <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold">진행중 {inProgressCount}</span>}
-              {notStartedCount > 0 && <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 font-bold">시작 전 {notStartedCount}</span>}
-            </div>
-          </div>
-          {overviewOpen ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
-        </button>
-
-        {overviewOpen && (
-          <div className="px-4 pb-3">
-            {/* 현황 필터 토글 */}
-            <div className="flex items-center gap-1.5 mb-2">
-              {([
-                { status: "완료" as GroupStatus, count: doneCount, color: "emerald" },
-                { status: "진행중" as GroupStatus, count: inProgressCount, color: "blue" },
-                { status: "시작 전" as GroupStatus, count: notStartedCount, color: "gray" },
-              ]).map(({ status, count, color }) => {
-                const active = overviewFilter.has(status);
-                const colorMap: Record<string, string> = {
-                  emerald: active ? "bg-emerald-100 text-emerald-700 border-emerald-300" : "bg-muted text-muted-foreground border-transparent",
-                  blue: active ? "bg-blue-100 text-blue-700 border-blue-300" : "bg-muted text-muted-foreground border-transparent",
-                  gray: active ? "bg-gray-200 text-gray-700 border-gray-400" : "bg-muted text-muted-foreground border-transparent",
-                };
-                return (
-                  <button
-                    key={status}
-                    onClick={(e) => { e.stopPropagation(); toggleOverviewFilter(status); }}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all ${colorMap[color]}`}
-                  >
-                    {status} {count}
-                  </button>
-                );
-              })}
-            </div>
-
-            {groups.length === 0 ? (
-              <p className="text-[13px] text-muted-foreground">후기 설문 데이터가 없습니다.</p>
-            ) : (
-              <div className="space-y-1">
-                {filteredGroups.map((g) => {
-                  const pct = g.total > 0 ? Math.round((g.sent / g.total) * 100) : 0;
-                  const status = getGroupStatus(g.sent, g.total);
-                  const isActive = filterInstructor === g.instructor && filterCohort === g.cohort;
-                  return (
-                    <button
-                      key={`${g.instructor}-${g.cohort}`}
-                      onClick={() => handleGroupClick(g.instructor, g.cohort)}
-                      className={`w-full flex items-center gap-3 px-3 py-1.5 rounded-lg text-left transition-all ${
-                        isActive ? "bg-primary/10 ring-1 ring-primary/30" : "hover:bg-muted/60"
-                      }`}
-                    >
-                      <span className="text-[12px] font-semibold min-w-[100px] truncate">
-                        {g.instructor} {g.cohort}
-                      </span>
-                      <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all duration-500 ${
-                            status === "완료" ? "bg-emerald-500" : status === "진행중" ? "bg-blue-500" : "bg-gray-300"
-                          }`}
-                          style={{ width: `${Math.max(pct, status === "시작 전" ? 0 : 2)}%` }}
-                        />
-                      </div>
-                      <span className={`text-[11px] font-bold min-w-[40px] text-right ${
-                        status === "완료" ? "text-emerald-600" : status === "진행중" ? "text-blue-600" : "text-muted-foreground"
-                      }`}>
-                        {g.sent}/{g.total}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
+      {/* 요약 */}
+      <div className="flex items-center gap-3 mb-4 text-[13px]">
+        <span className="text-muted-foreground">전체 <strong className="text-foreground">{totalAll}명</strong></span>
+        <span className="text-muted-foreground">발송 완료 <strong className="text-emerald-600">{sentAll}명</strong></span>
+        <span className="text-muted-foreground">미발송 <strong className="text-foreground">{totalAll - sentAll}명</strong></span>
       </div>
 
-      {/* ===== 필터 + 목록 ===== */}
-      <div className="flex flex-wrap items-center gap-2 mb-3">
-        <div className="flex items-center gap-1.5">
-          <span className="text-[12px] text-muted-foreground">강사:</span>
-          <select
-            value={filterInstructor}
-            onChange={(e) => handleInstructorChange(e.target.value)}
-            className="text-[12px] bg-muted px-2 py-1 rounded-lg outline-none cursor-pointer"
-          >
-            <option value="전체">전체</option>
-            {instructors.map((i) => <option key={i} value={i}>{i}</option>)}
-          </select>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="text-[12px] text-muted-foreground">기수:</span>
-          <select
-            value={filterCohort}
-            onChange={(e) => { setFilterCohort(e.target.value); setSelected(new Set()); }}
-            disabled={filterInstructor === "전체"}
-            className={`text-[12px] bg-muted px-2 py-1 rounded-lg outline-none ${filterInstructor === "전체" ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
-          >
-            <option value="전체">전체</option>
-            {cohorts.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
-        {(filterInstructor !== "전체" || filterCohort !== "전체") && (
-          <button
-            onClick={() => { setFilterInstructor("전체"); setFilterCohort("전체"); setSelected(new Set()); }}
-            className="text-[11px] text-muted-foreground hover:text-foreground transition-colors px-1.5"
-          >
-            필터 초기화
-          </button>
-        )}
-      </div>
-
-      {/* 상태 탭 */}
-      <div className="flex items-center gap-1 mb-3">
-        {([
-          { key: "전체" as const, count: filtered.length },
-          { key: "미발송" as const, count: unsentCount },
-          { key: "발송완료" as const, count: sentCount },
-        ]).map(({ key, count }) => (
-          <button
-            key={key}
-            onClick={() => { setFilterStatus(key); setSelected(new Set()); }}
-            className={`px-3 py-1.5 rounded-lg text-[12px] font-bold transition-all ${
-              filterStatus === key
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground hover:bg-accent"
-            }`}
-          >
-            {key} {count}명
-          </button>
-        ))}
-      </div>
-
-      {/* 액션 바 */}
-      <div className="flex flex-wrap items-center gap-2 mb-3">
-        <button
-          onClick={toggleSelectAll}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[12px] font-semibold text-muted-foreground hover:bg-accent transition-colors"
-        >
-          <span className={`w-4 h-4 rounded border-2 flex items-center justify-center ${allSelected ? "border-primary bg-primary" : "border-gray-300"}`}>
-            {allSelected && (
-              <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
-            )}
-          </span>
-          전체선택
-        </button>
-        <button
-          onClick={handleCopy}
-          disabled={filtered.length === 0}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[12px] font-semibold text-muted-foreground hover:bg-accent transition-colors disabled:opacity-40"
-        >
-          {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <ClipboardCopy className="w-3.5 h-3.5" />}
-          {copied ? "복사됨!" : selected.size > 0 ? `이름/번호 복사 (${selected.size}명)` : `이름/번호 복사 (${unsentCount}명)`}
-        </button>
-        {selected.size > 0 && (
-          <>
-            <button
-              onClick={() => handleGiftToggle(true)}
-              disabled={updating}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-[12px] font-semibold text-emerald-700 hover:bg-emerald-100 transition-colors disabled:opacity-50"
-            >
-              {updating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-              발송 처리
-            </button>
-            <button
-              onClick={() => handleGiftToggle(false)}
-              disabled={updating}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 border border-red-200 text-[12px] font-semibold text-red-600 hover:bg-red-100 transition-colors disabled:opacity-50"
-            >
-              발송 취소
-            </button>
-            <button
-              onClick={() => { setAmountInput(""); setShowAmountModal(true); }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-[12px] font-semibold text-amber-700 hover:bg-amber-100 transition-colors"
-            >
-              금액 일괄 수정
-            </button>
-          </>
-        )}
-      </div>
-
-      {/* 테이블 */}
-      {filtered.length === 0 ? (
+      {/* 미발송 그룹 카드 */}
+      {unsentGroups.length === 0 && sentGroups.length === 0 && (
         <div className="text-center py-12">
           <Gift className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
           <p className="text-[14px] font-bold text-muted-foreground">후기 설문 응답이 없습니다</p>
         </div>
-      ) : (
-        <div className="overflow-x-auto rounded-lg border bg-card">
-          <table className="w-full text-[12px]">
-            <thead>
-              <tr className="bg-muted/50 border-b">
-                <th className="py-2 px-2 w-8"></th>
-                <th className="py-2 px-3 text-left font-semibold text-muted-foreground">이름</th>
-                <th className="py-2 px-3 text-left font-semibold text-muted-foreground">전화번호</th>
-                <th className="py-2 px-3 text-left font-semibold text-muted-foreground">강사</th>
-                <th className="py-2 px-3 text-left font-semibold text-muted-foreground">기수</th>
-                <th className="py-2 px-3 text-right font-semibold text-muted-foreground">금액</th>
-                <th className="py-2 px-3 text-left font-semibold text-muted-foreground">응답일</th>
-                <th className="py-2 px-3 text-center font-semibold text-muted-foreground">발송</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((r) => {
-                const isSent = r.gift_sent;
-                return (
-                  <tr
-                    key={r.id}
-                    className={`border-b last:border-0 transition-colors ${
-                      isSent ? "bg-muted/20 text-muted-foreground" : "hover:bg-muted/30"
-                    }`}
-                  >
-                    <td className="py-2 px-2 text-center">
-                      <button onClick={() => toggleSelect(r.id)} className="p-0.5">
-                        <span className={`inline-flex w-4 h-4 rounded border-2 items-center justify-center ${
-                          selected.has(r.id) ? "border-primary bg-primary" : "border-gray-300"
-                        }`}>
-                          {selected.has(r.id) && (
-                            <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                            </svg>
-                          )}
-                        </span>
+      )}
+
+      {unsentGroups.length > 0 && (
+        <div className="space-y-3 mb-6">
+          {unsentGroups.map((group) => {
+            const isExpanded = expandedGroups.has(group.key);
+            const isCopied = copiedGroup === group.key;
+            const unsent = group.responses.filter((r) => !r.gift_sent);
+            const sentInGroup = group.responses.filter((r) => r.gift_sent);
+            return (
+              <div key={group.key} className="bg-card rounded-xl border overflow-hidden">
+                {/* 카드 헤더 */}
+                <button
+                  onClick={() => toggleExpand(group.key)}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors"
+                >
+                  {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />}
+                  <span className="text-[14px] font-bold">{group.instructor}</span>
+                  <span className="text-[12px] bg-muted px-2 py-0.5 rounded-lg font-semibold text-muted-foreground">{group.cohort}</span>
+                  <span className="text-[13px] text-muted-foreground">{unsent.length}명 미발송</span>
+                  {sentInGroup.length > 0 && (
+                    <span className="text-[11px] text-emerald-600 font-semibold">{sentInGroup.length}명 완료</span>
+                  )}
+                </button>
+
+                {/* 명단 */}
+                {isExpanded && (
+                  <div className="border-t">
+                    <div className="divide-y">
+                      {unsent.map((r) => (
+                        <div key={r.id} className="flex items-center gap-4 px-5 py-2 text-[13px]">
+                          <span className="font-medium min-w-[60px]">{r.name || "-"}</span>
+                          <span className="text-muted-foreground font-mono">{r.phone || "-"}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {/* 카드 액션 */}
+                    <div className="flex items-center gap-2 px-4 py-3 bg-muted/20 border-t">
+                      <button
+                        onClick={() => handleCopyGroup(group)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[12px] font-semibold hover:bg-accent transition-colors"
+                      >
+                        {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <ClipboardCopy className="w-3.5 h-3.5" />}
+                        {isCopied ? "복사됨!" : `이름/번호 복사 (${unsent.length}명)`}
                       </button>
-                    </td>
-                    <td className={`py-2 px-3 font-medium ${isSent ? "line-through" : ""}`}>
-                      {r.name || "-"}
-                    </td>
-                    <td className={`py-2 px-3 ${isSent ? "line-through" : ""}`}>
-                      {r.phone || "-"}
-                    </td>
-                    <td className="py-2 px-3">{r.instructor || "-"}</td>
-                    <td className="py-2 px-3">{r.cohort || "-"}</td>
-                    <td className="py-2 px-3 text-right whitespace-nowrap">
-                      {r.gift_amount ? `${r.gift_amount.toLocaleString()}원` : "-"}
-                    </td>
-                    <td className="py-2 px-3 whitespace-nowrap">
-                      {r.created_at ? new Date(r.created_at).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" }) : "-"}
-                    </td>
-                    <td className="py-2 px-3 text-center">
-                      {isSent ? (
-                        <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 font-semibold border border-emerald-200">
-                          완료
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      <div className="flex-1" />
+                      <button
+                        onClick={() => handleSendGroup(group)}
+                        disabled={updating}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-[12px] font-bold text-emerald-700 hover:bg-emerald-100 transition-colors disabled:opacity-50"
+                      >
+                        {updating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                        발송 완료 처리
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {/* 금액 일괄 수정 모달 */}
-      {showAmountModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowAmountModal(false)}>
-          <div className="bg-card rounded-xl shadow-xl border p-5 w-[320px]" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-[14px] font-bold mb-3">금액 일괄 수정</h3>
-            <p className="text-[12px] text-muted-foreground mb-3">
-              선택된 {selected.size}명의 발송 금액을 변경합니다.
-            </p>
-            <div className="flex items-center gap-2 mb-4">
-              <input
-                type="text"
-                inputMode="numeric"
-                value={amountInput}
-                onChange={(e) => setAmountInput(e.target.value.replace(/\D/g, ""))}
-                placeholder="금액 입력 (예: 1940)"
-                className="flex-1 px-3 py-2 rounded-lg border text-[13px] outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
-                autoFocus
-                onKeyDown={(e) => { if (e.key === "Enter") handleAmountSubmit(); }}
-              />
-              <span className="text-[13px] text-muted-foreground">원</span>
+      {/* 발송 완료 그룹 */}
+      {sentGroups.length > 0 && (
+        <div>
+          <button
+            onClick={() => setShowSent(!showSent)}
+            className="flex items-center gap-2 text-[13px] font-semibold text-muted-foreground hover:text-foreground transition-colors mb-3"
+          >
+            {showSent ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            발송 완료 ({sentGroups.length}개 그룹, {sentAll}명)
+          </button>
+
+          {showSent && (
+            <div className="space-y-2">
+              {sentGroups.map((group) => {
+                const isExpanded = expandedGroups.has(group.key);
+                const sentDate = group.responses.find((r) => r.gift_sent_at)?.gift_sent_at;
+                return (
+                  <div key={group.key} className="bg-muted/30 rounded-xl border overflow-hidden">
+                    <button
+                      onClick={() => toggleExpand(group.key)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-muted/50 transition-colors"
+                    >
+                      {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                      <span className="text-[13px] font-bold">{group.instructor}</span>
+                      <span className="text-[11px] bg-muted px-1.5 py-0.5 rounded font-semibold text-muted-foreground">{group.cohort}</span>
+                      <span className="text-[12px] text-muted-foreground">{group.responses.length}명</span>
+                      {sentDate && (
+                        <span className="text-[11px] text-muted-foreground ml-auto">
+                          {new Date(sentDate).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" })} 발송
+                        </span>
+                      )}
+                    </button>
+
+                    {isExpanded && (
+                      <div className="border-t">
+                        <div className="divide-y">
+                          {group.responses.map((r) => (
+                            <div key={r.id} className="flex items-center gap-4 px-5 py-1.5 text-[12px] text-muted-foreground">
+                              <span className="min-w-[60px]">{r.name || "-"}</span>
+                              <span className="font-mono">{r.phone || "-"}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-2 px-4 py-2 bg-muted/20 border-t">
+                          <button
+                            onClick={() => handleUndoGroup(group)}
+                            disabled={updating}
+                            className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg border text-muted-foreground hover:bg-accent transition-colors disabled:opacity-50"
+                          >
+                            <Undo2 className="w-3 h-3" />발송 취소
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setShowAmountModal(false)}
-                className="px-4 py-2 rounded-lg border text-[13px] font-bold text-muted-foreground hover:bg-accent transition-colors"
-              >
-                취소
-              </button>
-              <button
-                onClick={handleAmountSubmit}
-                disabled={!amountInput || updating}
-                className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-[13px] font-bold hover:opacity-90 transition-opacity disabled:opacity-50"
-              >
-                {updating ? "변경 중..." : "변경"}
-              </button>
-            </div>
-          </div>
+          )}
         </div>
       )}
       </>

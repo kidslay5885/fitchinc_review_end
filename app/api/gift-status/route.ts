@@ -17,7 +17,11 @@ export async function PATCH(req: NextRequest) {
     // 발송 상태 토글
     if (typeof gift_sent === "boolean") {
       updateData.gift_sent = gift_sent;
-      updateData.gift_sent_at = gift_sent ? new Date().toISOString() : null;
+      if (gift_sent) {
+        updateData.gift_sent_at = body.gift_sent_at || new Date().toISOString();
+      } else {
+        updateData.gift_sent_at = null;
+      }
     }
 
     // 금액 일괄 수정
