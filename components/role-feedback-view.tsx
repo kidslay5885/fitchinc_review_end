@@ -743,7 +743,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
                   <span className="text-[15px] font-bold truncate w-full">{s.instructor}</span>
                   <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border mt-0.5 ${pColor.bg} ${pColor.text} ${pColor.border}`}>{s.platform}</span>
                   {s.courses.length > 1 && (
-                    <span className="text-[11px] text-muted-foreground mt-1">{s.courses.length}개 강의</span>
+                    <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded mt-1">{s.courses.length}개 강의</span>
                   )}
                   <div className="flex items-center gap-1.5 mt-2.5 w-full">
                     <span className="text-[20px] font-extrabold text-primary">{s.total}</span>
@@ -878,7 +878,7 @@ export function RoleFeedbackView({ initialRole = "pm" }: RoleFeedbackViewProps) 
                 </select>
               )}
 
-              {detailCohorts.length > 1 && (
+              {detailCohorts.length > 0 && (
                 <select
                   value={cohortFilter}
                   onChange={(e) => setCohortFilter(e.target.value)}

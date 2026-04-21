@@ -1447,7 +1447,7 @@ export function ActionRoleView() {
                     <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border mt-0.5 ${pColor.bg} ${pColor.text} ${pColor.border}`}>
                       {s.platform}
                     </span>
-                    {s.courses.length > 1 && <span className="text-[11px] text-muted-foreground mt-1">{s.courses.length}개 강의</span>}
+                    {s.courses.length > 1 && <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded mt-1">{s.courses.length}개 강의</span>}
                   </div>
 
                   {/* 하단: 건수 + 감정바 + 처리율 (항상 하단 고정) */}
@@ -1578,7 +1578,7 @@ export function ActionRoleView() {
                   {detailCourses.map((l) => <option key={l} value={l}>{l}</option>)}
                 </select>
               )}
-              {detailCohorts.length > 1 && (
+              {detailCohorts.length > 0 && (
                 <select value={cohortFilter} onChange={(e) => setCohortFilter(e.target.value)} className="text-[12px] border rounded-lg px-2 py-1 bg-background">
                   <option value="all">전체 기수</option>
                   {detailCohorts.map((l) => <option key={l} value={l}>{l}</option>)}
