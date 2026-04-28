@@ -18,6 +18,7 @@ import {
 } from "@/lib/feedback-utils";
 import { Loader2, Search, Copy, Check, X, FileText, Sparkles, Download, Settings2, EyeOff, Eye } from "lucide-react";
 import { getAppSettings } from "@/lib/app-settings-cache";
+import { getSupabaseClient } from "@/lib/supabase-client";
 import { toast } from "sonner";
 
 type HubView = "untagged" | "instructor" | "platform" | "all";
@@ -100,6 +101,38 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [platformName, instructor.name, courseName, cohortLabel]);
 
+  // Realtime broadcast 구독 — 다른 사용자가 댓글을 수정하면 즉시 반영
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    const channel = supabase.channel("comments-events");
+    channel
+      .on("broadcast", { event: "comment-updated" }, ({ payload }) => {
+        const p = payload as { id: string } & Partial<Comment>;
+        if (!p?.id) return;
+        setComments((prev) =>
+          prev.map((c) => (c.id === p.id ? { ...c, ...p } as CommentWithCohort : c))
+        );
+      })
+      .on("broadcast", { event: "comments-bulk-updated" }, ({ payload }) => {
+        const p = payload as { updates?: Array<{ id: string } & Partial<Comment>> };
+        const updates = p?.updates;
+        if (!Array.isArray(updates) || updates.length === 0) return;
+        const updateMap = new Map(updates.map((u) => [u.id, u]));
+        setComments((prev) =>
+          prev.map((c) => {
+            const u = updateMap.get(c.id);
+            return u ? ({ ...c, ...u } as CommentWithCohort) : c;
+          })
+        );
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   // 뷰 변경 시 선택 초기화
   useEffect(() => {
