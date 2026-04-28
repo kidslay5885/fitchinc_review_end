@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   AppProvider,
   useAppStore,
@@ -269,6 +269,12 @@ function DashboardContent({ tabs, readOnly = false }: { tabs: typeof TABS_DATA; 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabs, state.activeTab]);
 
+  // 플랫폼/강사/코스/기수/탭 변경 시 메인 스크롤을 맨 위로 (이전 강사 화면 스크롤 위치가 그대로 유지되는 문제 방지)
+  const mainRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [plat?.id, inst?.id, course?.id, cohort?.id, state.activeTab]);
+
   return (
     <>
       {editInst && (
@@ -345,7 +351,7 @@ function DashboardContent({ tabs, readOnly = false }: { tabs: typeof TABS_DATA; 
           />
         </ErrorBoundary>
 
-        <main className="flex-1 overflow-y-auto p-6 px-8 min-w-0">
+        <main ref={mainRef} className="flex-1 overflow-y-auto p-6 px-8 min-w-0">
           <div className="w-full max-w-[1400px]">
             {!state.selectedPlatformId && readOnly && (
               <div className="flex flex-col items-center justify-center h-full">
