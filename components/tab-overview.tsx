@@ -163,25 +163,23 @@ export function DonutChart({ data: rawData, colors }: { data: { name: string; va
   const getColor = (i: number) => colors?.[i] ?? PIE_COLORS[i % PIE_COLORS.length];
   return (
     <div className="flex items-center gap-4">
-      <ResponsiveContainer width={140} height={140}>
-        <PieChart>
-          <Pie
-            data={data}
-            cx="50%"
-            cy="50%"
-            innerRadius={38}
-            outerRadius={62}
-            paddingAngle={2}
-            dataKey="value"
-            stroke="none"
-          >
-            {data.map((_, i) => (
-              <Cell key={i} fill={getColor(i)} />
-            ))}
-          </Pie>
-          <Tooltip formatter={(v: number) => [`${v}명 (${pctLabel(v, total)})`]} />
-        </PieChart>
-      </ResponsiveContainer>
+      <PieChart width={140} height={140}>
+        <Pie
+          data={data}
+          cx="50%"
+          cy="50%"
+          innerRadius={38}
+          outerRadius={62}
+          paddingAngle={2}
+          dataKey="value"
+          stroke="none"
+        >
+          {data.map((_, i) => (
+            <Cell key={i} fill={getColor(i)} />
+          ))}
+        </Pie>
+        <Tooltip formatter={(v: number) => [`${v}명 (${pctLabel(v, total)})`]} />
+      </PieChart>
       <div className="flex flex-col gap-1.5 text-[12px]">
         {data.map((d, i) => (
           <div key={String(d.name)} className="flex items-center gap-2">
