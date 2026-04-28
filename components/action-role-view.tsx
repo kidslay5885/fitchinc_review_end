@@ -20,6 +20,13 @@ import { getAppSettings } from "@/lib/app-settings-cache";
 import { useAppStore } from "@/hooks/use-app-store";
 import { getSupabaseClient } from "@/lib/supabase-client";
 import {
+  getClassifiedComments,
+  applyCommentUpdate,
+  applyCommentBulkUpdate,
+  applyCommentsCreated,
+  applyCommentsDeleted,
+} from "@/lib/comments-cache";
+import {
   Loader2,
   Search,
   ChevronRight,
@@ -177,11 +184,16 @@ export function ActionRoleView() {
   const loadComments = useCallback(async () => {
     setLoading(true);
     try {
-      const tags = ["platform_pm", "platform_pd", "platform_cs", "platform_general", "platform_etc", "instructor"];
-      const res = await fetch(`/api/classify?tags=${tags.join(",")}`);
-      const data: CommentWithAction[] = res.ok ? await res.json() : [];
-      // 마이그레이션: no_action_needed → self_resolved (기존 DB 데이터 호환)
-      const migrated = data.map((c) => ({
+      // 미처리/처리됨을 병렬로 받아 둘 다 끝난 뒤 한 번에 setComments
+      // 통계(처리 %, 총합, 완료 강사 수)가 부분 데이터로 깜빡이는 현상 방지
+      // 동시 호출 = 서버가 두 status를 병렬 처리하므로 단일 "all" fetch와 비슷하거나 약간 빠름
+      // 두 캐시를 모두 채워 두는 부수효과(이후 일관성 유지에 유리)
+      const [unprocessed, processed] = await Promise.all([
+        getClassifiedComments("unprocessed"),
+        getClassifiedComments("processed"),
+      ]);
+      const all = [...unprocessed, ...processed];
+      const migrated = all.map((c) => ({
         ...c,
         process_status: (c.process_status as string) === "no_action_needed" ? "self_resolved" as ProcessStatus : c.process_status,
       }));
@@ -215,7 +227,8 @@ export function ActionRoleView() {
     loadTransferOrigins();
   }, [loadComments, loadTransferOrigins]);
 
-  // Realtime broadcast 구독 — 다른 사용자가 댓글을 수정하면 즉시 반영
+  // Realtime broadcast 구독 — 다른 사용자가 댓글을 수정/추가/삭제하면 즉시 반영
+  // 화면 state와 모듈 캐시를 함께 갱신해야 다음 진입(캐시 hit)에서도 최신 데이터 표시됨
   useEffect(() => {
     const supabase = getSupabaseClient();
     if (!supabase) return;
@@ -225,6 +238,7 @@ export function ActionRoleView() {
       .on("broadcast", { event: "comment-updated" }, ({ payload }) => {
         const p = payload as { id: string } & Partial<CommentWithAction>;
         if (!p?.id) return;
+        applyCommentUpdate(p);
         setComments((prev) =>
           prev.map((c) => (c.id === p.id ? { ...c, ...p } as CommentWithAction : c))
         );
@@ -233,6 +247,7 @@ export function ActionRoleView() {
         const p = payload as { updates?: Array<{ id: string } & Partial<CommentWithAction>> };
         const updates = p?.updates;
         if (!Array.isArray(updates) || updates.length === 0) return;
+        applyCommentBulkUpdate(updates);
         const updateMap = new Map(updates.map((u) => [u.id, u]));
         setComments((prev) =>
           prev.map((c) => {
@@ -240,6 +255,28 @@ export function ActionRoleView() {
             return u ? ({ ...c, ...u } as CommentWithAction) : c;
           })
         );
+      })
+      .on("broadcast", { event: "comments-created" }, ({ payload }) => {
+        const p = payload as { comments?: CommentWithAction[] };
+        const newOnes = p?.comments;
+        if (!Array.isArray(newOnes) || newOnes.length === 0) return;
+        applyCommentsCreated(newOnes);
+        // 분류 가능한 댓글만 화면에 표시 (action-role-view 정책)
+        const classifiable = newOnes.filter(isClassifiableComment);
+        if (classifiable.length === 0) return;
+        setComments((prev) => {
+          const existing = new Set(prev.map((c) => c.id));
+          const fresh = classifiable.filter((c) => !existing.has(c.id));
+          return fresh.length > 0 ? [...prev, ...fresh] : prev;
+        });
+      })
+      .on("broadcast", { event: "comments-deleted" }, ({ payload }) => {
+        const p = payload as { ids?: string[] };
+        const ids = p?.ids;
+        if (!Array.isArray(ids) || ids.length === 0) return;
+        applyCommentsDeleted(ids);
+        const removeSet = new Set(ids);
+        setComments((prev) => prev.filter((c) => !removeSet.has(c.id)));
       })
       .subscribe();
 

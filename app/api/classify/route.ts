@@ -13,6 +13,9 @@ export async function GET(req: NextRequest) {
     const cohort = req.nextUrl.searchParams.get("cohort");
     const tag = req.nextUrl.searchParams.get("tag");
     const tagsParam = req.nextUrl.searchParams.get("tags");
+    // status 필터: 'unprocessed' | 'processed' (없으면 전체)
+    // 직무별 피드백의 첫 진입 페이로드를 줄이기 위함 — 미처리만 받고, 처리된 건 백그라운드로 추가
+    const statusParam = req.nextUrl.searchParams.get("status");
 
     const supabase = getSupabase();
 
@@ -67,27 +70,30 @@ export async function GET(req: NextRequest) {
       const autoFields = Array.from(autoFieldSet);
 
       // 태그 기반 + 자동 매핑 댓글을 병렬 페이지네이션으로 조회
+      // statusParam이 있으면 process_status 컬럼으로 추가 필터
       const [taggedComments, autoComments] = await Promise.all([
-        fetchAllRanges<Record<string, unknown>>((from, to, withCount) =>
-          supabase
+        fetchAllRanges<Record<string, unknown>>((from, to, withCount) => {
+          let q = supabase
             .from("comments")
             .select("*", withCount ? { count: "exact" } : undefined)
             .in("survey_id", surveyIds)
-            .in("tag", requestedTags)
-            .order("created_at")
-            .range(from, to),
-        ),
+            .in("tag", requestedTags);
+          if (statusParam === "unprocessed") q = q.is("process_status", null);
+          else if (statusParam === "processed") q = q.not("process_status", "is", null);
+          return q.order("created_at").range(from, to);
+        }),
         autoFields.length > 0
-          ? fetchAllRanges<Record<string, unknown>>((from, to, withCount) =>
-              supabase
+          ? fetchAllRanges<Record<string, unknown>>((from, to, withCount) => {
+              let q = supabase
                 .from("comments")
                 .select("*", withCount ? { count: "exact" } : undefined)
                 .in("survey_id", surveyIds)
                 .is("tag", null)
-                .in("source_field", autoFields)
-                .order("created_at")
-                .range(from, to),
-            )
+                .in("source_field", autoFields);
+              if (statusParam === "unprocessed") q = q.is("process_status", null);
+              else if (statusParam === "processed") q = q.not("process_status", "is", null);
+              return q.order("created_at").range(from, to);
+            })
           : Promise.resolve([] as Record<string, unknown>[]),
       ]);
 

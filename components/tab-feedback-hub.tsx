@@ -101,7 +101,9 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [platformName, instructor.name, courseName, cohortLabel]);
 
-  // Realtime broadcast 구독 — 다른 사용자가 댓글을 수정하면 즉시 반영
+  // Realtime broadcast 구독 — 다른 사용자가 댓글을 수정/추가/삭제하면 즉시 반영
+  // 단, TabFeedbackHub는 (강사/코스/기수) 스코프로 fetch하므로
+  // 새 댓글이 현재 스코프에 속하지 않으면 무시 (loadComments 다시 부르지 않음)
   useEffect(() => {
     const supabase = getSupabaseClient();
     if (!supabase) return;
@@ -127,6 +129,15 @@ export function TabFeedbackHub({ instructor, course, cohort, platformName, readO
           })
         );
       })
+      .on("broadcast", { event: "comments-deleted" }, ({ payload }) => {
+        const p = payload as { ids?: string[] };
+        const ids = p?.ids;
+        if (!Array.isArray(ids) || ids.length === 0) return;
+        const removeSet = new Set(ids);
+        setComments((prev) => prev.filter((c) => !removeSet.has(c.id)));
+      })
+      // comments-created는 현재 스코프 매칭이 어려워(간단히 판별 불가) 이번 컴포넌트에선 처리 생략
+      // 사용자가 페이지를 다시 들어오면 loadComments에서 새로 fetch됨
       .subscribe();
 
     return () => {

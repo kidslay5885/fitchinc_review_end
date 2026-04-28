@@ -44,3 +44,18 @@ export async function broadcastCommentBulkUpdate(
   if (updates.length === 0) return;
   await postBroadcast([{ event: "comments-bulk-updated", payload: { updates } }]);
 }
+
+// 새 댓글 생성 푸시 — 업로드 등으로 새 댓글이 추가된 경우
+// payload: 추가된 댓글 객체 배열 (id 필수, 다른 필드 모두 포함 권장)
+export async function broadcastCommentsCreated(
+  comments: Array<{ id: string } & Record<string, unknown>>,
+): Promise<void> {
+  if (comments.length === 0) return;
+  await postBroadcast([{ event: "comments-created", payload: { comments } }]);
+}
+
+// 댓글 삭제 푸시 — 재업로드 등으로 기존 댓글이 삭제된 경우
+export async function broadcastCommentsDeleted(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  await postBroadcast([{ event: "comments-deleted", payload: { ids } }]);
+}

@@ -5,6 +5,7 @@ import { parseFilename } from "@/lib/filename-parser";
 import { resolveCourse } from "@/lib/course-registry";
 import { findSchedule } from "@/lib/schedule-data";
 import { suggestTag } from "@/lib/feedback-utils";
+import { broadcastCommentsCreated, broadcastCommentsDeleted } from "@/lib/realtime-broadcast";
 
 export async function POST(req: NextRequest) {
   try {
@@ -43,6 +44,7 @@ export async function POST(req: NextRequest) {
 
     // 중복 설문 체크: 같은 (platform, instructor, course, cohort, survey_type) 존재 시 기존 데이터 삭제
     let replaced = false;
+    let deletedCommentIds: string[] = [];
     if (platform && instructor && cohort) {
       const { data: existing } = await supabase
         .from("surveys")
@@ -51,6 +53,12 @@ export async function POST(req: NextRequest) {
 
       if (existing && existing.length > 0) {
         const oldIds = existing.map((s) => s.id);
+        // 삭제 전에 broadcast용 댓글 id 수집
+        const { data: oldComments } = await supabase
+          .from("comments")
+          .select("id")
+          .in("survey_id", oldIds);
+        deletedCommentIds = (oldComments || []).map((c) => c.id);
         // 기존 응답·코멘트·설문 삭제 (cascade 없으면 수동 삭제)
         await supabase.from("survey_responses").delete().in("survey_id", oldIds);
         await supabase.from("comments").delete().in("survey_id", oldIds);
@@ -118,13 +126,31 @@ export async function POST(req: NextRequest) {
         };
       });
 
-      const { error: commentsError } = await supabase
+      const { data: insertedComments, error: commentsError } = await supabase
         .from("comments")
-        .insert(commentRows);
+        .insert(commentRows)
+        .select();
 
       if (commentsError) {
         console.error("Comments insert error:", commentsError);
+      } else if (insertedComments && insertedComments.length > 0) {
+        // 다른 사용자에게 새 댓글 푸시 — 재업로드면 이전 삭제도 함께 반영
+        // /api/classify GET이 내려주는 응답 형태와 일치시키기 위해 survey 메타데이터 부착
+        const enriched = insertedComments.map((c) => ({
+          ...c,
+          _platform: platform || "",
+          _instructor: instructor || "",
+          _course: course || "",
+          _cohort: cohort || "",
+        }));
+        if (deletedCommentIds.length > 0) {
+          await broadcastCommentsDeleted(deletedCommentIds);
+        }
+        await broadcastCommentsCreated(enriched);
       }
+    } else if (deletedCommentIds.length > 0) {
+      // 댓글이 새로 안 들어왔지만 기존 것은 지웠을 때 (드물지만 가능)
+      await broadcastCommentsDeleted(deletedCommentIds);
     }
 
     // survey_responses 테이블에 전체 응답 데이터 저장
