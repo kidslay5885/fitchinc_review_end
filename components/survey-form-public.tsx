@@ -247,12 +247,33 @@ function FieldRenderer({
 
   switch (field.type) {
     case "text":
+      if (field.key === "phone") {
+        const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+          const digits = e.target.value.replace(/\D/g, "").slice(0, 11);
+          let formatted = digits;
+          if (digits.length >= 8) formatted = `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+          else if (digits.length >= 4) formatted = `${digits.slice(0, 3)}-${digits.slice(3)}`;
+          onChange(formatted);
+        };
+        return (
+          <input
+            type="tel"
+            inputMode="numeric"
+            value={value}
+            onChange={handlePhoneChange}
+            placeholder={field.placeholder || "010-1234-5678"}
+            maxLength={13}
+            className={`${baseInput} ${errorCls}`}
+            autoComplete="tel"
+          />
+        );
+      }
       return (
         <input
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="참여자의 답변 입력란 (최대 100자)"
+          placeholder={field.placeholder || "참여자의 답변 입력란 (최대 100자)"}
           maxLength={100}
           className={`${baseInput} ${errorCls}`}
           autoComplete="off"

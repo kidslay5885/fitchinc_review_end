@@ -1,41 +1,47 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { fetchAllRanges } from "@/lib/supabase-paginate";
-import { broadcastCommentUpdate } from "@/lib/realtime-broadcast";
+import { broadcastCommentUpdate, broadcastCommentBulkUpdate } from "@/lib/realtime-broadcast";
 import type { ProcessStatus, ActionTag } from "@/lib/types";
 
 export const maxDuration = 30;
 
-// PATCH: 댓글 처리 상태 / action_tag 업데이트
+// PATCH: 댓글 처리 상태 / action_tag 업데이트 (단건 commentId 또는 배치 commentIds 지원)
 export async function PATCH(req: NextRequest) {
   try {
-    const { commentId, process_status, process_memo, important, action_tag } = (await req.json()) as {
-      commentId: string;
+    const body = (await req.json()) as {
+      commentId?: string;
+      commentIds?: string[];
       process_status?: ProcessStatus;
       process_memo?: string;
       important?: boolean;
       action_tag?: ActionTag;
+      resolved?: boolean;
     };
 
-    if (!commentId) {
-      return NextResponse.json({ error: "commentId 필요" }, { status: 400 });
+    const ids = body.commentIds || (body.commentId ? [body.commentId] : []);
+    if (ids.length === 0) {
+      return NextResponse.json({ error: "commentId 또는 commentIds 필요" }, { status: 400 });
     }
 
     const supabase = getSupabase();
     const updates: Record<string, unknown> = {};
 
-    if (process_status !== undefined) {
-      updates.process_status = process_status;
+    if (body.process_status !== undefined) {
+      updates.process_status = body.process_status;
       updates.processed_at = new Date().toISOString();
     }
-    if (process_memo !== undefined) {
-      updates.process_memo = process_memo;
+    if (body.process_memo !== undefined) {
+      updates.process_memo = body.process_memo;
     }
-    if (important !== undefined) {
-      updates.important = important;
+    if (body.important !== undefined) {
+      updates.important = body.important;
     }
-    if (action_tag !== undefined) {
-      updates.action_tag = action_tag;
+    if (body.action_tag !== undefined) {
+      updates.action_tag = body.action_tag;
+    }
+    if (body.resolved !== undefined) {
+      updates.resolved = body.resolved;
     }
 
     if (Object.keys(updates).length === 0) {
@@ -45,16 +51,20 @@ export async function PATCH(req: NextRequest) {
     const { error } = await supabase
       .from("comments")
       .update(updates)
-      .eq("id", commentId);
+      .in("id", ids);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // 다른 사용자에게 변경분 즉시 푸시
-    await broadcastCommentUpdate({ id: commentId, ...updates });
+    // 다른 사용자에게 변경분 즉시 푸시 (단건은 단건, 배치는 bulk로)
+    if (ids.length === 1) {
+      await broadcastCommentUpdate({ id: ids[0], ...updates });
+    } else {
+      await broadcastCommentBulkUpdate(ids.map((id) => ({ id, ...updates })));
+    }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, updated: ids.length });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "처리 상태 업데이트 실패";
     return NextResponse.json({ error: msg }, { status: 500 });
@@ -77,6 +87,7 @@ export async function DELETE(req: NextRequest) {
         process_status: null,
         process_memo: "",
         processed_at: null,
+        resolved: false,
       })
       .eq("id", commentId);
 
@@ -128,7 +139,7 @@ export async function GET(req: NextRequest) {
     const comments = await fetchAllRanges<Record<string, unknown>>((from, to, withCount) =>
       supabase
         .from("comments")
-        .select("action_tag, process_status, important", withCount ? { count: "exact" } : undefined)
+        .select("action_tag, process_status, important, resolved", withCount ? { count: "exact" } : undefined)
         .in("survey_id", surveyIds)
         .not("action_tag", "is", null)
         .range(from, to),

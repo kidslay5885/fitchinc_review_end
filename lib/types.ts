@@ -171,6 +171,7 @@ export interface CommentWithAction extends Comment {
   process_status: ProcessStatus | null;
   process_memo: string;
   important: boolean;
+  resolved: boolean;
   processed_at: string | null;
   _platform: string;
   _instructor: string;

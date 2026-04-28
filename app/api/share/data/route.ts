@@ -78,13 +78,15 @@ export async function GET(req: NextRequest) {
       surveyIdToCohort[s.id] = s.cohort || "";
     }
 
-    // rawData 정규화
+    // rawData 정규화 (개인정보 필드 제거)
+    const PHONE_RE = /전화|연락처|핸드폰|휴대폰|휴대전화|phone|커피.*쿠폰|기프티|카카오.*번호/i;
     const normalizeRawData = (raw: unknown): Record<string, string> => {
       if (!raw || typeof raw !== "object") return {};
       const result: Record<string, string> = {};
       for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
         if (v == null) continue;
         if (typeof v === "object") continue;
+        if (PHONE_RE.test(k)) continue;
         result[k] = String(v);
       }
       return result;

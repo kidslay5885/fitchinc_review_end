@@ -61,7 +61,13 @@ export const PRE_SURVEY_DEFAULTS: FormField[] = [
   ...CONSENT_FIELDS,
 ];
 
+const POST_DEMOGRAPHICS_FIELDS: FormField[] = [
+  { key: "name", label: "수강생 이름", type: "text", required: true, enabled: true, order: 1, section: "demographics", placeholder: "이름을 입력해주세요" },
+  { key: "phone", label: "전화번호", type: "text", required: true, enabled: true, order: 2, section: "demographics", placeholder: "010-1234-5678" },
+];
+
 export const POST_SURVEY_DEFAULTS: FormField[] = [
+  ...POST_DEMOGRAPHICS_FIELDS,
   ...POST_SCORE_FIELDS,
   ...POST_FREETEXT_FIELDS,
 ];
@@ -116,6 +122,7 @@ export const KEY_TO_COLUMN: Record<string, string> = {
   hopePlatform: "hope_platform",
   hopeInstructor: "hope_instructor",
   ps1: "ps1",
+  phone: "phone",
   ps2: "ps2",
   pSat: "p_sat",
   pFmt: "p_fmt",
@@ -125,6 +132,15 @@ export const KEY_TO_COLUMN: Record<string, string> = {
 
 // survey_responses 테이블에 직접 저장되는 키
 const RESPONSE_COLUMN_KEYS = new Set(Object.keys(KEY_TO_COLUMN));
+
+// ===== 전화번호 포맷팅 =====
+
+export function formatPhone(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length === 11) return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+  if (digits.length === 10) return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+  return raw;
+}
 
 // ===== 폼 응답 → DB 행 변환 =====
 
@@ -145,6 +161,8 @@ export function responseToDbRow(
         row[col] = isPre && (key === "ps1" || key === "ps2") ? 0 : (parseFloat(value) || 0);
       } else if (isPre && ["pSat", "pFmt", "pFree", "pRec"].includes(key)) {
         row[col] = "";
+      } else if (key === "phone") {
+        row[col] = formatPhone(value || "");
       } else {
         row[col] = value || "";
       }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import type { SurveyForm } from "@/lib/types";
 import {
   Copy,
@@ -26,6 +26,12 @@ import {
   Hash,
   ImagePlus,
   RotateCcw,
+  Gift,
+  ClipboardCopy,
+  UserSearch,
+  ChevronRight,
+  CheckCircle2,
+  Undo2,
 } from "lucide-react";
 import type { FormField } from "@/lib/types";
 import {
@@ -159,6 +165,26 @@ function DefaultsModal({ onClose }: { onClose: () => void }) {
                   <option key={val} value={val}>{label}</option>
                 ))}
               </select>
+              {field.type === "scale" && (
+                <div className="flex items-center gap-0.5 flex-shrink-0">
+                  <input
+                    type="number"
+                    value={field.scaleMin ?? 1}
+                    onChange={(e) => updateField(field.key, { scaleMin: parseInt(e.target.value) || 1 })}
+                    className="w-8 text-[10px] text-center bg-muted px-0.5 py-0.5 rounded outline-none"
+                    min={0}
+                  />
+                  <span className="text-[10px] text-muted-foreground">~</span>
+                  <input
+                    type="number"
+                    value={field.scaleMax ?? 10}
+                    onChange={(e) => updateField(field.key, { scaleMax: parseInt(e.target.value) || 5 })}
+                    className="w-8 text-[10px] text-center bg-muted px-0.5 py-0.5 rounded outline-none"
+                    min={1}
+                  />
+                  <span className="text-[10px] text-muted-foreground">점</span>
+                </div>
+              )}
               <button
                 type="button"
                 onClick={() => updateField(field.key, { enabled: !field.enabled })}
@@ -213,6 +239,502 @@ function DefaultsModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+// ===== 명단 매칭 뷰 =====
+
+interface MatchResult {
+  responseId: string;
+  currentName: string;
+  matchedName: string;
+  phone: string;
+}
+
+function NameMatchView() {
+  const [pasteText, setPasteText] = useState("");
+  const [matches, setMatches] = useState<MatchResult[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [applying, setApplying] = useState(false);
+  const [searched, setSearched] = useState(false);
+  const [totalChecked, setTotalChecked] = useState(0);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  const parsePastedData = (text: string): { name: string; phone: string }[] => {
+    const lines = text.trim().split("\n").filter(Boolean);
+    const entries: { name: string; phone: string }[] = [];
+    for (const line of lines) {
+      const parts = line.split("\t").map((s) => s.trim());
+      if (parts.length < 2) continue;
+      // 이름 + 전화번호 (순서 자동 감지)
+      const phoneIdx = parts.findIndex((p) => /^0\d{1,2}[\s-]?\d{3,4}[\s-]?\d{4}$/.test(p.replace(/\D/g, "").length >= 10 ? p : ""));
+      if (phoneIdx === -1) {
+        // 숫자가 10자리 이상인 컬럼을 전화번호로
+        const numIdx = parts.findIndex((p) => p.replace(/\D/g, "").length >= 10);
+        if (numIdx === -1) continue;
+        const nameIdx = numIdx === 0 ? 1 : 0;
+        entries.push({ name: parts[nameIdx], phone: parts[numIdx] });
+      } else {
+        const nameIdx = phoneIdx === 0 ? 1 : 0;
+        entries.push({ name: parts[nameIdx], phone: parts[phoneIdx] });
+      }
+    }
+    return entries;
+  };
+
+  const handleMatch = async () => {
+    const entries = parsePastedData(pasteText);
+    if (entries.length === 0) return;
+    setLoading(true);
+    setSearched(false);
+    try {
+      const res = await fetch("/api/match-names", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entries }),
+      });
+      if (res.ok) {
+        const { matches: m, totalChecked: tc } = await res.json();
+        setMatches(m);
+        setTotalChecked(tc || 0);
+        setSelected(new Set(m.map((r: MatchResult) => r.responseId)));
+        setSearched(true);
+      }
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleApply = async () => {
+    const updates = matches
+      .filter((m) => selected.has(m.responseId))
+      .map((m) => ({ responseId: m.responseId, name: m.matchedName }));
+    if (updates.length === 0) return;
+    setApplying(true);
+    try {
+      const res = await fetch("/api/match-names", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ updates }),
+      });
+      if (res.ok) {
+        const { updated } = await res.json();
+        setApplied(true);
+        // 적용된 항목 제거
+        setMatches((prev) => prev.filter((m) => !selected.has(m.responseId)));
+        setSelected(new Set());
+        alert(`${updated}건 이름 업데이트 완료`);
+      }
+    } catch {
+      /* ignore */
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  const parsedCount = parsePastedData(pasteText).length;
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-[13px] text-blue-700">
+        <p className="font-bold mb-1">사용법</p>
+        <p>구글 시트에서 <strong>이름 + 전화번호</strong> 컬럼을 복사해서 아래에 붙여넣기 하세요.</p>
+        <p className="mt-1">설문 응답자 중 전화번호가 일치하는데 이름이 다르거나 비어있는 경우를 찾아줍니다.</p>
+      </div>
+
+      <div>
+        <textarea
+          value={pasteText}
+          onChange={(e) => setPasteText(e.target.value)}
+          placeholder={"홍길동\t010-1234-5678\n김철수\t010-5678-1234\n..."}
+          className="w-full h-40 border rounded-xl p-3 text-[13px] font-mono resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
+        />
+        <div className="flex items-center justify-between mt-2">
+          <span className="text-[12px] text-muted-foreground">
+            {parsedCount > 0 ? `${parsedCount}명 인식됨` : "데이터를 붙여넣기 하세요"}
+          </span>
+          <button
+            onClick={handleMatch}
+            disabled={parsedCount === 0 || loading}
+            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-[13px] font-bold hover:opacity-90 transition-opacity disabled:opacity-40 flex items-center gap-1.5"
+          >
+            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserSearch className="w-3.5 h-3.5" />}
+            매칭 검색
+          </button>
+        </div>
+      </div>
+
+      {/* 매칭 결과 */}
+      {matches.length > 0 && (
+        <div className="border rounded-xl overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-2.5 bg-muted/50 border-b">
+            <span className="text-[13px] font-bold">{matches.length}건 매칭됨</span>
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-1.5 text-[12px] text-muted-foreground cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selected.size === matches.length}
+                  onChange={() => {
+                    if (selected.size === matches.length) setSelected(new Set());
+                    else setSelected(new Set(matches.map((m) => m.responseId)));
+                  }}
+                  className="rounded"
+                />
+                전체 선택
+              </label>
+              <button
+                onClick={handleApply}
+                disabled={selected.size === 0 || applying}
+                className="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-[12px] font-bold hover:opacity-90 transition-opacity disabled:opacity-40 flex items-center gap-1"
+              >
+                {applying ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                선택 적용 ({selected.size}건)
+              </button>
+            </div>
+          </div>
+          <div className="max-h-[400px] overflow-y-auto divide-y">
+            {matches.map((m) => (
+              <div key={m.responseId} className="flex items-center gap-3 px-4 py-2.5 text-[13px] hover:bg-muted/30">
+                <input
+                  type="checkbox"
+                  checked={selected.has(m.responseId)}
+                  onChange={() => {
+                    setSelected((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(m.responseId)) next.delete(m.responseId);
+                      else next.add(m.responseId);
+                      return next;
+                    });
+                  }}
+                  className="rounded"
+                />
+                <span className="text-muted-foreground font-mono text-[12px] min-w-[110px]">{m.phone}</span>
+                <span className="text-red-400 line-through min-w-[60px]">{m.currentName || "(없음)"}</span>
+                <span className="text-muted-foreground">→</span>
+                <span className="font-bold text-primary">{m.matchedName}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {matches.length === 0 && !loading && pasteText && parsedCount > 0 && (
+        <div className="text-center py-8 text-muted-foreground text-[14px]">
+          {searched
+            ? <><p className="font-bold">매칭할 대상이 없습니다</p><p className="text-[12px] mt-1">응답 {totalChecked}건 확인 — 이름이 모두 일치하거나 전화번호가 일치하는 응답이 없습니다</p></>
+            : "매칭 검색 버튼을 눌러주세요"
+          }
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ===== 기프티쇼 관리 뷰 =====
+
+interface GiftResponse {
+  id: string;
+  survey_id: string;
+  name: string;
+  phone: string;
+  gift_sent: boolean;
+  gift_sent_at: string | null;
+  gift_amount: number;
+  created_at: string;
+  instructor: string;
+  cohort: string;
+  formId: string;
+}
+
+type GroupStatus = "완료" | "진행중" | "시작 전";
+function getGroupStatus(sent: number, total: number): GroupStatus {
+  if (total === 0) return "시작 전";
+  if (sent === total) return "완료";
+  if (sent > 0) return "진행중";
+  return "시작 전";
+}
+
+function GiftManagementView() {
+  const [giftSubTab, setGiftSubTab] = useState<"gift" | "match">("gift");
+  const [loading, setLoading] = useState(true);
+  const [responses, setResponses] = useState<GiftResponse[]>([]);
+  const [updating, setUpdating] = useState(false);
+  const [copiedGroup, setCopiedGroup] = useState<string | null>(null);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [showSent, setShowSent] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await fetch("/api/survey-forms/responses?giftMode=true");
+        const data = await res.json();
+        setResponses(data.responses || []);
+      } catch {
+        console.error("기프티쇼 데이터 조회 실패");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  // 강사+기수별 그룹
+  const groups = useMemo(() => {
+    const map = new Map<string, { key: string; instructor: string; cohort: string; responses: GiftResponse[]; sent: number }>();
+    for (const r of responses) {
+      const key = `${r.instructor}||${r.cohort}`;
+      if (!map.has(key)) map.set(key, { key, instructor: r.instructor, cohort: r.cohort, responses: [], sent: 0 });
+      const g = map.get(key)!;
+      g.responses.push(r);
+      if (r.gift_sent) g.sent++;
+    }
+    return Array.from(map.values()).sort((a, b) => {
+      if (a.instructor !== b.instructor) return a.instructor.localeCompare(b.instructor, "ko");
+      return a.cohort.localeCompare(b.cohort, "ko");
+    });
+  }, [responses]);
+
+  const unsentGroups = groups.filter((g) => g.sent < g.responses.length);
+  const sentGroups = groups.filter((g) => g.sent === g.responses.length && g.responses.length > 0);
+
+  const totalAll = responses.length;
+  const sentAll = responses.filter((r) => r.gift_sent).length;
+
+  // 미발송 카드는 기본 펼침
+  useEffect(() => {
+    setExpandedGroups(new Set(unsentGroups.map((g) => g.key)));
+  }, [responses]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const toggleExpand = (key: string) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
+  const handleCopyGroup = (group: typeof groups[0]) => {
+    const targets = group.responses.filter((r) => !r.gift_sent);
+    if (targets.length === 0) return;
+    const text = targets.map((r) => `${r.name}\t${r.phone || ""}`).join("\n");
+    navigator.clipboard.writeText(text);
+    setCopiedGroup(group.key);
+    setTimeout(() => setCopiedGroup(null), 2000);
+  };
+
+  const handleSendGroup = async (group: typeof groups[0]) => {
+    const ids = group.responses.filter((r) => !r.gift_sent).map((r) => r.id);
+    if (ids.length === 0) return;
+    setUpdating(true);
+    try {
+      const res = await fetch("/api/gift-status", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ responseIds: ids, gift_sent: true }),
+      });
+      if (res.ok) {
+        const now = new Date().toISOString();
+        setResponses((prev) =>
+          prev.map((r) => ids.includes(r.id) ? { ...r, gift_sent: true, gift_sent_at: now } : r)
+        );
+      }
+    } catch {
+      console.error("발송 상태 변경 실패");
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleUndoGroup = async (group: typeof groups[0]) => {
+    const ids = group.responses.filter((r) => r.gift_sent).map((r) => r.id);
+    if (ids.length === 0) return;
+    setUpdating(true);
+    try {
+      const res = await fetch("/api/gift-status", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ responseIds: ids, gift_sent: false }),
+      });
+      if (res.ok) {
+        setResponses((prev) =>
+          prev.map((r) => ids.includes(r.id) ? { ...r, gift_sent: false, gift_sent_at: null } : r)
+        );
+      }
+    } catch {
+      console.error("발송 취소 실패");
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+        <span className="ml-2 text-[13px] text-muted-foreground">데이터 불러오는 중...</span>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {/* 서브탭: 발송 관리 / 명단 매칭 */}
+      <div className="flex gap-0.5 bg-muted rounded-lg p-0.5 border mb-4 w-fit">
+        <button onClick={() => setGiftSubTab("gift")} className={`py-1.5 px-3 rounded-md text-[13px] font-semibold transition-colors flex items-center gap-1.5 ${giftSubTab === "gift" ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+          <Gift className="w-3.5 h-3.5" />발송 관리
+        </button>
+        <button onClick={() => setGiftSubTab("match")} className={`py-1.5 px-3 rounded-md text-[13px] font-semibold transition-colors flex items-center gap-1.5 ${giftSubTab === "match" ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
+          <UserSearch className="w-3.5 h-3.5" />명단 매칭
+        </button>
+      </div>
+
+      {giftSubTab === "match" ? (
+        <NameMatchView />
+      ) : (
+      <>
+      {/* 요약 */}
+      <div className="flex items-center gap-3 mb-4 text-[13px]">
+        <span className="text-muted-foreground">전체 <strong className="text-foreground">{totalAll}명</strong></span>
+        <span className="text-muted-foreground">발송 완료 <strong className="text-emerald-600">{sentAll}명</strong></span>
+        <span className="text-muted-foreground">미발송 <strong className="text-foreground">{totalAll - sentAll}명</strong></span>
+      </div>
+
+      {/* 미발송 그룹 카드 */}
+      {unsentGroups.length === 0 && sentGroups.length === 0 && (
+        <div className="text-center py-12">
+          <Gift className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
+          <p className="text-[14px] font-bold text-muted-foreground">후기 설문 응답이 없습니다</p>
+        </div>
+      )}
+
+      {unsentGroups.length > 0 && (
+        <div className="space-y-3 mb-6">
+          {unsentGroups.map((group) => {
+            const isExpanded = expandedGroups.has(group.key);
+            const isCopied = copiedGroup === group.key;
+            const unsent = group.responses.filter((r) => !r.gift_sent);
+            const sentInGroup = group.responses.filter((r) => r.gift_sent);
+            return (
+              <div key={group.key} className="bg-card rounded-xl border overflow-hidden">
+                {/* 카드 헤더 */}
+                <button
+                  onClick={() => toggleExpand(group.key)}
+                  className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors"
+                >
+                  {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />}
+                  <span className="text-[14px] font-bold">{group.instructor}</span>
+                  <span className="text-[12px] bg-muted px-2 py-0.5 rounded-lg font-semibold text-muted-foreground">{group.cohort}</span>
+                  <span className="text-[13px] text-muted-foreground">{unsent.length}명 미발송</span>
+                  {sentInGroup.length > 0 && (
+                    <span className="text-[11px] text-emerald-600 font-semibold">{sentInGroup.length}명 완료</span>
+                  )}
+                </button>
+
+                {/* 명단 */}
+                {isExpanded && (
+                  <div className="border-t">
+                    <div className="divide-y">
+                      {unsent.map((r) => (
+                        <div key={r.id} className="flex items-center gap-4 px-5 py-2 text-[13px]">
+                          <span className="font-medium min-w-[60px]">{r.name || "-"}</span>
+                          <span className="text-muted-foreground font-mono">{r.phone || "-"}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {/* 카드 액션 */}
+                    <div className="flex items-center gap-2 px-4 py-3 bg-muted/20 border-t">
+                      <button
+                        onClick={() => handleCopyGroup(group)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[12px] font-semibold hover:bg-accent transition-colors"
+                      >
+                        {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <ClipboardCopy className="w-3.5 h-3.5" />}
+                        {isCopied ? "복사됨!" : `이름/번호 복사 (${unsent.length}명)`}
+                      </button>
+                      <div className="flex-1" />
+                      <button
+                        onClick={() => handleSendGroup(group)}
+                        disabled={updating}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-[12px] font-bold text-emerald-700 hover:bg-emerald-100 transition-colors disabled:opacity-50"
+                      >
+                        {updating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                        발송 완료 처리
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* 발송 완료 그룹 */}
+      {sentGroups.length > 0 && (
+        <div>
+          <button
+            onClick={() => setShowSent(!showSent)}
+            className="flex items-center gap-2 text-[13px] font-semibold text-muted-foreground hover:text-foreground transition-colors mb-3"
+          >
+            {showSent ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            발송 완료 ({sentGroups.length}개 그룹, {sentAll}명)
+          </button>
+
+          {showSent && (
+            <div className="space-y-2">
+              {sentGroups.map((group) => {
+                const isExpanded = expandedGroups.has(group.key);
+                const sentDate = group.responses.find((r) => r.gift_sent_at)?.gift_sent_at;
+                return (
+                  <div key={group.key} className="bg-muted/30 rounded-xl border overflow-hidden">
+                    <button
+                      onClick={() => toggleExpand(group.key)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-muted/50 transition-colors"
+                    >
+                      {isExpanded ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                      <span className="text-[13px] font-bold">{group.instructor}</span>
+                      <span className="text-[11px] bg-muted px-1.5 py-0.5 rounded font-semibold text-muted-foreground">{group.cohort}</span>
+                      <span className="text-[12px] text-muted-foreground">{group.responses.length}명</span>
+                      {sentDate && (
+                        <span className="text-[11px] text-muted-foreground ml-auto">
+                          {new Date(sentDate).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" })} 발송
+                        </span>
+                      )}
+                    </button>
+
+                    {isExpanded && (
+                      <div className="border-t">
+                        <div className="divide-y">
+                          {group.responses.map((r) => (
+                            <div key={r.id} className="flex items-center gap-4 px-5 py-1.5 text-[12px] text-muted-foreground">
+                              <span className="min-w-[60px]">{r.name || "-"}</span>
+                              <span className="font-mono">{r.phone || "-"}</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex items-center gap-2 px-4 py-2 bg-muted/20 border-t">
+                          <button
+                            onClick={() => handleUndoGroup(group)}
+                            disabled={updating}
+                            className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-lg border text-muted-foreground hover:bg-accent transition-colors disabled:opacity-50"
+                          >
+                            <Undo2 className="w-3 h-3" />발송 취소
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+      </>
+      )}
+    </div>
+  );
+}
+
 // ===== 메인 목록 =====
 
 interface Props {
@@ -253,6 +775,7 @@ function daysLeft(expiresAt: string | null) {
 }
 
 export function SurveyFormList({ onEdit, onNew, onResults, onBack, refreshKey }: Props) {
+  const [mainTab, setMainTab] = useState<"forms" | "gift">("forms");
   const [forms, setForms] = useState<SurveyForm[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -397,6 +920,36 @@ export function SurveyFormList({ onEdit, onNew, onResults, onBack, refreshKey }:
 
   return (
     <div className="max-w-3xl mx-auto">
+      {/* 메인 탭 전환 */}
+      <div className="flex items-center gap-1 mb-4">
+        <button
+          onClick={() => setMainTab("forms")}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-bold transition-all ${
+            mainTab === "forms"
+              ? "bg-primary text-primary-foreground"
+              : "bg-muted text-muted-foreground hover:bg-accent"
+          }`}
+        >
+          <FileText className="w-4 h-4" />
+          폼 목록
+        </button>
+        <button
+          onClick={() => setMainTab("gift")}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-[13px] font-bold transition-all ${
+            mainTab === "gift"
+              ? "bg-primary text-primary-foreground"
+              : "bg-muted text-muted-foreground hover:bg-accent"
+          }`}
+        >
+          <Gift className="w-4 h-4" />
+          기프티쇼 관리
+        </button>
+      </div>
+
+      {mainTab === "gift" ? (
+        <GiftManagementView />
+      ) : (
+      <>
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-2">
           {onBack && (
@@ -725,6 +1278,8 @@ export function SurveyFormList({ onEdit, onNew, onResults, onBack, refreshKey }:
       )}
 
       {showDefaults && <DefaultsModal onClose={() => setShowDefaults(false)} />}
+      </>
+      )}
     </div>
   );
 }

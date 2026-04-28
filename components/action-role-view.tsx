@@ -46,6 +46,7 @@ import {
   BarChart3,
   Info,
   MessageCircle,
+  Clock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ActionStatusView } from "./action-status-view";
@@ -127,11 +128,11 @@ export function ActionRoleView() {
   const [selectedInstructor, setSelectedInstructor] = useState<string | null>(null);
 
   // 리뷰 뷰
-  const [reviewFilter, setReviewFilter] = useState<"all" | "needs_discussion" | "next_cohort">("all");
+  const [reviewFilter, setReviewFilter] = useState<"all" | "needs_discussion" | "next_cohort" | "resolved">("all");
   const [reviewPlatformFilter, setReviewPlatformFilter] = useState("all");
   const [reviewSearch, setReviewSearch] = useState("");
   const [selectedReviewInstructor, setSelectedReviewInstructor] = useState<string | null>(null);
-  const [reviewDetailFilter, setReviewDetailFilter] = useState<"all" | "needs_discussion" | "next_cohort">("all");
+  const [reviewDetailFilter, setReviewDetailFilter] = useState<"all" | "needs_discussion" | "next_cohort" | "resolved">("all");
   const [reviewResolving, setReviewResolving] = useState<Set<string>>(new Set());
   const reviewResolveTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
@@ -187,15 +188,16 @@ export function ActionRoleView() {
       // 미처리/처리됨을 병렬로 받아 둘 다 끝난 뒤 한 번에 setComments
       // 통계(처리 %, 총합, 완료 강사 수)가 부분 데이터로 깜빡이는 현상 방지
       // 동시 호출 = 서버가 두 status를 병렬 처리하므로 단일 "all" fetch와 비슷하거나 약간 빠름
-      // 두 캐시를 모두 채워 두는 부수효과(이후 일관성 유지에 유리)
       const [unprocessed, processed] = await Promise.all([
         getClassifiedComments("unprocessed"),
         getClassifiedComments("processed"),
       ]);
       const all = [...unprocessed, ...processed];
+      // 마이그레이션: no_action_needed → self_resolved + resolved 기본값
       const migrated = all.map((c) => ({
         ...c,
         process_status: (c.process_status as string) === "no_action_needed" ? "self_resolved" as ProcessStatus : c.process_status,
+        resolved: c.resolved ?? false,
       }));
       setComments(migrated.filter(isClassifiableComment));
       setLoaded(true);
@@ -406,7 +408,14 @@ export function ActionRoleView() {
       const q = search.toLowerCase();
       result = result.filter((s) => s.instructor.toLowerCase().includes(q) || s.platform.toLowerCase().includes(q));
     }
-    result.sort((a, b) => b.total - a.total);
+    // 플랫폼 그룹핑 (핏크닉 → 머니업클래스 → 기타) + 강사명 ㄱㄴㄷ순
+    const PLATFORM_ORDER: Record<string, number> = { "핏크닉": 0, "머니업클래스": 1 };
+    result.sort((a, b) => {
+      const pa = PLATFORM_ORDER[a.platform] ?? 99;
+      const pb = PLATFORM_ORDER[b.platform] ?? 99;
+      if (pa !== pb) return pa - pb;
+      return a.instructor.localeCompare(b.instructor, "ko");
+    });
     return result;
   }, [activeComments, platformFilter, search]);
 
@@ -426,28 +435,42 @@ export function ActionRoleView() {
 
   // ===== 리뷰 뷰 파생 데이터 =====
 
-  const reviewTotalCount = useMemo(() =>
-    comments.filter(c => c.action_tag && (c.process_status === "needs_discussion" || c.process_status === "next_cohort")).length,
+  // 협의 필요 / 다음 기수 상태인 모든 댓글 (resolved 여부 무관)
+  const reviewAllComments = useMemo(() =>
+    comments.filter(c => c.action_tag && (c.process_status === "needs_discussion" || c.process_status === "next_cohort")),
     [comments]
   );
 
-  const reviewFilteredComments = useMemo(() => {
-    return comments.filter(c => c.action_tag && (c.process_status === "needs_discussion" || c.process_status === "next_cohort"));
-  }, [comments]);
+  // 미해결 댓글 (resolved 가 아닌 것)
+  const reviewActiveComments = useMemo(() =>
+    reviewAllComments.filter(c => !c.resolved),
+    [reviewAllComments]
+  );
+
+  const reviewTotalCount = useMemo(() => reviewActiveComments.length, [reviewActiveComments]);
+
+  const reviewFilteredComments = reviewActiveComments;
 
   const reviewNeedsDiscussionCount = useMemo(() =>
-    reviewFilteredComments.filter(c => c.process_status === "needs_discussion").length,
-    [reviewFilteredComments]
+    reviewActiveComments.filter(c => c.process_status === "needs_discussion").length,
+    [reviewActiveComments]
   );
   const reviewNextCohortCount = useMemo(() =>
-    reviewFilteredComments.filter(c => c.process_status === "next_cohort").length,
-    [reviewFilteredComments]
+    reviewActiveComments.filter(c => c.process_status === "next_cohort").length,
+    [reviewActiveComments]
+  );
+  const reviewResolvedCount = useMemo(() =>
+    reviewAllComments.filter(c => c.resolved).length,
+    [reviewAllComments]
   );
 
   const reviewPlatformLabels = useMemo(() => {
-    const set = new Set(reviewFilteredComments.map(c => c._platform).filter(Boolean));
+    const source = reviewFilter === "resolved"
+      ? reviewAllComments.filter(c => c.resolved)
+      : reviewFilteredComments;
+    const set = new Set(source.map(c => c._platform).filter(Boolean));
     return Array.from(set).sort();
-  }, [reviewFilteredComments]);
+  }, [reviewFilter, reviewAllComments, reviewFilteredComments]);
 
   const reviewInstructorSummaries = useMemo(() => {
     const map = new Map<string, {
@@ -460,9 +483,11 @@ export function ActionRoleView() {
       comments: CommentWithAction[];
     }>();
 
-    const filtered = reviewFilter === "all"
-      ? reviewFilteredComments
-      : reviewFilteredComments.filter(c => c.process_status === reviewFilter);
+    const filtered = reviewFilter === "resolved"
+      ? reviewAllComments.filter(c => c.resolved)
+      : reviewFilter === "all"
+        ? reviewFilteredComments
+        : reviewFilteredComments.filter(c => c.process_status === reviewFilter);
 
     for (const c of filtered) {
       const key = `${c._platform}|${c._instructor}`;
@@ -495,8 +520,14 @@ export function ActionRoleView() {
       const q = reviewSearch.toLowerCase();
       result = result.filter(s => s.instructor.toLowerCase().includes(q) || s.platform.toLowerCase().includes(q));
     }
-    return result.sort((a, b) => b.total - a.total);
-  }, [reviewFilteredComments, reviewPlatformFilter, reviewSearch, reviewFilter]);
+    const PLATFORM_ORDER: Record<string, number> = { "핏크닉": 0, "머니업클래스": 1 };
+    return result.sort((a, b) => {
+      const pa = PLATFORM_ORDER[a.platform] ?? 99;
+      const pb = PLATFORM_ORDER[b.platform] ?? 99;
+      if (pa !== pb) return pa - pb;
+      return a.instructor.localeCompare(b.instructor, "ko");
+    });
+  }, [reviewFilteredComments, reviewAllComments, reviewPlatformFilter, reviewSearch, reviewFilter]);
 
   const selectedReviewSummary = useMemo(
     () => reviewInstructorSummaries.find(s => `${s.platform}|${s.instructor}` === selectedReviewInstructor) || null,
@@ -512,8 +543,11 @@ export function ActionRoleView() {
   const detailCourses = useMemo(() => selectedSummary?.courses || [], [selectedSummary]);
   const detailCohorts = useMemo(() => {
     if (!selectedSummary) return [];
-    return Array.from(new Set(selectedSummary.comments.map((c) => c._cohort).filter(Boolean))).sort();
-  }, [selectedSummary]);
+    const filtered = courseFilter !== "all"
+      ? selectedSummary.comments.filter((c) => c._course === courseFilter)
+      : selectedSummary.comments;
+    return Array.from(new Set(filtered.map((c) => c._cohort).filter(Boolean))).sort();
+  }, [selectedSummary, courseFilter]);
   const detailSourceFields = useMemo(() => {
     if (!selectedSummary) return [];
     const set = new Set(selectedSummary.comments.map((c) => c.source_field));
@@ -720,15 +754,14 @@ export function ActionRoleView() {
     }
   };
 
-  // 리뷰 해결 (유예 후 자체해결로 전환 — 낙관적 업데이트)
+  // 리뷰 해결 (resolved=true로 전환 — process_status 유지)
   const handleReviewResolve = (commentId: string) => {
-    const originalStatus = comments.find(c => c.id === commentId)?.process_status ?? "needs_discussion";
     setReviewResolving((prev) => new Set(prev).add(commentId));
     const timer = setTimeout(() => {
       reviewResolveTimers.current.delete(commentId);
-      // 즉시 로컬 상태 반영 (목록에서 제거)
+      // 즉시 로컬 상태 반영 (resolved=true, process_status 유지)
       setComments((prev) => prev.map((c) =>
-        c.id === commentId ? { ...c, process_status: "self_resolved" as ProcessStatus, processed_at: new Date().toISOString() } : c
+        c.id === commentId ? { ...c, resolved: true } : c
       ));
       setReviewResolving((prev) => {
         const next = new Set(prev);
@@ -739,13 +772,13 @@ export function ActionRoleView() {
       fetch("/api/action-process", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ commentId, process_status: "self_resolved" as ProcessStatus }),
+        body: JSON.stringify({ commentId, resolved: true }),
       }).then((res) => {
         if (!res.ok) throw new Error();
       }).catch(() => {
-        // 실패 시 원래 상태로 롤백
+        // 실패 시 롤백
         setComments((prev) => prev.map((c) =>
-          c.id === commentId ? { ...c, process_status: originalStatus as ProcessStatus, processed_at: null } : c
+          c.id === commentId ? { ...c, resolved: false } : c
         ));
         toast.error("해결 처리 실패");
       });
@@ -754,15 +787,33 @@ export function ActionRoleView() {
   };
 
   const handleReviewUndoResolve = (commentId: string) => {
+    // 타이머 기반 취소 (아직 API 호출 전)
     const timer = reviewResolveTimers.current.get(commentId);
     if (timer) {
       clearTimeout(timer);
       reviewResolveTimers.current.delete(commentId);
+      setReviewResolving((prev) => {
+        const next = new Set(prev);
+        next.delete(commentId);
+        return next;
+      });
+      return;
     }
-    setReviewResolving((prev) => {
-      const next = new Set(prev);
-      next.delete(commentId);
-      return next;
+    // 이미 resolved=true인 상태 → DB에서 되돌리기
+    setComments((prev) => prev.map((c) =>
+      c.id === commentId ? { ...c, resolved: false } : c
+    ));
+    fetch("/api/action-process", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ commentId, resolved: false }),
+    }).then((res) => {
+      if (!res.ok) throw new Error();
+    }).catch(() => {
+      setComments((prev) => prev.map((c) =>
+        c.id === commentId ? { ...c, resolved: true } : c
+      ));
+      toast.error("해결 취소 실패");
     });
   };
 
@@ -815,6 +866,30 @@ export function ActionRoleView() {
     }
   };
 
+  // 일괄 검토완료
+  const [bulkProcessing, setBulkProcessing] = useState(false);
+  const handleBulkProcess = async (status: ProcessStatus) => {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+    setBulkProcessing(true);
+    try {
+      const res = await fetch("/api/action-process", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commentIds: ids, process_status: status }),
+      });
+      if (!res.ok) throw new Error();
+      setComments((prev) => prev.map((c) =>
+        ids.includes(c.id) ? { ...c, process_status: status, processed_at: new Date().toISOString() } : c
+      ));
+      setSelected(new Set());
+      toast.success(`${ids.length}건 ${PROCESS_OPTIONS.find((o) => o.value === status)?.label} 처리 완료`);
+    } catch {
+      toast.error("일괄 처리 실패");
+    } finally {
+      setBulkProcessing(false);
+    }
+  };
+
   // AI 일괄 분류
   const handleClassifyAll = async () => {
     const targets = comments.filter((c) => !c.action_tag);
@@ -826,7 +901,7 @@ export function ActionRoleView() {
       let totalClassified = 0;
       for (let i = 0; i < targets.length; i += CHUNK) {
         const chunk = targets.slice(i, i + CHUNK);
-        setClassifyProgress(`${Math.min(i + CHUNK, targets.length)}/${targets.length}`);
+        setClassifyProgress(`${totalClassified}/${targets.length} 처리 중...`);
         const res = await fetch("/api/action-classify", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ items: chunk.map((c) => ({ id: c.id, original_text: c.original_text, source_field: c.source_field })) }),
@@ -838,6 +913,10 @@ export function ActionRoleView() {
             const m = new Map(results.map((r: { id: string; action_tag: ActionTag }) => [r.id, r.action_tag]));
             return prev.map((c) => { const t = m.get(c.id); return t ? { ...c, action_tag: t } : c; });
           });
+        }
+        // 청크 간 대기 (서버 rate limit 보호)
+        if (i + CHUNK < targets.length) {
+          await new Promise((r) => setTimeout(r, 2000));
         }
       }
       toast.success(`${totalClassified}건 분류 완료`);
@@ -934,6 +1013,14 @@ export function ActionRoleView() {
               >
                 다음 기수 {reviewNextCohortCount}
               </button>
+              {reviewResolvedCount > 0 && (
+                <button
+                  onClick={() => { setReviewFilter("resolved"); setSelectedReviewInstructor(null); }}
+                  className={`py-1 px-2.5 rounded-md text-[12px] font-semibold transition-colors ${reviewFilter === "resolved" ? "bg-card text-emerald-600 shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  해결 완료 {reviewResolvedCount}
+                </button>
+              )}
             </div>
           </div>
 
@@ -967,7 +1054,7 @@ export function ActionRoleView() {
                 <MessageCircle className="w-8 h-8 mx-auto" />
               </div>
               <div className="text-[14px] font-bold">
-                {reviewFilter === "next_cohort" ? "다음 기수 피드백이 없습니다" : reviewFilter === "needs_discussion" ? "협의 필요 피드백이 없습니다" : "논의 필요 피드백이 없습니다"}
+                {reviewFilter === "resolved" ? "해결 완료된 피드백이 없습니다" : reviewFilter === "next_cohort" ? "다음 기수 피드백이 없습니다" : reviewFilter === "needs_discussion" ? "협의 필요 피드백이 없습니다" : "논의 필요 피드백이 없습니다"}
               </div>
               <div className="text-[13px] mt-1">직무별 뷰에서 처리 상태를 지정하세요</div>
             </div>
@@ -1086,34 +1173,43 @@ export function ActionRoleView() {
                     >
                       전체 {selectedReviewSummary.total}
                     </button>
-                    <button
-                      onClick={() => setReviewDetailFilter("needs_discussion")}
-                      className={`py-1 px-2.5 rounded-md text-[12px] font-semibold transition-colors ${reviewDetailFilter === "needs_discussion" ? "bg-card text-blue-600 shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-                    >
-                      협의 필요 {selectedReviewSummary.needsDiscussion}
-                    </button>
-                    <button
-                      onClick={() => setReviewDetailFilter("next_cohort")}
-                      className={`py-1 px-2.5 rounded-md text-[12px] font-semibold transition-colors ${reviewDetailFilter === "next_cohort" ? "bg-card text-amber-600 shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
-                    >
-                      다음 기수 {selectedReviewSummary.nextCohort}
-                    </button>
+                    {selectedReviewSummary.needsDiscussion > 0 && (
+                      <button
+                        onClick={() => setReviewDetailFilter("needs_discussion")}
+                        className={`py-1 px-2.5 rounded-md text-[12px] font-semibold transition-colors ${reviewDetailFilter === "needs_discussion" ? "bg-card text-blue-600 shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                      >
+                        협의 필요 {selectedReviewSummary.needsDiscussion}
+                      </button>
+                    )}
+                    {selectedReviewSummary.nextCohort > 0 && (
+                      <button
+                        onClick={() => setReviewDetailFilter("next_cohort")}
+                        className={`py-1 px-2.5 rounded-md text-[12px] font-semibold transition-colors ${reviewDetailFilter === "next_cohort" ? "bg-card text-amber-600 shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                      >
+                        다음 기수 {selectedReviewSummary.nextCohort}
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
 
               {/* 댓글 목록 */}
               <div className="max-h-[calc(100vh-420px)] overflow-y-auto divide-y">
-                {selectedReviewSummary.comments.filter(c => reviewDetailFilter === "all" || c.process_status === reviewDetailFilter).length === 0 ? (
+                {selectedReviewSummary.comments.filter(c =>
+                  reviewDetailFilter === "all" || c.process_status === reviewDetailFilter
+                ).length === 0 ? (
                   <div className="text-center py-8 text-muted-foreground text-[14px]">해당 필터에 맞는 피드백이 없습니다</div>
                 ) : (
-                  selectedReviewSummary.comments.filter(c => reviewDetailFilter === "all" || c.process_status === reviewDetailFilter).map((comment) => {
+                  selectedReviewSummary.comments.filter(c =>
+                    reviewDetailFilter === "all" || c.process_status === reviewDetailFilter
+                  ).map((comment) => {
                     const isNeedsDiscussion = comment.process_status === "needs_discussion";
                     const isNextCohort = comment.process_status === "next_cohort";
+                    const isResolved = !!comment.resolved;
                     const isResolving = reviewResolving.has(comment.id);
 
                     return (
-                      <div key={comment.id} className={`py-3 px-5 transition-all duration-300 ${isResolving ? "opacity-40 bg-green-50/50" : isNeedsDiscussion ? "bg-blue-50/30" : isNextCohort ? "bg-amber-50/30" : ""}`}>
+                      <div key={comment.id} className={`py-3 px-5 transition-all duration-300 ${isResolving ? "opacity-40 bg-green-50/50" : isResolved ? "bg-emerald-50/20" : isNeedsDiscussion ? "bg-blue-50/30" : isNextCohort ? "bg-amber-50/30" : ""}`}>
                         <div className="flex items-start gap-2.5">
                           <div className="flex-1 min-w-0">
                             <p className={`text-[14px] leading-relaxed ${isResolving ? "line-through" : ""}`}>{comment.original_text}</p>
@@ -1148,6 +1244,11 @@ export function ActionRoleView() {
                                     {getProcessLabel(comment.process_status)}
                                   </span>
                                 )}
+                                {isResolved && (
+                                  <span className="text-[11px] py-0.5 px-1.5 rounded font-semibold border bg-emerald-50 text-emerald-600 border-emerald-200">
+                                    해결 완료
+                                  </span>
+                                )}
                               </div>
                             )}
                             {/* 메모 강조 */}
@@ -1159,9 +1260,17 @@ export function ActionRoleView() {
                             )}
                           </div>
 
-                          {/* 오른쪽: 해결 버튼 or 되돌리기 + 중요 표시 */}
+                          {/* 오른쪽: 해결 버튼 or 되돌리기 or 해결 완료 표시 */}
                           <div className="flex items-center gap-1.5 shrink-0 mt-0.5">
-                            {isResolving ? (
+                            {isResolved ? (
+                              <button
+                                onClick={() => handleReviewUndoResolve(comment.id)}
+                                className="text-[12px] px-3 py-1.5 rounded-lg border border-emerald-200 text-emerald-500 hover:bg-emerald-50 transition-colors flex items-center gap-1 font-semibold"
+                                title="해결 취소"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />완료
+                              </button>
+                            ) : isResolving ? (
                               <button
                                 onClick={() => handleReviewUndoResolve(comment.id)}
                                 className="text-[12px] px-3 py-1.5 rounded-lg border border-green-300 bg-green-50 text-green-700 hover:bg-green-100 transition-colors flex items-center gap-1 font-semibold"
@@ -1409,7 +1518,7 @@ export function ActionRoleView() {
                     <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border mt-0.5 ${pColor.bg} ${pColor.text} ${pColor.border}`}>
                       {s.platform}
                     </span>
-                    {s.courses.length > 1 && <span className="text-[11px] text-muted-foreground mt-1">{s.courses.length}개 강의</span>}
+                    {s.courses.length > 1 && <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded mt-1">{s.courses.length}개 강의</span>}
                   </div>
 
                   {/* 하단: 건수 + 감정바 + 처리율 (항상 하단 고정) */}
@@ -1418,10 +1527,10 @@ export function ActionRoleView() {
                   <div className="flex items-center gap-1.5 w-full">
                     <span className="text-[20px] font-extrabold text-primary">{s.total}</span>
                     <span className="text-[12px] text-muted-foreground">건</span>
-                    {s.processed > 0 && <div className="flex-1" />}
-                    {s.processed > 0 && (
-                      <span className="flex items-center gap-0.5 text-[11px] text-emerald-600 font-semibold">
-                        <CheckCircle2 className="w-3 h-3" />{s.processed}
+                    {s.total - s.processed > 0 && <div className="flex-1" />}
+                    {s.total - s.processed > 0 && (
+                      <span className="flex items-center gap-0.5 text-[11px] text-orange-500 font-semibold">
+                        <Clock className="w-3 h-3" />{s.total - s.processed}
                       </span>
                     )}
                   </div>
@@ -1535,12 +1644,12 @@ export function ActionRoleView() {
 
               {/* 필터 셀렉트 */}
               {detailCourses.length > 1 && (
-                <select value={courseFilter} onChange={(e) => setCourseFilter(e.target.value)} className="text-[12px] border rounded-lg px-2 py-1 bg-background">
+                <select value={courseFilter} onChange={(e) => { setCourseFilter(e.target.value); setCohortFilter("all"); }} className="text-[12px] border rounded-lg px-2 py-1 bg-background">
                   <option value="all">전체 강의</option>
                   {detailCourses.map((l) => <option key={l} value={l}>{l}</option>)}
                 </select>
               )}
-              {detailCohorts.length > 1 && (
+              {detailCohorts.length > 0 && (
                 <select value={cohortFilter} onChange={(e) => setCohortFilter(e.target.value)} className="text-[12px] border rounded-lg px-2 py-1 bg-background">
                   <option value="all">전체 기수</option>
                   {detailCohorts.map((l) => <option key={l} value={l}>{l}</option>)}
@@ -1572,6 +1681,18 @@ export function ActionRoleView() {
                     >{opt.label} {processStatusCounts[opt.value] || 0}</button>
                   ))}
                 </div>
+              )}
+
+              {/* 전체 선택 (미처리 뷰) */}
+              {viewMode === "unprocessed" && detailFiltered.length > 0 && (
+                <button onClick={toggleSelectAll} className={`text-[12px] px-2.5 py-1 rounded-lg border transition-colors flex items-center gap-1 ${
+                  selected.size === detailFiltered.length && selected.size > 0
+                    ? "bg-primary text-primary-foreground border-primary"
+                    : "hover:bg-accent"
+                }`}>
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  {selected.size === detailFiltered.length && selected.size > 0 ? "선택 해제" : `전체 선택 (${detailFiltered.length})`}
+                </button>
               )}
 
               {/* 엑셀 내보내기 */}
@@ -1773,6 +1894,15 @@ export function ActionRoleView() {
                   <X className="w-3 h-3" />해제
                 </button>
                 <div className="flex-1" />
+                {/* 일괄 검토완료 */}
+                <button
+                  onClick={() => handleBulkProcess("self_resolved")}
+                  disabled={bulkProcessing}
+                  className="py-1 px-3 rounded-lg text-[12px] font-bold transition-all bg-green-50 hover:bg-green-100 border border-green-300 text-green-700 flex items-center gap-1 disabled:opacity-40"
+                >
+                  {bulkProcessing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                  검토완료
+                </button>
                 {/* 대량 이관 */}
                 <div className="relative" ref={transferDropdownId === "__bulk__" ? transferDropdownRef : undefined}>
                   <button onClick={() => setTransferDropdownId(transferDropdownId === "__bulk__" ? null : "__bulk__")}
