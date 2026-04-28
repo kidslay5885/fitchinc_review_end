@@ -18,6 +18,7 @@ import {
 import { FIELD_LABELS, FIELD_ORDER, isUsefulComment } from "@/lib/feedback-utils";
 import { getAppSettings } from "@/lib/app-settings-cache";
 import { useAppStore } from "@/hooks/use-app-store";
+import { getSupabaseClient } from "@/lib/supabase-client";
 import {
   Loader2,
   Search,
@@ -213,6 +214,27 @@ export function ActionRoleView() {
     loadComments();
     loadTransferOrigins();
   }, [loadComments, loadTransferOrigins]);
+
+  // Realtime broadcast 구독 — 다른 사용자가 댓글을 수정하면 즉시 반영
+  useEffect(() => {
+    const supabase = getSupabaseClient();
+    if (!supabase) return;
+
+    const channel = supabase.channel("comments-events");
+    channel
+      .on("broadcast", { event: "comment-updated" }, ({ payload }) => {
+        const p = payload as { id: string } & Partial<CommentWithAction>;
+        if (!p?.id) return;
+        setComments((prev) =>
+          prev.map((c) => (c.id === p.id ? { ...c, ...p } as CommentWithAction : c))
+        );
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   // 역할 변경 시 초기화
   useEffect(() => {

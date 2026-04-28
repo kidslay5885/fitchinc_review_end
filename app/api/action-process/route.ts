@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { fetchAllRanges } from "@/lib/supabase-paginate";
+import { broadcastCommentUpdate } from "@/lib/realtime-broadcast";
 import type { ProcessStatus, ActionTag } from "@/lib/types";
 
 export const maxDuration = 30;
@@ -50,6 +51,9 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // 다른 사용자에게 변경분 즉시 푸시
+    await broadcastCommentUpdate({ id: commentId, ...updates });
+
     return NextResponse.json({ ok: true });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "처리 상태 업데이트 실패";
@@ -79,6 +83,14 @@ export async function DELETE(req: NextRequest) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    // 다른 사용자에게 초기화 사실 푸시
+    await broadcastCommentUpdate({
+      id: commentId,
+      process_status: null,
+      process_memo: "",
+      processed_at: null,
+    });
 
     return NextResponse.json({ ok: true });
   } catch (error: unknown) {
