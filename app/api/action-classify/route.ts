@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 import { getSupabase } from "@/lib/supabase";
+import { broadcastCommentBulkUpdate } from "@/lib/realtime-broadcast";
 import { AI_LABEL_TO_TAG } from "@/lib/action-utils";
 import type { ActionTag } from "@/lib/types";
 
@@ -71,6 +72,7 @@ export async function POST(req: NextRequest) {
 
     for (let i = 0; i < items.length; i += BATCH_SIZE) {
       const batch = items.slice(i, i + BATCH_SIZE);
+      const batchUpdates: Array<{ id: string; action_tag: ActionTag }> = [];
 
       try {
         const aiResults = await classifyBatch(ai, batch);
@@ -89,11 +91,15 @@ export async function POST(req: NextRequest) {
           if (!error) {
             classified++;
             results.push({ id: item.id, action_tag: actionTag });
+            batchUpdates.push({ id: item.id, action_tag: actionTag });
           }
         }
       } catch (e) {
         console.error(`Batch ${Math.floor(i / BATCH_SIZE) + 1} error:`, e);
       }
+
+      // 배치 단위로 다른 사용자에게 변경 푸시 (한 번의 broadcast로)
+      await broadcastCommentBulkUpdate(batchUpdates);
 
       // 배치 간 throttle
       if (i + BATCH_SIZE < items.length) {

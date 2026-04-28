@@ -229,6 +229,18 @@ export function ActionRoleView() {
           prev.map((c) => (c.id === p.id ? { ...c, ...p } as CommentWithAction : c))
         );
       })
+      .on("broadcast", { event: "comments-bulk-updated" }, ({ payload }) => {
+        const p = payload as { updates?: Array<{ id: string } & Partial<CommentWithAction>> };
+        const updates = p?.updates;
+        if (!Array.isArray(updates) || updates.length === 0) return;
+        const updateMap = new Map(updates.map((u) => [u.id, u]));
+        setComments((prev) =>
+          prev.map((c) => {
+            const u = updateMap.get(c.id);
+            return u ? ({ ...c, ...u } as CommentWithAction) : c;
+          })
+        );
+      })
       .subscribe();
 
     return () => {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { fetchAllRanges } from "@/lib/supabase-paginate";
+import { broadcastCommentUpdate } from "@/lib/realtime-broadcast";
 
 // GET: 댓글 목록 조회 (surveyId 또는 platform+instructor 또는 tag 기반)
 export async function GET(req: NextRequest) {
@@ -279,6 +280,9 @@ export async function PATCH(req: NextRequest) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    // 다른 사용자에게 변경분 즉시 푸시 (실제 적용된 필드만)
+    await broadcastCommentUpdate({ id: commentId, ...updates });
 
     return NextResponse.json({ ok: true });
   } catch (error: unknown) {
