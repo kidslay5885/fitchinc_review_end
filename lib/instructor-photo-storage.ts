@@ -11,9 +11,14 @@ export function isBase64DataUri(s: unknown): s is string {
 }
 
 // 같은 강사의 사진은 항상 같은 키에 덮어쓰므로 orphan 파일이 쌓이지 않는다.
-// 한글 키는 Supabase Storage가 그대로 받아주며 URL은 SDK가 인코딩한다.
+// Supabase Storage SDK는 키에 한글/특수문자를 허용하지 않으므로 base64url로 인코딩한다.
+// 디코딩이 필요하면: Buffer.from(s, "base64url").toString("utf8")
+function safeSegment(s: string): string {
+  return Buffer.from(s, "utf8").toString("base64url");
+}
+
 function objectKey(platform: string, instructor: string): string {
-  return `${platform}/${instructor}.png`;
+  return `${safeSegment(platform)}/${safeSegment(instructor)}.png`;
 }
 
 interface ParsedDataUri {
