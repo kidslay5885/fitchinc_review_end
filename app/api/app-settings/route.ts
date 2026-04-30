@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
+import { isBase64DataUri, uploadInstructorPhoto, deleteInstructorPhoto } from "@/lib/instructor-photo-storage";
 
 const TABLE = "app_settings";
 
@@ -85,11 +86,25 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: false, error: "platform, instructor 필요" }, { status: 400 });
       }
       const key = photoKey(platform, instructor);
-      const photoStr = typeof photo === "string" ? photo : "";
+      const supabase = getSupabase();
+
+      // photo 정규화: base64 → Storage 업로드 후 URL, 빈 문자열 → Storage 삭제, 이미 URL이면 그대로
+      let photoStr = typeof photo === "string" ? photo : "";
+      if (isBase64DataUri(photoStr)) {
+        try {
+          photoStr = await uploadInstructorPhoto(supabase, platform, instructor, photoStr);
+        } catch (e) {
+          console.error("instructor photo upload error:", e);
+          return NextResponse.json({ ok: false, error: "사진 업로드 실패" });
+        }
+      } else if (photoStr === "") {
+        // 사진 제거 — Storage 파일도 정리 (실패 무시)
+        await deleteInstructorPhoto(supabase, platform, instructor);
+      }
+
       const value: Record<string, string> = { photo: photoStr, photoPosition: photoPosition || "center 2%" };
       if (typeof category === "string") value.category = category;
 
-      const supabase = getSupabase();
       const { error } = await supabase.from(TABLE).upsert(
         { key, value, updated_at: new Date().toISOString() },
         { onConflict: "key" }
