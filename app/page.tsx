@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import dynamic from "next/dynamic";
 import {
   AppProvider,
   useAppStore,
@@ -12,25 +13,68 @@ import {
 import { allCohorts } from "@/lib/types";
 import { NavHeader } from "@/components/nav-header";
 import { AppSidebar } from "@/components/app-sidebar";
-import { PlatformDashboard } from "@/components/platform-dashboard";
 import { InstructorHero } from "@/components/instructor-hero";
-import { TabOverview } from "@/components/tab-overview";
-import { TabWhole } from "@/components/tab-whole";
-import { TabFeedbackHub } from "@/components/tab-feedback-hub";
-import { TabAIInsight } from "@/components/tab-ai-insight";
-import { TabQualityOverview } from "@/components/tab-quality-overview";
-import { UploadDialog } from "@/components/upload-dialog";
-import { EditInstructorDialog } from "@/components/edit-instructor-dialog";
-import { ActionRoleView } from "@/components/action-role-view";
 import type { Instructor } from "@/lib/types";
 import { SuggestionsPanel } from "@/components/suggestions-panel";
 import { BarChart3, Loader2, Lock, MessageSquare, Tag, Send } from "lucide-react";
 import { toast } from "sonner";
 import { ErrorBoundary } from "@/components/error-boundary";
-import { SurveyFormBuilder } from "@/components/survey-form-builder";
-import { SurveyFormList } from "@/components/survey-form-list";
-import { SurveyFormResults } from "@/components/survey-form-results";
 import type { SurveyForm } from "@/lib/types";
+
+// 모드/탭/모달 단위로 lazy 로드 — 초기 JS 번들에서 제외하고 진입 시점에 가져온다
+const TabLoading = () => (
+  <div className="flex items-center justify-center py-12">
+    <Loader2 className="w-6 h-6 animate-spin text-primary" />
+  </div>
+);
+
+const PlatformDashboard = dynamic(
+  () => import("@/components/platform-dashboard").then((m) => ({ default: m.PlatformDashboard })),
+  { loading: TabLoading },
+);
+const TabOverview = dynamic(
+  () => import("@/components/tab-overview").then((m) => ({ default: m.TabOverview })),
+  { loading: TabLoading },
+);
+const TabWhole = dynamic(
+  () => import("@/components/tab-whole").then((m) => ({ default: m.TabWhole })),
+  { loading: TabLoading },
+);
+const TabFeedbackHub = dynamic(
+  () => import("@/components/tab-feedback-hub").then((m) => ({ default: m.TabFeedbackHub })),
+  { loading: TabLoading },
+);
+const TabAIInsight = dynamic(
+  () => import("@/components/tab-ai-insight").then((m) => ({ default: m.TabAIInsight })),
+  { loading: TabLoading },
+);
+const TabQualityOverview = dynamic(
+  () => import("@/components/tab-quality-overview").then((m) => ({ default: m.TabQualityOverview })),
+  { loading: TabLoading },
+);
+const ActionRoleView = dynamic(
+  () => import("@/components/action-role-view").then((m) => ({ default: m.ActionRoleView })),
+  { loading: TabLoading },
+);
+const SurveyFormBuilder = dynamic(
+  () => import("@/components/survey-form-builder").then((m) => ({ default: m.SurveyFormBuilder })),
+  { loading: TabLoading },
+);
+const SurveyFormList = dynamic(
+  () => import("@/components/survey-form-list").then((m) => ({ default: m.SurveyFormList })),
+  { loading: TabLoading },
+);
+const SurveyFormResults = dynamic(
+  () => import("@/components/survey-form-results").then((m) => ({ default: m.SurveyFormResults })),
+  { loading: TabLoading },
+);
+// 모달은 사용자가 클릭한 직후이므로 loading 인디케이터 없이 그대로 떠도 자연스럽다
+const UploadDialog = dynamic(
+  () => import("@/components/upload-dialog").then((m) => ({ default: m.UploadDialog })),
+);
+const EditInstructorDialog = dynamic(
+  () => import("@/components/edit-instructor-dialog").then((m) => ({ default: m.EditInstructorDialog })),
+);
 
 type AppMode = "landing" | "data" | "role" | "classify" | "form";
 
