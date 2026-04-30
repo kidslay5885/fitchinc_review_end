@@ -21,15 +21,22 @@ export async function fetchAllRanges<T = Record<string, unknown>>(
   if (total <= pageSize) return firstRows;
 
   const pageCount = Math.ceil(total / pageSize);
-  const rest = await Promise.all(
-    Array.from({ length: pageCount - 1 }, (_, i) =>
-      buildQuery((i + 1) * pageSize, (i + 2) * pageSize - 1, false),
-    ),
-  );
+  // 동시성 5로 제한해 큰 테이블에서 Supabase rate limit 또는 브라우저 네트워크 큐 압박을 방지한다.
+  // (이전: Promise.all 무제한 → 50페이지 데이터셋에서 49개 동시 요청 폭주)
+  const CONCURRENCY = 5;
   let all: T[] = firstRows;
-  for (const r of rest) {
-    if (r.error) throw r.error;
-    all = all.concat((r.data as T[]) || []);
+  for (let pageIdx = 1; pageIdx < pageCount; pageIdx += CONCURRENCY) {
+    const end = Math.min(pageIdx + CONCURRENCY, pageCount);
+    const batch = await Promise.all(
+      Array.from({ length: end - pageIdx }, (_, i) => {
+        const idx = pageIdx + i;
+        return buildQuery(idx * pageSize, (idx + 1) * pageSize - 1, false);
+      }),
+    );
+    for (const r of batch) {
+      if (r.error) throw r.error;
+      all = all.concat((r.data as T[]) || []);
+    }
   }
   return all;
 }
