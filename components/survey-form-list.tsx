@@ -318,7 +318,6 @@ function NameMatchView() {
       });
       if (res.ok) {
         const { updated } = await res.json();
-        setApplied(true);
         // 적용된 항목 제거
         setMatches((prev) => prev.filter((m) => !selected.has(m.responseId)));
         setSelected(new Set());
