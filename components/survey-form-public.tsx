@@ -325,13 +325,15 @@ function FieldRenderer({
 
     case "radio":
       if (field.multiple) {
-        // 복수 선택 모드
-        const selected = value ? value.split(", ") : [];
+        // 복수 선택 모드 — 옵션 텍스트에 ", "가 포함될 수 있어 "|" 구분자 사용 (analysis-engine과 동일 포맷)
+        const selected = value
+          ? value.split("|").map((s) => s.trim()).filter(Boolean)
+          : [];
         const toggleOpt = (opt: string) => {
           const next = selected.includes(opt)
             ? selected.filter((s) => s !== opt)
             : [...selected, opt];
-          onChange(next.join(", "));
+          onChange(next.join(" | "));
         };
         return (
           <div className="flex flex-col gap-2">
@@ -694,7 +696,7 @@ export function SurveyFormPublic({ form }: Props) {
             {form.title || `${form.instructor} ${form.survey_type} 설문`}
           </h1>
           {form.description && (
-            <p className="text-[14px] text-gray-500 mt-2 leading-relaxed">{form.description}</p>
+            <p className="text-[14px] text-gray-500 mt-2 leading-relaxed whitespace-pre-line">{form.description}</p>
           )}
           {(form.starts_at || form.expires_at) && (
             <p className="text-[12px] text-gray-400 mt-3">
