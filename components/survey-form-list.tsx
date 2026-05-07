@@ -174,7 +174,7 @@ function DefaultsModal({ onClose }: { onClose: () => void }) {
           {/* 기본 설명 편집 */}
           <div className="mb-2">
             <label className="text-[11px] font-semibold text-muted-foreground mb-1 block">
-              기본 설명 (플랫폼명은 "머니업클래스"로 작성하면 실제 폼에서 자동 치환됩니다)
+              기본 설명 (&quot;클래스명&quot;은 플랫폼 설정에 맞춰 자동으로 치환됩니다)
             </label>
             <RichTextEditor
               value={desc}
