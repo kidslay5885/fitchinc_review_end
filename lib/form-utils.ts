@@ -228,6 +228,24 @@ export function resetDefaults(type: "사전" | "후기") {
   }
 }
 
+// ===== 기본 설문 기간 (일수) =====
+
+const STORAGE_KEY_DURATION = "survey_default_duration";
+const DEFAULT_DURATION_DAYS = 14;
+
+export function getDefaultDuration(): number {
+  if (typeof window === "undefined") return DEFAULT_DURATION_DAYS;
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY_DURATION);
+    if (saved) return parseInt(saved) || DEFAULT_DURATION_DAYS;
+  } catch {}
+  return DEFAULT_DURATION_DAYS;
+}
+
+export function saveDefaultDuration(days: number) {
+  localStorage.setItem(STORAGE_KEY_DURATION, String(days));
+}
+
 // ===== camelCase 폼 키 → snake_case DB 컬럼 매핑 =====
 
 export const KEY_TO_COLUMN: Record<string, string> = {

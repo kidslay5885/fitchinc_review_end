@@ -44,6 +44,8 @@ import {
   POST_SURVEY_DEFAULTS,
   getDescDefault,
   saveDescDefault,
+  getDefaultDuration,
+  saveDefaultDuration,
 } from "@/lib/form-utils";
 import { RichTextEditor } from "@/components/rich-text-editor";
 
@@ -80,6 +82,7 @@ function DefaultsModal({ onClose }: { onClose: () => void }) {
   const [postFields, setPostDefaults] = useState<FormField[]>(getPostDefaults);
   const [preDesc, setPreDesc] = useState(() => getDescDefault("사전"));
   const [postDesc, setPostDesc] = useState(() => getDescDefault("후기"));
+  const [durationDays, setDurationDays] = useState(() => getDefaultDuration());
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [typeOpenKey, setTypeOpenKey] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -94,6 +97,7 @@ function DefaultsModal({ onClose }: { onClose: () => void }) {
     savePostDefaults(postFields);
     saveDescDefault("사전", preDesc);
     saveDescDefault("후기", postDesc);
+    saveDefaultDuration(durationDays);
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
   };
@@ -181,6 +185,23 @@ function DefaultsModal({ onClose }: { onClose: () => void }) {
               onChange={setDesc}
               placeholder="설문 안내 메시지를 입력하세요"
             />
+          </div>
+
+          {/* 기본 설문 기간 */}
+          <div className="mb-2 flex items-center gap-2">
+            <label className="text-[11px] font-semibold text-muted-foreground">기본 설문 기간</label>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[12px] text-muted-foreground">생성일 +</span>
+              <input
+                type="number"
+                value={durationDays}
+                onChange={(e) => setDurationDays(Math.max(1, parseInt(e.target.value) || 1))}
+                className="w-14 py-1 px-2 rounded border text-[12px] bg-background text-center outline-none focus:border-primary/40"
+                min={1}
+                max={365}
+              />
+              <span className="text-[12px] text-muted-foreground">일</span>
+            </div>
           </div>
 
           {/* 질문 목록 */}

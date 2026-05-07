@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { FormField, SurveyForm } from "@/lib/types";
-import { getPreDefaults, getPostDefaults, applyPlatformName, getDefaultDescription } from "@/lib/form-utils";
+import { getPreDefaults, getPostDefaults, applyPlatformName, getDefaultDescription, getDefaultDuration } from "@/lib/form-utils";
 import { PLATFORM_NAMES } from "@/lib/constants";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import {
@@ -818,7 +818,7 @@ export function SurveyFormBuilder({ editForm, initialType, onSaved, onCancel }: 
     isEditing ? (editForm?.description || "") : getDefaultDescription(dbSurveyType, platform)
   );
   const [startsAt, setStartsAt] = useState(editForm?.starts_at?.slice(0, 10) || todayStr());
-  const [expiresAt, setExpiresAt] = useState(editForm?.expires_at?.slice(0, 10) || futureDateStr(14));
+  const [expiresAt, setExpiresAt] = useState(editForm?.expires_at?.slice(0, 10) || futureDateStr(getDefaultDuration()));
   const isFreeForm = initialType === "자유";
   const existingFields = editForm?.fields?.length ? (editForm.fields as FormField[]) : null;
   const [fields, setFields] = useState<FormField[]>(
