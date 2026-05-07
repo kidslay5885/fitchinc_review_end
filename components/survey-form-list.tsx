@@ -1064,11 +1064,13 @@ function formatDate(iso: string | null) {
   return `${d.getUTCMonth() + 1}/${d.getUTCDate()}(${DAY_NAMES[d.getUTCDay()]})`;
 }
 
-/** D-day 계산 */
+/** D-day 계산 — 날짜 단위 비교 (시분초 무시) */
 function daysLeft(expiresAt: string | null) {
   if (!expiresAt) return null;
-  const diff = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86400000);
-  return diff;
+  const exp = new Date(expiresAt.slice(0, 10) + "T00:00:00");
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.round((exp.getTime() - today.getTime()) / 86400000);
 }
 
 export function SurveyFormList({ onEdit, onNew, onResults, onBack, refreshKey }: Props) {
