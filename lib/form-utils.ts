@@ -72,27 +72,129 @@ export const POST_SURVEY_DEFAULTS: FormField[] = [
   ...POST_FREETEXT_FIELDS,
 ];
 
+// ===== 플랫폼명 치환 =====
+
+const DEFAULT_PLATFORM_TOKEN = "머니업클래스";
+
+/** 필드 배열의 label·options 안의 "머니업클래스"를 선택한 플랫폼명으로 치환 */
+export function applyPlatformName(fields: FormField[], platform: string): FormField[] {
+  if (!platform || platform === DEFAULT_PLATFORM_TOKEN) return fields;
+  return fields.map((f) => {
+    let changed = false;
+    let label = f.label;
+    let options = f.options;
+
+    if (label.includes(DEFAULT_PLATFORM_TOKEN)) {
+      label = label.replaceAll(DEFAULT_PLATFORM_TOKEN, platform);
+      changed = true;
+    }
+    if (options) {
+      const newOpts = options.map((o) =>
+        o.includes(DEFAULT_PLATFORM_TOKEN) ? o.replaceAll(DEFAULT_PLATFORM_TOKEN, platform) : o
+      );
+      if (newOpts.some((o, i) => o !== options![i])) {
+        options = newOpts;
+        changed = true;
+      }
+    }
+    return changed ? { ...f, label, options } : f;
+  });
+}
+
+// ===== 기본 설명 템플릿 =====
+
+function linesToHtml(lines: string[]): string {
+  return lines.map((l) => (l ? `<div>${l}</div>` : "<div><br></div>")).join("");
+}
+
+const PRE_DESC_TEMPLATE = linesToHtml([
+  "안녕하세요. 머니업클래스입니다.",
+  "저희 플랫폼 강의를 수강해주셔서 진심으로 감사드립니다.",
+  "",
+  "보다 나은 강의를 제공해드리기 위해 사전 설문을 진행하고 있습니다.",
+  "편하게 작성해주시면 감사하겠습니다 :)",
+  "",
+  "작성하신 설문은 강의 발전을 위한 목적으로만 사용되며",
+  '개인정보 처리방침에 따라 <b>절대로 타인이 열람할 수 없음을 약속드립니다.</b>',
+  "",
+  '또, 설문을 작성하신 <span style="color: #22c55e">모든 분들께 커피 쿠폰을 발송해드립니다.</span> :)',
+]);
+
+const POST_DESC_TEMPLATE = linesToHtml([
+  "안녕하세요. 머니업클래스입니다.",
+  "먼저, 저희 플랫폼 강의를 수강하신 분들께 진심으로 감사드립니다.",
+  "",
+  "수강생분들의 소중한 의견을 귀담아듣고 앞으로 반영하고자 하니",
+  "강의 수강하시는 동안 느끼셨던 미흡했던 점이나 좋았던 점 등",
+  "편하게 말씀해주시면 감사하겠습니다 :)",
+  "",
+  "작성하신 설문은 강의 발전을 위한 목적으로만 사용되며",
+  '개인정보 처리방침에 따라 <b>절대로 타인이 열람할 수 없음을 약속드립니다.</b>',
+  "",
+  '또, 설문을 작성하신 <span style="color: #22c55e">모든 분들께 커피 쿠폰을 발송해드립니다.</span> :)',
+]);
+
+const STORAGE_KEY_PRE_DESC = "survey_desc_pre";
+const STORAGE_KEY_POST_DESC = "survey_desc_post";
+
+/** 고정값 설정 모달에서 편집할 때 사용 (플랫폼 치환 없이 원본) */
+export function getDescDefault(type: "사전" | "후기"): string {
+  if (typeof window !== "undefined") {
+    try {
+      const key = type === "사전" ? STORAGE_KEY_PRE_DESC : STORAGE_KEY_POST_DESC;
+      const saved = localStorage.getItem(key);
+      if (saved) return saved;
+    } catch {}
+  }
+  return type === "후기" ? POST_DESC_TEMPLATE : PRE_DESC_TEMPLATE;
+}
+
+export function saveDescDefault(type: "사전" | "후기", desc: string) {
+  localStorage.setItem(type === "사전" ? STORAGE_KEY_PRE_DESC : STORAGE_KEY_POST_DESC, desc);
+}
+
+/** 폼 빌더에서 사용 — 저장된 기본 설명을 플랫폼명으로 치환하여 반환 */
+export function getDefaultDescription(surveyType: "사전" | "후기", platform: string): string {
+  const raw = getDescDefault(surveyType);
+  if (!platform || platform === DEFAULT_PLATFORM_TOKEN) return raw;
+  return raw.replaceAll(DEFAULT_PLATFORM_TOKEN, platform);
+}
+
 // ===== 커스텀 디폴트 (localStorage 저장) =====
 
 const STORAGE_KEY_PRE = "survey_defaults_pre";
 const STORAGE_KEY_POST = "survey_defaults_post";
 
-export function getPreDefaults(): FormField[] {
-  if (typeof window === "undefined") return PRE_SURVEY_DEFAULTS;
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY_PRE);
-    if (saved) return JSON.parse(saved);
-  } catch {}
-  return PRE_SURVEY_DEFAULTS.map((f) => ({ ...f }));
+export function getPreDefaults(platform?: string): FormField[] {
+  let fields: FormField[];
+  if (typeof window === "undefined") {
+    fields = PRE_SURVEY_DEFAULTS;
+  } else {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_PRE);
+      if (saved) { fields = JSON.parse(saved); }
+      else { fields = PRE_SURVEY_DEFAULTS.map((f) => ({ ...f })); }
+    } catch {
+      fields = PRE_SURVEY_DEFAULTS.map((f) => ({ ...f }));
+    }
+  }
+  return platform ? applyPlatformName(fields, platform) : fields;
 }
 
-export function getPostDefaults(): FormField[] {
-  if (typeof window === "undefined") return POST_SURVEY_DEFAULTS;
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY_POST);
-    if (saved) return JSON.parse(saved);
-  } catch {}
-  return POST_SURVEY_DEFAULTS.map((f) => ({ ...f }));
+export function getPostDefaults(platform?: string): FormField[] {
+  let fields: FormField[];
+  if (typeof window === "undefined") {
+    fields = POST_SURVEY_DEFAULTS;
+  } else {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_POST);
+      if (saved) { fields = JSON.parse(saved); }
+      else { fields = POST_SURVEY_DEFAULTS.map((f) => ({ ...f })); }
+    } catch {
+      fields = POST_SURVEY_DEFAULTS.map((f) => ({ ...f }));
+    }
+  }
+  return platform ? applyPlatformName(fields, platform) : fields;
 }
 
 export function savePreDefaults(fields: FormField[]) {
@@ -104,8 +206,13 @@ export function savePostDefaults(fields: FormField[]) {
 }
 
 export function resetDefaults(type: "사전" | "후기") {
-  if (type === "사전") localStorage.removeItem(STORAGE_KEY_PRE);
-  else localStorage.removeItem(STORAGE_KEY_POST);
+  if (type === "사전") {
+    localStorage.removeItem(STORAGE_KEY_PRE);
+    localStorage.removeItem(STORAGE_KEY_PRE_DESC);
+  } else {
+    localStorage.removeItem(STORAGE_KEY_POST);
+    localStorage.removeItem(STORAGE_KEY_POST_DESC);
+  }
 }
 
 // ===== camelCase 폼 키 → snake_case DB 컬럼 매핑 =====

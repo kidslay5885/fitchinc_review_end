@@ -2,8 +2,9 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { FormField, SurveyForm } from "@/lib/types";
-import { getPreDefaults, getPostDefaults } from "@/lib/form-utils";
+import { getPreDefaults, getPostDefaults, applyPlatformName, getDefaultDescription } from "@/lib/form-utils";
 import { PLATFORM_NAMES } from "@/lib/constants";
+import { RichTextEditor } from "@/components/rich-text-editor";
 import {
   Plus,
   Copy,
@@ -412,11 +413,13 @@ function QuestionCard({
 
           {/* 질문 설명 */}
           <div className="px-4 pb-2">
-            <input
+            <textarea
               value={field.placeholder || ""}
               onChange={(e) => onUpdate({ placeholder: e.target.value })}
               placeholder="설명 입력"
-              className="w-full text-[13px] text-muted-foreground bg-transparent outline-none border-b border-transparent hover:border-gray-300 focus:border-primary/40 py-1 transition-colors placeholder:text-gray-300"
+              rows={1}
+              onInput={(e) => { const t = e.currentTarget; t.style.height = "auto"; t.style.height = t.scrollHeight + "px"; }}
+              className="w-full text-[13px] text-muted-foreground bg-transparent outline-none border-b border-transparent hover:border-gray-300 focus:border-primary/40 py-1 transition-colors placeholder:text-gray-300 resize-none overflow-hidden"
             />
 
             {/* 설명 이미지 첨부 */}
@@ -811,7 +814,9 @@ export function SurveyFormBuilder({ editForm, initialType, onSaved, onCancel }: 
   const [surveyType, setSurveyType] = useState<"사전" | "후기">(dbSurveyType);
   const [titleManual, setTitleManual] = useState(editForm?.title || "");
   const [titleOverride, setTitleOverride] = useState(!!editForm?.title);
-  const [description, setDescription] = useState(editForm?.description || "");
+  const [description, setDescription] = useState(
+    isEditing ? (editForm?.description || "") : getDefaultDescription(dbSurveyType, platform)
+  );
   const [startsAt, setStartsAt] = useState(editForm?.starts_at?.slice(0, 10) || todayStr());
   const [expiresAt, setExpiresAt] = useState(editForm?.expires_at?.slice(0, 10) || futureDateStr(14));
   const isFreeForm = initialType === "자유";
@@ -819,7 +824,7 @@ export function SurveyFormBuilder({ editForm, initialType, onSaved, onCancel }: 
   const [fields, setFields] = useState<FormField[]>(
     existingFields
       ? existingFields.filter((f) => f.type !== "closing")
-      : isFreeForm ? [] : resolvedType === "사전" ? getPreDefaults() : getPostDefaults()
+      : isFreeForm ? [] : resolvedType === "사전" ? getPreDefaults(platform) : getPostDefaults(platform)
   );
   const [closingMessage, setClosingMessage] = useState(
     existingFields?.find((f) => f.type === "closing")?.label || "설문 작성해주셔서 감사합니다."
@@ -874,6 +879,23 @@ export function SurveyFormBuilder({ editForm, initialType, onSaved, onCancel }: 
     }
     return () => observer.disconnect();
   }, [fields]);
+
+  // 플랫폼 변경 시 기존 필드의 라벨/옵션 + 설명도 갱신
+  const prevPlatformRef = useRef(platform);
+  useEffect(() => {
+    const prev = prevPlatformRef.current;
+    if (prev === platform) return;
+    prevPlatformRef.current = platform;
+    setFields((cur) =>
+      cur.map((f) => {
+        const label = f.label.replaceAll(prev, platform);
+        const options = f.options?.map((o) => o.replaceAll(prev, platform));
+        if (label === f.label && !f.options?.some((o, i) => o !== options?.[i])) return f;
+        return { ...f, label, options };
+      })
+    );
+    setDescription((cur) => cur.replaceAll(prev, platform));
+  }, [platform]);
 
   const updateField = (key: string, updates: Partial<FormField>) => {
     setFields((prev) =>
@@ -1162,12 +1184,10 @@ export function SurveyFormBuilder({ editForm, initialType, onSaved, onCancel }: 
 
           <div className="mb-2">
             <label className="text-[11px] font-semibold text-muted-foreground mb-0.5 block">설명 (선택)</label>
-            <textarea
+            <RichTextEditor
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={setDescription}
               placeholder="설문 안내 메시지를 입력하세요"
-              rows={2}
-              className="w-full py-1.5 px-2 rounded-md border text-[12px] bg-background resize-none hover:border-gray-400 focus:border-primary/40 transition-colors"
             />
           </div>
 

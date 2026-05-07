@@ -181,7 +181,8 @@ function ImageUploadField({
       onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
       onDragLeave={() => setDragOver(false)}
       onDrop={handleDrop}
-      className={`flex flex-col items-center justify-center gap-3 py-8 px-4 rounded-2xl border-2 border-dashed transition-all ${
+      onClick={() => { if (!uploading) fileRef.current?.click(); }}
+      className={`flex flex-col items-center justify-center gap-3 py-8 px-4 rounded-2xl border-2 border-dashed transition-all cursor-pointer ${
         error ? "border-red-300 bg-red-50/50" :
         dragOver ? "border-blue-400 bg-blue-50" :
         "border-gray-300 bg-gray-50 hover:border-blue-300 hover:bg-blue-50/50"
@@ -210,13 +211,9 @@ function ImageUploadField({
             <ImagePlus className="w-7 h-7 text-blue-500" />
           </div>
           <div className="text-center">
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              className="text-[15px] font-semibold text-blue-600 hover:text-blue-700 transition-colors"
-            >
+            <span className="text-[15px] font-semibold text-blue-600">
               사진 선택
-            </button>
+            </span>
             <p className="text-[12px] text-gray-400 mt-1">
               또는 여기에 드래그 &amp; 드롭 (최대 5MB)
             </p>
@@ -696,7 +693,7 @@ export function SurveyFormPublic({ form }: Props) {
             {form.title || `${form.instructor} ${form.survey_type} 설문`}
           </h1>
           {form.description && (
-            <p className="text-[14px] text-gray-500 mt-2 leading-relaxed whitespace-pre-line">{form.description}</p>
+            <div className="text-[14px] text-gray-500 mt-2 leading-relaxed whitespace-pre-line" dangerouslySetInnerHTML={{ __html: form.description }} />
           )}
           {(form.starts_at || form.expires_at) && (
             <p className="text-[12px] text-gray-400 mt-3">
@@ -728,7 +725,7 @@ export function SurveyFormPublic({ form }: Props) {
                   />
                 )}
                 {field.placeholder && field.type !== "scale" && (
-                  <p className="text-[13px] text-gray-400 mb-2 leading-relaxed">{field.placeholder}</p>
+                  <p className="text-[13px] text-gray-400 mb-2 leading-relaxed whitespace-pre-line">{field.placeholder}</p>
                 )}
                 <FieldRenderer
                   field={field}
