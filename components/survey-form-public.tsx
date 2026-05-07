@@ -237,9 +237,9 @@ function FieldRenderer({
   onChange: (v: string) => void;
   error?: boolean;
 }) {
-  // 16px으로 iOS 자동 줌 방지, 패딩 축소로 밸런스 조정
+  // 입력란 텍스트 14px 통일
   const baseInput =
-    "w-full py-2.5 px-3.5 rounded-2xl border-2 text-[16px] bg-white focus:outline-none focus:ring-2 focus:ring-blue-400/30 focus:border-blue-400 transition-all appearance-none";
+    "w-full py-2.5 px-3.5 rounded-2xl border-2 text-[14px] bg-white focus:outline-none focus:ring-2 focus:ring-blue-400/30 focus:border-blue-400 transition-all appearance-none";
   const errorCls = error ? "border-red-300 ring-2 ring-red-200" : "border-gray-200";
 
   switch (field.type) {
