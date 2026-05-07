@@ -790,15 +790,16 @@ interface Props {
   onCancel: () => void;
 }
 
-/** 오늘 날짜를 YYYY-MM-DD 형식으로 */
+/** 오늘 날짜를 YYYY-MM-DD 형식으로 (로컬 타임존 기준) */
 function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
-/** 오늘 + N일 */
+/** 오늘 + N일 (로컬 타임존 기준) */
 function futureDateStr(days: number) {
   const d = new Date();
   d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 export function SurveyFormBuilder({ editForm, initialType, onSaved, onCancel }: Props) {

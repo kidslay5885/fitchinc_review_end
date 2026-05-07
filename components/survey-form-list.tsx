@@ -1056,12 +1056,12 @@ interface FormResponse {
   [key: string]: unknown;
 }
 
-/** 날짜 표시 포맷 (요일 포함) */
+/** 날짜 표시 포맷 (요일 포함) — UTC 기준으로 파싱하여 타임존 오프셋 방지 */
 const DAY_NAMES = ["일", "월", "화", "수", "목", "금", "토"];
 function formatDate(iso: string | null) {
   if (!iso) return null;
   const d = new Date(iso);
-  return `${d.getMonth() + 1}/${d.getDate()}(${DAY_NAMES[d.getDay()]})`;
+  return `${d.getUTCMonth() + 1}/${d.getUTCDate()}(${DAY_NAMES[d.getUTCDay()]})`;
 }
 
 /** D-day 계산 */
