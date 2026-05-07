@@ -1,9 +1,31 @@
+import type { Metadata } from "next";
 import { getSupabase } from "@/lib/supabase";
 import type { SurveyForm } from "@/lib/types";
 import { SurveyFormPublic } from "@/components/survey-form-public";
 
 interface Props {
   params: Promise<{ token: string }>;
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { token } = await params;
+  try {
+    const supabase = getSupabase();
+    const { data } = await supabase
+      .from("survey_forms")
+      .select("title, platform, instructor, cohort, survey_type, description")
+      .eq("token", token)
+      .single();
+    if (data) {
+      const title = data.title || `${data.platform} ${data.instructor} ${data.cohort || ""} ${data.survey_type} 설문`.trim();
+      return {
+        title,
+        description: data.description || `${title} - 설문에 참여해주세요`,
+        openGraph: { title, description: data.description || `${title} - 설문에 참여해주세요` },
+      };
+    }
+  } catch {}
+  return { title: "설문 응답" };
 }
 
 export default async function SurveyPage({ params }: Props) {
