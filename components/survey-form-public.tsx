@@ -294,10 +294,10 @@ function FieldRenderer({
         <textarea
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="참여자의 답변 입력란 (최대 2000자)"
+          placeholder="답변을 입력해주세요"
           maxLength={2000}
-          rows={4}
-          className={`${baseInput} resize-none min-h-[120px] ${errorCls}`}
+          rows={3}
+          className={`w-full py-2.5 px-3.5 rounded-2xl border-2 text-[14px] bg-white focus:outline-none focus:ring-2 focus:ring-blue-400/30 focus:border-blue-400 transition-all appearance-none resize-none min-h-[100px] ${errorCls}`}
         />
       );
 
