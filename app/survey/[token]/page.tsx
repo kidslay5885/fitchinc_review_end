@@ -18,14 +18,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       .single();
     if (data) {
       const title = data.title || `${data.platform} ${data.instructor} ${data.cohort || ""} ${data.survey_type} 설문`.trim();
+      const desc = (data.description || "").replace(/<[^>]*>/g, "").trim() || `${title} - 설문에 참여해주세요`;
       return {
         title,
-        description: data.description || `${title} - 설문에 참여해주세요`,
-        openGraph: { title, description: data.description || `${title} - 설문에 참여해주세요` },
+        description: desc,
+        openGraph: { type: "website", locale: "ko_KR", title, description: desc, siteName: "클래스인사이트" },
       };
     }
   } catch {}
-  return { title: "설문 응답" };
+  return { title: "설문 응답", openGraph: { type: "website", locale: "ko_KR", title: "설문 응답" } };
 }
 
 export default async function SurveyPage({ params }: Props) {
