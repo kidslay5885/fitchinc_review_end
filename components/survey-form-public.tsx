@@ -270,7 +270,7 @@ function FieldRenderer({
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={field.placeholder || "참여자의 답변 입력란 (최대 100자)"}
+          placeholder={field.placeholder || "답변을 입력해주세요"}
           maxLength={100}
           className={`${baseInput} ${errorCls}`}
           autoComplete="off"
