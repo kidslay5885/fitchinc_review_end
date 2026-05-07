@@ -329,10 +329,12 @@ function DashboardContent({ tabs, readOnly = false }: { tabs: typeof TABS_DATA; 
             dispatch({ type: "UPDATE_INSTRUCTOR", instructor: updated });
             if (plat) {
               const payload = { photo: updated.photo || "", photoPosition: updated.photoPosition || "center 2%", category: updated.category || "" };
+              // localStorage에는 base64 대신 위치/카테고리만 저장 (용량 초과 방지)
               try {
+                const lsPayload = { photo: "", photoPosition: payload.photoPosition, category: payload.category };
                 localStorage.setItem(
                   `instructor-photo-${plat.name}-${updated.name}`,
-                  JSON.stringify(payload)
+                  JSON.stringify(lsPayload)
                 );
               } catch {}
               const saveBody = JSON.stringify({

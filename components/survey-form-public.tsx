@@ -237,9 +237,9 @@ function FieldRenderer({
   onChange: (v: string) => void;
   error?: boolean;
 }) {
-  // 16px 이상으로 iOS 자동 줌 방지
+  // 16px으로 iOS 자동 줌 방지, 패딩 축소로 밸런스 조정
   const baseInput =
-    "w-full py-3 px-4 rounded-2xl border-2 text-[16px] bg-white focus:outline-none focus:ring-2 focus:ring-blue-400/30 focus:border-blue-400 transition-all appearance-none";
+    "w-full py-2.5 px-3.5 rounded-2xl border-2 text-[16px] bg-white focus:outline-none focus:ring-2 focus:ring-blue-400/30 focus:border-blue-400 transition-all appearance-none";
   const errorCls = error ? "border-red-300 ring-2 ring-red-200" : "border-gray-200";
 
   switch (field.type) {
@@ -341,7 +341,7 @@ function FieldRenderer({
                   key={opt}
                   type="button"
                   onClick={() => toggleOpt(opt)}
-                  className={`flex items-center gap-3 py-3.5 px-4 rounded-2xl border-2 text-left transition-all active:scale-[0.98] ${
+                  className={`flex items-center gap-3 py-2.5 px-3.5 rounded-2xl border-2 text-left transition-all active:scale-[0.98] ${
                     checked
                       ? "border-blue-500 bg-blue-50 shadow-sm"
                       : "border-gray-200 bg-white active:bg-gray-50"
@@ -360,7 +360,7 @@ function FieldRenderer({
                     )}
                   </span>
                   <span
-                    className={`text-[15px] ${
+                    className={`text-[14px] ${
                       checked ? "text-blue-700 font-semibold" : "text-gray-600"
                     }`}
                   >
@@ -379,7 +379,7 @@ function FieldRenderer({
               key={opt}
               type="button"
               onClick={() => onChange(opt)}
-              className={`flex items-center gap-3 py-3.5 px-4 rounded-2xl border-2 text-left transition-all active:scale-[0.98] ${
+              className={`flex items-center gap-3 py-2.5 px-3.5 rounded-2xl border-2 text-left transition-all active:scale-[0.98] ${
                 value === opt
                   ? "border-blue-500 bg-blue-50 shadow-sm"
                   : "border-gray-200 bg-white active:bg-gray-50"
@@ -396,7 +396,7 @@ function FieldRenderer({
                 )}
               </span>
               <span
-                className={`text-[15px] ${
+                className={`text-[14px] ${
                   value === opt ? "text-blue-700 font-semibold" : "text-gray-600"
                 }`}
               >
@@ -481,7 +481,7 @@ function FieldRenderer({
           <button
             type="button"
             onClick={() => onChange(agreed ? "" : "동의")}
-            className={`flex items-center gap-3 py-3.5 px-4 rounded-2xl border-2 text-left transition-all active:scale-[0.98] w-full ${
+            className={`flex items-center gap-3 py-2.5 px-3.5 rounded-2xl border-2 text-left transition-all active:scale-[0.98] w-full ${
               agreed
                 ? "border-blue-500 bg-blue-50 shadow-sm"
                 : error
@@ -500,7 +500,7 @@ function FieldRenderer({
                 </svg>
               )}
             </span>
-            <span className={`text-[15px] ${agreed ? "text-blue-700 font-semibold" : "text-gray-600"}`}>
+            <span className={`text-[14px] ${agreed ? "text-blue-700 font-semibold" : "text-gray-600"}`}>
               위 내용에 동의합니다
             </span>
           </button>
@@ -662,7 +662,7 @@ export function SurveyFormPublic({ form }: Props) {
       <div className="sticky top-0 z-10 bg-white/90 backdrop-blur-md border-b border-gray-100 safe-top">
         <div className="max-w-lg mx-auto px-5 py-3">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[13px] font-bold text-gray-700 truncate">
+            <span className="text-[14px] font-bold text-gray-700 truncate">
               {form.title || `${form.instructor} ${form.survey_type} 설문`}
             </span>
             {totalRequired > 0 && (
@@ -689,7 +689,7 @@ export function SurveyFormPublic({ form }: Props) {
               {form.instructor} {form.cohort && `· ${form.cohort}`}
             </span>
           </div>
-          <h1 className="text-[17px] sm:text-lg font-bold text-gray-800 mt-1">
+          <h1 className="text-[20px] sm:text-[22px] font-bold text-gray-800 mt-1 leading-snug">
             {form.title || `${form.instructor} ${form.survey_type} 설문`}
           </h1>
           {form.description && (
@@ -709,7 +709,7 @@ export function SurveyFormPublic({ form }: Props) {
           <div className="space-y-8">
             {enabledFields.map((field, idx) => (
               <div key={field.key} id={`field-${field.key}`}>
-                <label className="block text-[15px] font-semibold text-gray-700 mb-2.5 leading-snug">
+                <label className="block text-[14px] font-semibold text-gray-700 mb-2.5 leading-snug">
                   {field.required && <span className="text-red-500">*</span>}
                   <span className="text-blue-600">{idx + 1}. </span>
                   {field.label}
