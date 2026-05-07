@@ -605,7 +605,8 @@ export function SurveyFormPublic({ form }: Props) {
   const expired = form.expires_at && new Date(form.expires_at) < now;
 
   if (notStarted) {
-    const startDate = new Date(form.starts_at!).toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" });
+    const [sy, sm, sd] = form.starts_at!.slice(0, 10).split("-");
+    const startDate = `${Number(sy)}년 ${Number(sm)}월 ${Number(sd)}일`;
     return (
       <div className="min-h-[100dvh] flex items-center justify-center bg-gradient-to-b from-blue-50 to-white p-6">
         <div className="bg-white rounded-3xl shadow-lg border p-8 max-w-sm w-full text-center">
@@ -697,9 +698,9 @@ export function SurveyFormPublic({ form }: Props) {
           )}
           {(form.starts_at || form.expires_at) && (
             <p className="text-[12px] text-gray-400 mt-3">
-              {form.starts_at && new Date(form.starts_at).toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" })}
+              {form.starts_at && form.starts_at.slice(0, 10).replace(/-/g, ". ")}
               {form.starts_at && form.expires_at && " ~ "}
-              {form.expires_at && new Date(form.expires_at).toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" })}
+              {form.expires_at && form.expires_at.slice(0, 10).replace(/-/g, ". ")}
             </p>
           )}
         </div>
