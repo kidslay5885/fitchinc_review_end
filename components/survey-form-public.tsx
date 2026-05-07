@@ -709,7 +709,7 @@ export function SurveyFormPublic({ form }: Props) {
           <div className="space-y-8">
             {enabledFields.map((field, idx) => (
               <div key={field.key} id={`field-${field.key}`}>
-                <label className="block text-[14px] font-semibold text-gray-700 mb-2.5 leading-snug">
+                <label className="block text-[15.5px] font-semibold text-gray-700 mb-2.5 leading-snug">
                   {field.required && <span className="text-red-500">*</span>}
                   <span className="text-blue-600">{idx + 1}. </span>
                   {field.label}
