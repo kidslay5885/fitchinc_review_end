@@ -139,7 +139,7 @@ export function EditInstructorDialog({
     }));
   };
 
-  // 저장: 강의명 변경 + 기타 정보 일괄 서버 반영
+  // 저장: 강의명 변경 + 스케줄 변경 + 기타 정보 일괄 서버 반영
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -165,10 +165,39 @@ export function EditInstructorDialog({
         }
       }
 
-      // 2. 사진/카테고리/기수 정보 저장
+      // 2. 스케줄(PM, 시작일, VOD 종료일) 변경 처리
+      for (let ci = 0; ci < data.courses.length && ci < instructor.courses.length; ci++) {
+        const oldCourse = instructor.courses[ci];
+        const newCourse = data.courses[ci];
+        for (let coI = 0; coI < newCourse.cohorts.length && coI < oldCourse.cohorts.length; coI++) {
+          const oldC = oldCourse.cohorts[coI];
+          const newC = newCourse.cohorts[coI];
+          const changes: Record<string, string> = {};
+          if ((newC.pm || "") !== (oldC.pm || "")) changes.pm = newC.pm || "";
+          if ((newC.date || "") !== (oldC.date || "")) changes.startDate = newC.date || "";
+          if ((newC.endDate || "") !== (oldC.endDate || "")) changes.endDate = newC.endDate || "";
+          if (Object.keys(changes).length > 0) {
+            const res = await fetch("/api/update-schedule", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                platform: platformName,
+                instructor: instructor.name,
+                course: newCourse.name,
+                cohort: newC.label,
+                ...changes,
+              }),
+            });
+            const result = await res.json();
+            if (!res.ok) throw new Error(result.error || "스케줄 저장 실패");
+          }
+        }
+      }
+
+      // 3. 사진/카테고리/기수 정보 저장
       onSave(data);
 
-      // 3. 강의명 변경이 있을 때만 hierarchy 새로고침 (사진만 변경 시 불필요한 전체 리로드 방지)
+      // 4. 강의명 변경이 있을 때만 hierarchy 새로고침 (사진만 변경 시 불필요한 전체 리로드 방지)
       if (hasRename) {
         await onRefresh();
       }
