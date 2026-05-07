@@ -261,7 +261,61 @@ function FieldResultCard({
     );
   }
 
-  // closing / image → 스킵
+  // image → 이미지 갤러리
+  if (field.type === "image") {
+    return (
+      <div className="rounded-xl border bg-card p-5">
+        <button
+          onClick={() => setOpen(!open)}
+          className="flex items-center justify-between w-full text-left"
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-[12px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded">
+              Q{index}
+            </span>
+            <span className="text-[13px] font-bold">{field.label}</span>
+            <span className="text-[12px] text-muted-foreground">
+              ({nonEmptyTextsWithIndex.length}건)
+            </span>
+          </div>
+          {open ? (
+            <ChevronUp className="w-4 h-4 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-muted-foreground" />
+          )}
+        </button>
+        {open && (
+          <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[500px] overflow-y-auto">
+            {nonEmptyTextsWithIndex.length === 0 ? (
+              <div className="col-span-full text-[12px] text-muted-foreground text-center py-6">
+                응답 없음
+              </div>
+            ) : (
+              nonEmptyTextsWithIndex.map(({ text, idx }, i) => {
+                const name = responses[idx]?.name;
+                return (
+                  <div key={i} className="flex flex-col gap-1.5">
+                    <a href={text} target="_blank" rel="noopener noreferrer" className="block">
+                      <img
+                        src={text}
+                        alt={`${name || `#${i + 1}`} 이미지`}
+                        className="w-full rounded-lg border object-cover aspect-square bg-muted"
+                      />
+                    </a>
+                    <span className="text-[11px] text-muted-foreground text-center truncate">
+                      {name || `#${i + 1}`}
+                    </span>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // closing → 스킵
   return null;
 }
 
@@ -296,8 +350,7 @@ export function SurveyFormResults({ form, onBack, onEdit }: Props) {
         .filter(
           (f) =>
             f.enabled !== false &&
-            f.type !== "closing" &&
-            f.type !== "image"
+            f.type !== "closing"
         )
         .sort((a, b) => a.order - b.order),
     [form.fields]
