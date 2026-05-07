@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import type { SurveyForm } from "@/lib/types";
 import {
   Copy,
@@ -77,6 +77,7 @@ function getModalTypeIcon(type: string) {
 }
 
 function DefaultsModal({ onClose }: { onClose: () => void }) {
+  const backdropMouseDown = useRef(false);
   const [tab, setTab] = useState<"사전" | "후기">("사전");
   const [preFields, setPreFields] = useState<FormField[]>(getPreDefaults);
   const [postFields, setPostDefaults] = useState<FormField[]>(getPostDefaults);
@@ -134,8 +135,8 @@ function DefaultsModal({ onClose }: { onClose: () => void }) {
   const sorted = [...fields].sort((a, b) => a.order - b.order);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="bg-card rounded-2xl shadow-xl border w-[560px] max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onMouseDown={(e) => { backdropMouseDown.current = e.target === e.currentTarget; }} onClick={(e) => { if (e.target === e.currentTarget && backdropMouseDown.current) onClose(); }}>
+      <div className="bg-card rounded-2xl shadow-xl border w-[560px] max-h-[85vh] flex flex-col" onMouseDown={() => { backdropMouseDown.current = false; }}>
         {/* 헤더 */}
         <div className="flex items-center justify-between px-5 py-4 border-b">
           <div className="flex items-center gap-3">
