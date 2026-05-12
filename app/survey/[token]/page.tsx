@@ -15,6 +15,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       .from("survey_forms")
       .select("title, platform, instructor, cohort, survey_type, description")
       .eq("token", token)
+      .is("deleted_at", null)
       .single();
     if (data) {
       const title = data.title || `${data.platform} ${data.instructor} ${data.cohort || ""} ${data.survey_type} 설문`.trim();
@@ -41,6 +42,7 @@ export default async function SurveyPage({ params }: Props) {
       .from("survey_forms")
       .select("*")
       .eq("token", token)
+      .is("deleted_at", null)
       .single();
 
     if (error || !data) {

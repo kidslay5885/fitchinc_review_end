@@ -13,6 +13,7 @@ export async function GET(req: NextRequest) {
         .from("survey_forms")
         .select("*")
         .eq("token", token)
+        .is("deleted_at", null)
         .single();
 
       if (error || !data) {
@@ -22,10 +23,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ form: data });
     }
 
-    // 관리자: 전체 목록
+    // 관리자: 전체 목록 (삭제된 폼 제외)
     const { data, error } = await supabase
       .from("survey_forms")
       .select("*")
+      .is("deleted_at", null)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -122,7 +124,7 @@ export async function DELETE(req: NextRequest) {
 
     const { error } = await supabase
       .from("survey_forms")
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq("id", id);
 
     if (error) {
