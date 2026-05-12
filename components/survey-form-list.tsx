@@ -212,6 +212,13 @@ function DefaultsModal({ onClose }: { onClose: () => void }) {
             const scaleMin = field.scaleMin ?? 1;
             const scaleMax = field.scaleMax ?? 5;
             const scaleNums = Array.from({ length: scaleMax - scaleMin + 1 }, (_, i) => scaleMin + i);
+            const scaleParts = field.placeholder?.split("|") || [];
+            const scaleLeftLabel = scaleParts[0]?.trim() || "";
+            const scaleRightLabel = scaleParts[1]?.trim() || "";
+            const updateScaleLabels = (left: string, right: string) => {
+              if (!left && !right) updateField(field.key, { placeholder: "" });
+              else updateField(field.key, { placeholder: `${left}|${right}` });
+            };
 
             return (
               <div
@@ -308,6 +315,7 @@ function DefaultsModal({ onClose }: { onClose: () => void }) {
                     </div>
 
                     {/* 설명 (플레이스홀더) */}
+                    {field.type !== "scale" && (
                     <div className="px-4 pb-2">
                       <textarea
                         value={field.placeholder || ""}
@@ -319,6 +327,7 @@ function DefaultsModal({ onClose }: { onClose: () => void }) {
                         className="w-full text-[12px] text-muted-foreground bg-transparent outline-none border-b border-transparent hover:border-gray-300 focus:border-primary/40 py-1 transition-colors placeholder:text-gray-300 resize-none overflow-hidden"
                       />
                     </div>
+                    )}
 
                     {/* 단답형/서술형 미리보기 */}
                     {field.type === "text" && (
@@ -400,14 +409,26 @@ function DefaultsModal({ onClose }: { onClose: () => void }) {
                       <div className="px-4 pb-2">
                         {/* 척도 미리보기 */}
                         <div className={`flex items-end justify-center ${scaleNums.length > 10 ? "gap-1" : scaleNums.length > 7 ? "gap-2" : "gap-3"} py-2 flex-wrap`}>
-                          <span className="text-[10px] text-muted-foreground font-medium pb-0.5 shrink-0">매우 불만족</span>
+                          <input
+                            value={scaleLeftLabel}
+                            onChange={(e) => updateScaleLabels(e.target.value, scaleRightLabel)}
+                            onClick={(e) => e.stopPropagation()}
+                            placeholder="매우 불만족"
+                            className="text-[10px] text-muted-foreground font-medium pb-0.5 shrink-0 w-[70px] bg-transparent outline-none border-b border-dashed border-gray-300 hover:border-primary/40 focus:border-primary text-center transition-colors placeholder:text-muted-foreground/50"
+                          />
                           {scaleNums.map((n) => (
                             <div key={n} className="flex flex-col items-center gap-1">
                               <span className={`${scaleNums.length > 10 ? "text-[9px]" : "text-[11px]"} font-bold text-foreground`}>{n}</span>
                               <span className={`${scaleNums.length > 10 ? "w-3.5 h-3.5" : "w-4.5 h-4.5"} rounded-full border-2 border-gray-300`} />
                             </div>
                           ))}
-                          <span className="text-[10px] text-muted-foreground font-medium pb-0.5 shrink-0">매우 만족</span>
+                          <input
+                            value={scaleRightLabel}
+                            onChange={(e) => updateScaleLabels(scaleLeftLabel, e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            placeholder="매우 만족"
+                            className="text-[10px] text-muted-foreground font-medium pb-0.5 shrink-0 w-[70px] bg-transparent outline-none border-b border-dashed border-gray-300 hover:border-primary/40 focus:border-primary text-center transition-colors placeholder:text-muted-foreground/50"
+                          />
                         </div>
                         {/* 범위 조절 */}
                         <div className="flex items-center gap-1.5 mt-1 text-[11px]">
@@ -1062,16 +1083,17 @@ const DAY_NAMES = ["일", "월", "화", "수", "목", "금", "토"];
 function formatDate(iso: string | null) {
   if (!iso) return null;
   const d = new Date(iso);
-  return `${d.getUTCMonth() + 1}/${d.getUTCDate()}(${DAY_NAMES[d.getUTCDay()]})`;
+  return `${d.getMonth() + 1}/${d.getDate()}(${DAY_NAMES[d.getDay()]})`;
 }
 
 /** D-day 계산 — 날짜 단위 비교 (시분초 무시) */
 function daysLeft(expiresAt: string | null) {
   if (!expiresAt) return null;
-  const exp = new Date(expiresAt.slice(0, 10) + "T00:00:00");
+  const exp = new Date(expiresAt);
+  const expDay = new Date(exp.getFullYear(), exp.getMonth(), exp.getDate());
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  return Math.round((exp.getTime() - today.getTime()) / 86400000);
+  return Math.round((expDay.getTime() - today.getTime()) / 86400000);
 }
 
 export function SurveyFormList({ onEdit, onNew, onResults, onBack, refreshKey }: Props) {

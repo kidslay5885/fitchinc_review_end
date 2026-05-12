@@ -55,11 +55,13 @@ function ScaleSection({
   scaleMin,
   scaleMax,
   scaleNums,
+  placeholder,
   onUpdate,
 }: {
   scaleMin: number;
   scaleMax: number;
   scaleNums: number[];
+  placeholder?: string;
   onUpdate: (updates: Partial<FormField>) => void;
 }) {
   const [showSettings, setShowSettings] = useState(false);
@@ -69,18 +71,40 @@ function ScaleSection({
   const numSize = count > 10 ? "text-[10px]" : count > 7 ? "text-[12px]" : "text-[14px]";
   const circleSize = count > 10 ? "w-4 h-4" : count > 7 ? "w-5 h-5" : "w-6 h-6";
 
+  const parts = placeholder?.split("|") || [];
+  const leftLabel = parts[0]?.trim() || "";
+  const rightLabel = parts[1]?.trim() || "";
+
+  const updateLabels = (left: string, right: string) => {
+    if (!left && !right) {
+      onUpdate({ placeholder: "" });
+    } else {
+      onUpdate({ placeholder: `${left}|${right}` });
+    }
+  };
+
   return (
     <div className="px-4 pb-2">
       {/* 큰 척도 미리보기 — 네이버폼 스타일 */}
       <div className={`flex items-end justify-center ${itemGap} py-3 flex-wrap`}>
-        <span className="text-[12px] text-muted-foreground font-medium pb-1 shrink-0">매우 불만족</span>
+        <input
+          value={leftLabel}
+          onChange={(e) => updateLabels(e.target.value, rightLabel)}
+          placeholder="매우 불만족"
+          className="text-[12px] text-muted-foreground font-medium pb-1 shrink-0 w-[80px] bg-transparent outline-none border-b border-dashed border-gray-300 hover:border-primary/40 focus:border-primary text-center transition-colors placeholder:text-muted-foreground/50"
+        />
         {scaleNums.map((n) => (
           <div key={n} className="flex flex-col items-center gap-1.5">
             <span className={`${numSize} font-bold text-foreground`}>{n}</span>
             <span className={`${circleSize} rounded-full border-2 border-gray-300 hover:border-primary/50 transition-colors`} />
           </div>
         ))}
-        <span className="text-[12px] text-muted-foreground font-medium pb-1 shrink-0">매우 만족</span>
+        <input
+          value={rightLabel}
+          onChange={(e) => updateLabels(leftLabel, e.target.value)}
+          placeholder="매우 만족"
+          className="text-[12px] text-muted-foreground font-medium pb-1 shrink-0 w-[80px] bg-transparent outline-none border-b border-dashed border-gray-300 hover:border-primary/40 focus:border-primary text-center transition-colors placeholder:text-muted-foreground/50"
+        />
       </div>
 
       {/* 세부 설정 토글 */}
@@ -97,7 +121,7 @@ function ScaleSection({
       {showSettings && (
         <div className="flex items-center gap-2 mt-2 text-[12px] pb-1">
           <span className="text-muted-foreground text-[11px]">점수 {scaleMin}일 경우</span>
-          <span className="text-[11px] font-medium">매우 불만족</span>
+          <span className="text-[11px] font-medium">{leftLabel || "매우 불만족"}</span>
           <span className="text-muted-foreground mx-1">|</span>
           <input
             type="number"
@@ -113,7 +137,7 @@ function ScaleSection({
             className="w-12 py-1.5 px-2 rounded border text-[12px] bg-background text-center"
           />
           <span className="text-muted-foreground text-[11px]">점수 {scaleMax}일 경우</span>
-          <span className="text-[11px] font-medium">매우 만족</span>
+          <span className="text-[11px] font-medium">{rightLabel || "매우 만족"}</span>
         </div>
       )}
     </div>
@@ -413,6 +437,7 @@ function QuestionCard({
 
           {/* 질문 설명 */}
           <div className="px-4 pb-2">
+            {field.type !== "scale" && (
             <textarea
               value={field.placeholder || ""}
               onChange={(e) => onUpdate({ placeholder: e.target.value })}
@@ -421,6 +446,7 @@ function QuestionCard({
               onInput={(e) => { const t = e.currentTarget; t.style.height = "auto"; t.style.height = t.scrollHeight + "px"; }}
               className="w-full text-[13px] text-muted-foreground bg-transparent outline-none border-b border-transparent hover:border-gray-300 focus:border-primary/40 py-1 transition-colors placeholder:text-gray-300 resize-none overflow-hidden"
             />
+            )}
 
             {/* 설명 이미지 첨부 */}
             {field.descriptionImage ? (
@@ -567,6 +593,7 @@ function QuestionCard({
               scaleMin={scaleMin}
               scaleMax={scaleMax}
               scaleNums={scaleNums}
+              placeholder={field.placeholder}
               onUpdate={onUpdate}
             />
           )}
@@ -818,8 +845,34 @@ export function SurveyFormBuilder({ editForm, initialType, onSaved, onCancel }: 
   const [description, setDescription] = useState(
     isEditing ? (editForm?.description || "") : getDefaultDescription(dbSurveyType, platform)
   );
-  const [startsAt, setStartsAt] = useState(editForm?.starts_at?.slice(0, 10) || todayStr());
-  const [expiresAt, setExpiresAt] = useState(editForm?.expires_at?.slice(0, 10) || futureDateStr(getDefaultDuration()));
+  const [startsAt, setStartsAt] = useState(() => {
+    if (editForm?.starts_at) {
+      const d = new Date(editForm.starts_at);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }
+    return todayStr();
+  });
+  const [startsAtTime, setStartsAtTime] = useState(() => {
+    if (editForm?.starts_at) {
+      const d = new Date(editForm.starts_at);
+      return `${String(d.getHours()).padStart(2, "0")}:${String(Math.floor(d.getMinutes() / 5) * 5).padStart(2, "0")}`;
+    }
+    return "00:00";
+  });
+  const [expiresAt, setExpiresAt] = useState(() => {
+    if (editForm?.expires_at) {
+      const d = new Date(editForm.expires_at);
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }
+    return futureDateStr(getDefaultDuration());
+  });
+  const [expiresAtTime, setExpiresAtTime] = useState(() => {
+    if (editForm?.expires_at) {
+      const d = new Date(editForm.expires_at);
+      return `${String(d.getHours()).padStart(2, "0")}:${String(Math.floor(d.getMinutes() / 5) * 5).padStart(2, "0")}`;
+    }
+    return "23:55";
+  });
   const isFreeForm = initialType === "자유";
   const existingFields = editForm?.fields?.length ? (editForm.fields as FormField[]) : null;
   const [fields, setFields] = useState<FormField[]>(
@@ -994,8 +1047,8 @@ export function SurveyFormBuilder({ editForm, initialType, onSaved, onCancel }: 
           ...fields,
           { key: "_closing", label: closingMessage, type: "closing" as const, required: false, enabled: true, order: 99999, section: "freetext" as const },
         ],
-        starts_at: startsAt ? `${startsAt}T00:00:00.000Z` : null,
-        expires_at: expiresAt ? `${expiresAt}T23:59:59.999Z` : null,
+        starts_at: startsAt ? new Date(`${startsAt}T${startsAtTime}:00`).toISOString() : null,
+        expires_at: expiresAt ? new Date(`${expiresAt}T${expiresAtTime}:00`).toISOString() : null,
       };
 
       const res = await fetch("/api/survey-forms", {
@@ -1196,24 +1249,66 @@ export function SurveyFormBuilder({ editForm, initialType, onSaved, onCancel }: 
             <div className="flex-1">
               <label className="text-[11px] font-semibold text-muted-foreground mb-0.5 flex items-center gap-1">
                 <Calendar className="w-3 h-3" />
-                시작일
+                시작
               </label>
-              <input
-                type="date"
-                value={startsAt}
-                onChange={(e) => setStartsAt(e.target.value)}
-                className="w-full py-1.5 px-2 rounded-md border text-[12px] bg-background"
-              />
+              <div className="flex items-center gap-1">
+                <input
+                  type="date"
+                  value={startsAt}
+                  onChange={(e) => setStartsAt(e.target.value)}
+                  className="flex-1 min-w-0 py-1.5 px-2 rounded-md border text-[12px] bg-background"
+                />
+                <select
+                  value={startsAtTime.split(":")[0]}
+                  onChange={(e) => setStartsAtTime(`${e.target.value}:${startsAtTime.split(":")[1]}`)}
+                  className="py-1.5 px-1 rounded-md border text-[12px] bg-background"
+                >
+                  {Array.from({ length: 24 }, (_, i) => (
+                    <option key={i} value={String(i).padStart(2, "0")}>{String(i).padStart(2, "0")}</option>
+                  ))}
+                </select>
+                <span className="text-[11px] text-muted-foreground">:</span>
+                <select
+                  value={startsAtTime.split(":")[1]}
+                  onChange={(e) => setStartsAtTime(`${startsAtTime.split(":")[0]}:${e.target.value}`)}
+                  className="py-1.5 px-1 rounded-md border text-[12px] bg-background"
+                >
+                  {Array.from({ length: 12 }, (_, i) => (
+                    <option key={i} value={String(i * 5).padStart(2, "0")}>{String(i * 5).padStart(2, "0")}</option>
+                  ))}
+                </select>
+              </div>
             </div>
             <span className="text-muted-foreground text-[12px] pb-2">~</span>
             <div className="flex-1">
-              <label className="text-[11px] font-semibold text-muted-foreground mb-0.5 block">종료일</label>
-              <input
-                type="date"
-                value={expiresAt}
-                onChange={(e) => setExpiresAt(e.target.value)}
-                className="w-full py-1.5 px-2 rounded-md border text-[12px] bg-background"
-              />
+              <label className="text-[11px] font-semibold text-muted-foreground mb-0.5 block">종료 (마감)</label>
+              <div className="flex items-center gap-1">
+                <input
+                  type="date"
+                  value={expiresAt}
+                  onChange={(e) => setExpiresAt(e.target.value)}
+                  className="flex-1 min-w-0 py-1.5 px-2 rounded-md border text-[12px] bg-background"
+                />
+                <select
+                  value={expiresAtTime.split(":")[0]}
+                  onChange={(e) => setExpiresAtTime(`${e.target.value}:${expiresAtTime.split(":")[1]}`)}
+                  className="py-1.5 px-1 rounded-md border text-[12px] bg-background"
+                >
+                  {Array.from({ length: 24 }, (_, i) => (
+                    <option key={i} value={String(i).padStart(2, "0")}>{String(i).padStart(2, "0")}</option>
+                  ))}
+                </select>
+                <span className="text-[11px] text-muted-foreground">:</span>
+                <select
+                  value={expiresAtTime.split(":")[1]}
+                  onChange={(e) => setExpiresAtTime(`${expiresAtTime.split(":")[0]}:${e.target.value}`)}
+                  className="py-1.5 px-1 rounded-md border text-[12px] bg-background"
+                >
+                  {Array.from({ length: 12 }, (_, i) => (
+                    <option key={i} value={String(i * 5).padStart(2, "0")}>{String(i * 5).padStart(2, "0")}</option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
         </div>

@@ -24,8 +24,8 @@ function ScaleInput({
   const max = field.scaleMax ?? 5;
   const points = Array.from({ length: max - min + 1 }, (_, i) => min + i);
   const count = points.length;
-  const leftLabel = field.placeholder?.split("|")[0]?.trim() || `${min}점`;
-  const rightLabel = field.placeholder?.split("|")[1]?.trim() || `${max}점`;
+  const leftLabel = field.placeholder?.split("|")[0]?.trim() || "매우 불만족";
+  const rightLabel = field.placeholder?.split("|")[1]?.trim() || "매우 만족";
 
   // 8개 이상: 라벨을 위로 분리하여 버튼 공간 확보 (모바일 2줄 방지)
   if (count > 7) {
@@ -605,8 +605,8 @@ export function SurveyFormPublic({ form }: Props) {
   const expired = form.expires_at && new Date(form.expires_at) < now;
 
   if (notStarted) {
-    const [sy, sm, sd] = form.starts_at!.slice(0, 10).split("-");
-    const startDate = `${Number(sy)}년 ${Number(sm)}월 ${Number(sd)}일`;
+    const _sd = new Date(form.starts_at!);
+    const startDate = `${_sd.getFullYear()}년 ${_sd.getMonth() + 1}월 ${_sd.getDate()}일`;
     return (
       <div className="min-h-[100dvh] flex items-center justify-center bg-gradient-to-b from-blue-50 to-white p-6">
         <div className="bg-white rounded-3xl shadow-lg border p-8 max-w-sm w-full text-center">
@@ -698,9 +698,9 @@ export function SurveyFormPublic({ form }: Props) {
           )}
           {(form.starts_at || form.expires_at) && (
             <p className="text-[12px] text-gray-400 mt-3">
-              {form.starts_at && form.starts_at.slice(0, 10).replace(/-/g, ". ")}
+              {form.starts_at && (() => { const d = new Date(form.starts_at!); return `${d.getFullYear()}. ${String(d.getMonth()+1).padStart(2,"0")}. ${String(d.getDate()).padStart(2,"0")}`; })()}
               {form.starts_at && form.expires_at && " ~ "}
-              {form.expires_at && form.expires_at.slice(0, 10).replace(/-/g, ". ")}
+              {form.expires_at && (() => { const d = new Date(form.expires_at!); return `${d.getFullYear()}. ${String(d.getMonth()+1).padStart(2,"0")}. ${String(d.getDate()).padStart(2,"0")}`; })()}
             </p>
           )}
         </div>
