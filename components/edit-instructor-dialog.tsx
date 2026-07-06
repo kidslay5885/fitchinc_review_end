@@ -378,7 +378,7 @@ export function EditInstructorDialog({
                               title="클릭하여 강의명 변경"
                             >
                               <span className="text-[13px] font-semibold truncate">
-                                {course.name}
+                                {course.name || <span className="text-muted-foreground italic font-normal">(강의명 없음)</span>}
                                 {isRenamed && <span className="text-[10px] text-amber-600 font-normal ml-1.5">변경됨</span>}
                               </span>
                               <Pencil className="w-3 h-3 text-muted-foreground group-hover/row:text-primary shrink-0 transition-colors" />

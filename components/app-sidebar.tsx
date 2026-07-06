@@ -180,7 +180,7 @@ export function AppSidebar({ onUpload, onEditInstructor, readOnly }: AppSidebarP
                               title={course.name}
                             >
                               <BookOpen className="w-3 h-3 shrink-0" />
-                              <span className="truncate">{course.name}</span>
+                              <span className="truncate">{course.name || <span className="italic opacity-70">(강의명 없음)</span>}</span>
                             </div>
 
                             {/* 해당 강의의 기수 목록 */}
