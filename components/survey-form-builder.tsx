@@ -1026,6 +1026,11 @@ export function SurveyFormBuilder({ editForm, initialType, onSaved, onCancel }: 
       return;
     }
 
+    if (!course.trim()) {
+      alert("강의명을 입력해주세요");
+      return;
+    }
+
     const enabledFields = fields.filter((f) => f.enabled);
     if (enabledFields.length === 0) {
       alert("최소 1개의 활성 질문이 필요합니다");
@@ -1178,7 +1183,7 @@ export function SurveyFormBuilder({ editForm, initialType, onSaved, onCancel }: 
               />
             </div>
             <div>
-              <label className="text-[11px] font-semibold text-muted-foreground mb-0.5 block">강의명</label>
+              <label className="text-[11px] font-semibold text-muted-foreground mb-0.5 block">강의명 <span className="text-red-500">*</span></label>
               <input
                 value={course}
                 onChange={(e) => setCourse(e.target.value)}
