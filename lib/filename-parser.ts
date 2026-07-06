@@ -15,6 +15,9 @@ const PLATFORM_PREFIXES = ["핏크닉", "머니업클래스"] as const;
 const INSTRUCTOR_ALIASES: Record<string, string> = {
   "선한부자": "선한부자오가닉",
   "오가닉": "선한부자오가닉",
+  "셀팜 쿠팡": "셀팜",
+  "셀팜쿠팡": "셀팜",
+  "민대표님": "민대표",
 };
 
 /**

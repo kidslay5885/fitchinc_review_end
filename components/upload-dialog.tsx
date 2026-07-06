@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useAppStore } from "@/hooks/use-app-store";
 import { parseFilename } from "@/lib/filename-parser";
 import { X, FileSpreadsheet, Upload, Loader2, CheckCircle, AlertCircle, AlertTriangle } from "lucide-react";
@@ -62,21 +62,63 @@ export function UploadDialog({ onClose }: UploadDialogProps) {
   const allInstructors = state.platforms.flatMap((p) => p.instructors);
   const allInstNames = [...new Set(allInstructors.map((i) => i.name))];
 
+  // 강사명 정규화: 공백 제거 + 끝의 "님"/"의" 제거 (변형 표기 대조용)
+  const normInst = (s: string) => s.replace(/\s/g, "").replace(/[님의]$/, "");
+
+  // 플랫폼별 기존 강사명 + 정규화 매핑
+  const instructorsByPlatform = useMemo(() => {
+    const m = new Map<string, { names: string[]; normMap: Map<string, string> }>();
+    for (const p of state.platforms) {
+      const names = [...new Set(p.instructors.map((i) => i.name))];
+      const normMap = new Map<string, string>();
+      for (const n of names) normMap.set(normInst(n), n);
+      m.set(p.name, { names, normMap });
+    }
+    return m;
+  }, [state.platforms]);
+
+  // 자동 스냅: 정규화(공백/'님' 무시)했을 때 기존 강사와 정확히 일치하면 기존 이름으로 교체
+  const snapInstructor = useCallback(
+    (platform: string, inst: string) => {
+      if (!inst) return inst;
+      const entry = instructorsByPlatform.get(platform);
+      if (!entry) return inst;
+      if (entry.names.includes(inst)) return inst; // 이미 정확히 일치
+      return entry.normMap.get(normInst(inst)) || inst;
+    },
+    [instructorsByPlatform]
+  );
+
+  // 유사 제안: 정규화 기준 한쪽이 다른 쪽을 포함하지만 정확히 같지는 않은 기존 강사
+  const suggestInstructors = (platform: string, inst: string): string[] => {
+    const entry = instructorsByPlatform.get(platform);
+    if (!entry || !inst || entry.names.includes(inst)) return [];
+    const q = normInst(inst);
+    if (!q) return [];
+    return entry.names
+      .filter((n) => {
+        const nn = normInst(n);
+        return nn !== q && (nn.includes(q) || q.includes(nn));
+      })
+      .slice(0, 4);
+  };
+
   const processFileName = useCallback(
     (file: File) => {
       const parsed = parseFilename(file.name, allInstructors);
+      const platform = parsed.platform || state.platforms[0]?.name || "핏크닉";
       return {
         file,
         name: file.name,
-        platform: parsed.platform || state.platforms[0]?.name || "핏크닉",
-        inst: parsed.instructor,
+        platform,
+        inst: snapInstructor(platform, parsed.instructor),
         course: parsed.course,
         cohort: parsed.cohort,
         type: parsed.type,
         status: "pending" as const,
       };
     },
-    [allInstructors, state.platforms]
+    [allInstructors, state.platforms, snapInstructor]
   );
 
   const handleFiles = (fileList: FileList | File[]) => {
@@ -289,6 +331,8 @@ export function UploadDialog({ onClose }: UploadDialogProps) {
               const hasInst = !!f.inst;
               const hasCourse = !!f.course;
               const hasCohort = !!f.cohort;
+              const isKnownInst = hasInst && (instructorsByPlatform.get(f.platform)?.names.includes(f.inst) ?? false);
+              const instSuggestions = suggestInstructors(f.platform, f.inst);
               return (
                 <div key={i} className="p-3.5 bg-muted rounded-[10px] mb-2 border">
                   <div className="flex justify-between items-center mb-2.5">
@@ -325,6 +369,9 @@ export function UploadDialog({ onClose }: UploadDialogProps) {
                     <div>
                       <label className="text-[10px] font-bold text-muted-foreground block mb-1">
                         강사
+                        {hasInst && !isKnownInst && (
+                          <span className="ml-1 text-[9px] font-bold text-blue-600">· 신규</span>
+                        )}
                       </label>
                       <input
                         value={f.inst}
@@ -332,7 +379,7 @@ export function UploadDialog({ onClose }: UploadDialogProps) {
                         placeholder="강사명"
                         list={`inst-list-${i}`}
                         className={`w-full py-1.5 px-2 rounded-md border text-[12px] bg-card ${
-                          hasInst ? "border-emerald-500" : "border-amber-500"
+                          !hasInst ? "border-amber-500" : isKnownInst ? "border-emerald-500" : "border-blue-400"
                         }`}
                       />
                       <datalist id={`inst-list-${i}`}>
@@ -340,6 +387,22 @@ export function UploadDialog({ onClose }: UploadDialogProps) {
                           <option key={name} value={name} />
                         ))}
                       </datalist>
+                      {instSuggestions.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          <span className="text-[10px] text-muted-foreground leading-[22px]">혹시:</span>
+                          {instSuggestions.map((name) => (
+                            <button
+                              key={name}
+                              type="button"
+                              onClick={() => updateFile(i, "inst", name)}
+                              className="text-[10px] px-1.5 py-0.5 rounded-md border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors truncate max-w-[120px]"
+                              title={name}
+                            >
+                              {name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <div>
                       <label className="text-[10px] font-bold text-muted-foreground block mb-1">
