@@ -432,6 +432,36 @@ export function InstructorHero({ platformName, instructor, course, cohort, onUpd
                 )
               )}
 
+              {/* 업로드 일시 태그 — 읽기 전용 (surveys.created_at) */}
+              {(() => {
+                const fmt = (iso: string | null | undefined) => {
+                  if (!iso) return null;
+                  const d = new Date(iso);
+                  if (isNaN(d.getTime())) return null;
+                  const p = (n: number) => String(n).padStart(2, "0");
+                  return `${String(d.getFullYear()).slice(2)}.${p(d.getMonth() + 1)}.${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+                };
+                const pre = fmt(cohort.preUploadedAt);
+                const post = fmt(cohort.postUploadedAt);
+                // 사전/후기 중 더 최근 업로드 시각을 대표로 표시
+                const latest = [cohort.preUploadedAt, cohort.postUploadedAt]
+                  .filter(Boolean)
+                  .sort()
+                  .pop();
+                const latestStr = fmt(latest);
+                if (!latestStr) return null;
+                const title = [pre && `사전 ${pre}`, post && `후기 ${post}`].filter(Boolean).join("\n") || "";
+                return (
+                  <span
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted/70 text-[11px]"
+                    title={title}
+                  >
+                    <span className="text-muted-foreground font-medium">업로드</span>
+                    <span className="font-bold text-foreground">{latestStr}</span>
+                  </span>
+                );
+              })()}
+
               {/* 수강생 태그 — classify 전용 */}
               {classifyMode && onUpdateCohort && (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-muted/70 text-[11px]">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useAppStore } from "@/hooks/use-app-store";
 import { parseFilename } from "@/lib/filename-parser";
 import { X, FileSpreadsheet, Upload, Loader2, CheckCircle, AlertCircle, AlertTriangle } from "lucide-react";
@@ -21,6 +21,19 @@ interface UploadFileState {
   status: "pending" | "uploading" | "done" | "error";
 }
 
+// 업로드 이력 항목 (/api/uploads)
+interface UploadedSurvey {
+  id: string;
+  filename: string | null;
+  platform: string | null;
+  instructor: string | null;
+  course: string | null;
+  cohort: string | null;
+  survey_type: string | null;
+  response_count: number | null;
+  created_at: string | null;
+}
+
 export function UploadDialog({ onClose }: UploadDialogProps) {
   const { state, refreshHierarchy } = useAppStore();
   const [files, setFiles] = useState<UploadFileState[]>([]);
@@ -29,6 +42,22 @@ export function UploadDialog({ onClose }: UploadDialogProps) {
     files: { idx: number; name: string; totalComments: number; classifiedComments: number }[];
   } | null>(null);
   const [checking, setChecking] = useState(false);
+  const [uploads, setUploads] = useState<UploadedSurvey[]>([]);
+  const [uploadsLoading, setUploadsLoading] = useState(true);
+
+  // 업로드 이력 조회 (최신순)
+  const loadUploads = useCallback(async () => {
+    try {
+      const res = await fetch("/api/uploads");
+      const data = await res.json();
+      if (Array.isArray(data)) setUploads(data);
+    } catch { /* 조회 실패 시 목록 미표시 */ }
+    finally { setUploadsLoading(false); }
+  }, []);
+
+  useEffect(() => {
+    loadUploads();
+  }, [loadUploads]);
 
   const allInstructors = state.platforms.flatMap((p) => p.instructors);
   const allInstNames = [...new Set(allInstructors.map((i) => i.name))];
@@ -181,12 +210,22 @@ export function UploadDialog({ onClose }: UploadDialogProps) {
       }
     }
 
-    // 업로드 완료 후 계층 새로고침 (캐시 무시)
+    // 업로드 완료 후 계층 새로고침 (캐시 무시) + 이력 목록 갱신
     await refreshHierarchy(true);
+    loadUploads();
   };
 
   const allDone = files.every((f) => f.status === "done" || f.status === "error");
   const hasInvalid = files.some((f) => !f.inst || !f.course || !f.cohort);
+
+  // 업로드 시각 포맷 (로컬 기준 YY.MM.DD HH:mm)
+  const fmtDate = (iso: string | null) => {
+    if (!iso) return "-";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "-";
+    const p = (n: number) => String(n).padStart(2, "0");
+    return `${String(d.getFullYear()).slice(2)}.${p(d.getMonth() + 1)}.${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  };
 
   return (
     <div
@@ -489,6 +528,42 @@ export function UploadDialog({ onClose }: UploadDialogProps) {
             파일명에 강사명/기수가 포함되어 있으면 AI가 자동으로 인식합니다.
             <br />
             예: &quot;민대표_1기_사전설문.xlsx&quot; → 민대표 · 1기 · 사전
+          </div>
+        )}
+
+        {/* 업로드 이력 — 최신순 */}
+        {step === "upload" && (
+          <div className="mt-4">
+            <div className="text-[12px] font-bold text-muted-foreground mb-2">
+              최근 업로드 {uploads.length > 0 && `(${uploads.length}건)`}
+            </div>
+            {uploadsLoading ? (
+              <div className="flex items-center gap-1.5 text-[12px] text-muted-foreground py-2">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                불러오는 중...
+              </div>
+            ) : uploads.length === 0 ? (
+              <div className="text-[12px] text-muted-foreground py-2">업로드 이력이 없습니다.</div>
+            ) : (
+              <div className="max-h-[240px] overflow-y-auto border rounded-[10px] divide-y">
+                {uploads.map((u) => (
+                  <div key={u.id} className="flex items-center gap-2 px-3 py-2">
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[12px] font-semibold truncate" title={u.filename || ""}>
+                        {u.filename || "(파일명 없음)"}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground truncate">
+                        {[u.instructor, u.cohort, u.survey_type].filter(Boolean).join(" · ")}
+                      </div>
+                    </div>
+                    <span className="text-[11px] text-muted-foreground shrink-0 tabular-nums">
+                      {fmtDate(u.created_at)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

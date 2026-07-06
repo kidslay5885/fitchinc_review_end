@@ -403,7 +403,7 @@ export function useSelectedCohort() {
 }
 
 // hierarchy API 응답 타입
-interface HierarchyCohort { label: string; pm: string; preCount: number; postCount: number; startDate: string; endDate: string; totalStudents: number; hasPreSurvey?: boolean; hasPostSurvey?: boolean }
+interface HierarchyCohort { label: string; pm: string; preCount: number; postCount: number; startDate: string; endDate: string; totalStudents: number; hasPreSurvey?: boolean; hasPostSurvey?: boolean; preUploadedAt?: string | null; postUploadedAt?: string | null }
 interface HierarchyCourse { name: string; cohorts: HierarchyCohort[] }
 interface HierarchyInstructor { name: string; courses: HierarchyCourse[] }
 interface HierarchyPlatform { name: string; instructors: HierarchyInstructor[] }
@@ -431,6 +431,8 @@ function buildInstructor(ai: HierarchyInstructor): Instructor {
         postCount: aco.postCount || 0,
         hasPreSurvey: aco.hasPreSurvey ?? (aco.preCount > 0),
         hasPostSurvey: aco.hasPostSurvey ?? (aco.postCount > 0),
+        preUploadedAt: aco.preUploadedAt ?? null,
+        postUploadedAt: aco.postUploadedAt ?? null,
       })),
     })),
   };

@@ -10,7 +10,7 @@ export async function GET() {
       supabase
         .from("surveys")
         .select(
-          "platform, instructor, course, cohort, survey_type, response_count, pm, start_date, end_date, total_students",
+          "platform, instructor, course, cohort, survey_type, response_count, pm, start_date, end_date, total_students, created_at",
           withCount ? { count: "exact" } : undefined,
         )
         .not("platform", "is", null)
@@ -22,7 +22,7 @@ export async function GET() {
     // 4단계 계층 빌드: platform → instructor → course → cohort
     // Map<platform, Map<instructor, Map<course, Set<cohort>>>>
     const platformMap = new Map<string, Map<string, Map<string, Set<string>>>>();
-    const cohortMeta = new Map<string, { pm: string; startDate: string | null; endDate: string | null; totalStudents: number; preCount: number; postCount: number; hasPreSurvey: boolean; hasPostSurvey: boolean }>();
+    const cohortMeta = new Map<string, { pm: string; startDate: string | null; endDate: string | null; totalStudents: number; preCount: number; postCount: number; hasPreSurvey: boolean; hasPostSurvey: boolean; preUploadedAt: string | null; postUploadedAt: string | null }>();
 
     for (const s of surveys as Array<{
       platform: string | null;
@@ -35,6 +35,7 @@ export async function GET() {
       start_date: string | null;
       end_date: string | null;
       total_students: number | null;
+      created_at: string | null;
     }>) {
       if (!s.platform || !s.instructor) continue;
 
@@ -58,7 +59,7 @@ export async function GET() {
         courseMap.get(courseName)!.add(s.cohort);
 
         const key = `${s.platform}|${s.instructor}|${courseName}|${s.cohort}`;
-        const existing = cohortMeta.get(key) || { pm: "", startDate: null, endDate: null, totalStudents: 0, preCount: 0, postCount: 0, hasPreSurvey: false, hasPostSurvey: false };
+        const existing = cohortMeta.get(key) || { pm: "", startDate: null, endDate: null, totalStudents: 0, preCount: 0, postCount: 0, hasPreSurvey: false, hasPostSurvey: false, preUploadedAt: null, postUploadedAt: null };
 
         if (s.pm) existing.pm = s.pm;
         if (s.start_date) existing.startDate = s.start_date;
@@ -68,9 +69,12 @@ export async function GET() {
         if (s.survey_type === "사전") {
           existing.hasPreSurvey = true;
           existing.preCount += s.response_count || 0;
+          // 같은 유형 설문이 여러 개면 가장 최근 업로드 시각을 사용
+          if (s.created_at && (!existing.preUploadedAt || s.created_at > existing.preUploadedAt)) existing.preUploadedAt = s.created_at;
         } else {
           existing.hasPostSurvey = true;
           existing.postCount += s.response_count || 0;
+          if (s.created_at && (!existing.postUploadedAt || s.created_at > existing.postUploadedAt)) existing.postUploadedAt = s.created_at;
         }
 
         cohortMeta.set(key, existing);
@@ -97,6 +101,8 @@ export async function GET() {
               postCount: meta?.postCount || 0,
               hasPreSurvey: meta?.hasPreSurvey || false,
               hasPostSurvey: meta?.hasPostSurvey || false,
+              preUploadedAt: meta?.preUploadedAt || null,
+              postUploadedAt: meta?.postUploadedAt || null,
             };
           }),
         })),

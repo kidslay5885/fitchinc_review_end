@@ -83,6 +83,9 @@ export interface Cohort {
   /** hierarchy에서 받은 응답 수 (lazy load 전 표시용) */
   preCount?: number;
   postCount?: number;
+  /** 설문 데이터 업로드 시각 (surveys.created_at, ISO 문자열). 재업로드 시 최신 값으로 갱신됨 */
+  preUploadedAt?: string | null;
+  postUploadedAt?: string | null;
   /** responses API 호출 완료 여부 */
   dataLoaded?: boolean;
 }
