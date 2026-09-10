@@ -121,9 +121,20 @@ export function AppSidebar({ onUpload, onEditInstructor, readOnly }: AppSidebarP
                         )}
                       </div>
                       <div className="text-[11px] text-muted-foreground truncate" title={(instructor.courses || []).map((c) => c.name).join(" · ")}>
-                        {(instructor.courses || []).length > 0
-                          ? (instructor.courses || []).map((c) => c.name).join(" · ")
-                          : instructor.category || ""}
+                        {(() => {
+                          const courses = instructor.courses || [];
+                          if (courses.length === 0) return instructor.category || "";
+                          // Find course containing the lowest-numbered cohort (1기)
+                          let bestName = courses[0].name;
+                          let bestNum = Infinity;
+                          for (const c of courses) {
+                            for (const ch of c.cohorts) {
+                              const n = cohortSortNum(ch.label);
+                              if (n < bestNum) { bestNum = n; bestName = c.name; }
+                            }
+                          }
+                          return bestName;
+                        })()}
                       </div>
                     </div>
                     <button
