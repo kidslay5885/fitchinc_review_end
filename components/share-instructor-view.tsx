@@ -346,7 +346,7 @@ export function ShareInstructorView({ token, title, filters }: ShareInstructorVi
               <img
                 src={instructorPhoto.photo}
                 alt={filters.instructor || "강사"}
-                className="w-full h-full object-contain"
+                className="w-full h-full object-cover"
                 style={{ objectPosition: instructorPhoto.photoPosition || "center 2%" }}
               />
             ) : (
