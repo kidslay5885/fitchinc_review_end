@@ -36,6 +36,12 @@ yarn-error.log*
 # vercel
 .vercel
 
+# utility scripts
+_*.mjs
+_test/
+context.md
+supabase-course-detail.sql
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
