@@ -18,6 +18,8 @@ const HIDDEN_COMMENTS_KEY = "hidden_comments";
 const STARRED_COMMENTS_KEY = "starred_comments";
 const COMMENT_TRANSFERS_KEY = "comment_transfers";
 
+export const dynamic = "force-dynamic";
+
 /** GET: 모든 앱 설정 조회 (강사 사진, 기수 순서, 수강이력 블랙리스트) - 새 창/새로고침 시 복원용 */
 export async function GET() {
   try {

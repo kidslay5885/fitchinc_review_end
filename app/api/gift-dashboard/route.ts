@@ -30,6 +30,8 @@ async function fetchAll(
   return all;
 }
 
+export const dynamic = "force-dynamic";
+
 /** 기프티쇼 관리 전용 대시보드 API */
 export async function GET() {
   try {

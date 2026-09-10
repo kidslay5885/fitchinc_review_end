@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { fetchAllRanges } from "@/lib/supabase-paginate";
 
+export const dynamic = "force-dynamic";
+
 // 업로드된 설문 목록(파일명 + 업로드 시각)을 최신순으로 반환 — 업로드 모달 표시용
 export async function GET() {
   try {

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 import { fetchAllRanges } from "@/lib/supabase-paginate";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const supabase = getSupabase();

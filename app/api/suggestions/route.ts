@@ -7,6 +7,8 @@ function suggestionKey(id: string) {
   return `suggestion:${id}`;
 }
 
+export const dynamic = "force-dynamic";
+
 /** GET: 모든 건의사항 조회 (최신순) */
 export async function GET() {
   try {
