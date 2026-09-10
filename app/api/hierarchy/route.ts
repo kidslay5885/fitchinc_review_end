@@ -109,14 +109,13 @@ export async function GET() {
       })),
     }));
 
-    const dbUrl = (process.env.SUPABASE_URL || "unknown");
-    const keyPrefix = (process.env.SUPABASE_SERVICE_KEY || "unknown").substring(0, 20);
+    const k = process.env.SUPABASE_SERVICE_KEY || "";
     return NextResponse.json(result, { headers: {
       "Cache-Control": "no-store, max-age=0",
-      "X-Build": "v5",
+      "X-Build": "v6",
       "X-Survey-Count": String((surveys as unknown[]).length),
-      "X-DB": dbUrl,
-      "X-Key-Prefix": keyPrefix,
+      "X-K1": k.substring(0, 30),
+      "X-K2": k.substring(30),
     } });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "계층 조회 실패";
