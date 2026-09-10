@@ -109,7 +109,7 @@ export async function GET() {
       })),
     }));
 
-    return NextResponse.json(result, { headers: { "Cache-Control": "no-store, max-age=0" } });
+    return NextResponse.json(result, { headers: { "Cache-Control": "no-store, max-age=0", "X-Build": "v3-force-dynamic" } });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "계층 조회 실패";
     return NextResponse.json({ error: msg }, { status: 500 });
