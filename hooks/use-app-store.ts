@@ -433,7 +433,7 @@ function buildInstructor(ai: HierarchyInstructor): Instructor {
         hasPostSurvey: aco.hasPostSurvey ?? (aco.postCount > 0),
         preUploadedAt: aco.preUploadedAt ?? null,
         postUploadedAt: aco.postUploadedAt ?? null,
-        courseDetail: "",
+        courseDetail: ac.name,
       })),
     })),
   };

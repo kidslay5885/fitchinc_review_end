@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 import { useAppStore, useSelectedPlatform } from "@/hooks/use-app-store";
-import { getOrderedCohorts, setCohortOrder } from "@/lib/cohort-order";
-import { Settings, Upload, ChevronDown, ChevronUp, User, GripVertical, BookOpen } from "lucide-react";
-import type { Instructor, Course } from "@/lib/types";
+import { Settings, Upload, ChevronDown, ChevronUp, User, GripVertical } from "lucide-react";
+import type { Instructor, Cohort } from "@/lib/types";
 
 interface AppSidebarProps {
   onUpload: () => void;
@@ -12,13 +11,16 @@ interface AppSidebarProps {
   readOnly?: boolean;
 }
 
+/** Extract numeric part for natural sort ("1기" -> 1, "10기" -> 10, "주언규" -> 999999) */
+function cohortSortNum(label: string): number {
+  const m = label.match(/(\d+)/);
+  return m ? parseInt(m[1], 10) : 999999;
+}
+
 export function AppSidebar({ onUpload, onEditInstructor, readOnly }: AppSidebarProps) {
   const { state, dispatch } = useAppStore();
   const plat = useSelectedPlatform();
-  const [orderKey, setOrderKey] = useState(0);
   const [zoomPhoto, setZoomPhoto] = useState<{ src: string; name: string; pos: string } | null>(null);
-
-  const hasMultipleCourses = (inst: Instructor) => inst.courses.length > 1;
 
   return (
     <aside className="w-[260px] border-r bg-card overflow-y-auto flex-shrink-0 flex flex-col">
@@ -62,7 +64,6 @@ export function AppSidebar({ onUpload, onEditInstructor, readOnly }: AppSidebarP
             )}
             {plat.instructors.map((instructor) => {
               const isSel = state.selectedInstructorId === instructor.id;
-              const multiCourse = hasMultipleCourses(instructor);
 
               return (
                 <div key={instructor.id}>
@@ -146,73 +147,12 @@ export function AppSidebar({ onUpload, onEditInstructor, readOnly }: AppSidebarP
                     </button>
                   </div>
 
-                  {/* 강의 2개+: 강의 목록 → 강의 선택 시 기수 목록 */}
-                  {isSel && plat && multiCourse && (
-                    <div className="pl-7 py-1.5 space-y-0.5">
-                      {/* 전체 보기 (모든 강의/기수) */}
-                      <div
-                        onClick={() => {
-                          dispatch({ type: "SELECT_COURSE", id: null });
-                          dispatch({ type: "SELECT_COHORT", id: null });
-                        }}
-                        className={`py-1.5 px-2.5 rounded-md text-[12px] border-l-2 min-h-[32px] flex items-center cursor-pointer ${
-                          !state.selectedCourseId && !state.selectedCohortId
-                            ? "font-semibold text-primary bg-primary/5 border-l-primary"
-                            : "text-muted-foreground border-l-transparent hover:bg-accent"
-                        }`}
-                      >
-                        전체 보기
-                      </div>
-                      {instructor.courses.map((course) => {
-                        const isCourseSelected = state.selectedCourseId === course.id;
-                        return (
-                          <div key={course.id}>
-                            <div
-                              onClick={() => {
-                                dispatch({ type: "SELECT_COURSE", id: isCourseSelected ? null : course.id });
-                                dispatch({ type: "SELECT_COHORT", id: null });
-                              }}
-                              className={`py-1.5 px-2.5 rounded-md text-[12px] border-l-2 min-h-[32px] flex items-center gap-1 cursor-pointer ${
-                                isCourseSelected
-                                  ? "font-semibold text-primary bg-primary/5 border-l-primary"
-                                  : "text-muted-foreground border-l-transparent hover:bg-accent"
-                              }`}
-                              title={course.name}
-                            >
-                              <BookOpen className="w-3 h-3 shrink-0" />
-                              <span className="truncate">{course.name || <span className="italic opacity-70">(강의명 없음)</span>}</span>
-                            </div>
-
-                            {/* 해당 강의의 기수 목록 */}
-                            {isCourseSelected && (
-                              <CohortList
-                                plat={plat}
-                                instructor={instructor}
-                                course={course}
-                                selectedCohortId={state.selectedCohortId}
-                                dispatch={dispatch}
-                                orderKey={orderKey}
-                                setOrderKey={setOrderKey}
-                                indent
-                                readOnly={readOnly}
-                              />
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {/* 강의 1개: 기존과 동일 (Course 레이어 숨김, 바로 기수 표시) */}
-                  {isSel && plat && !multiCourse && (instructor.courses || []).length === 1 && (
-                    <CohortList
-                      plat={plat}
+                  {/* Flat cohort list (all courses merged) */}
+                  {isSel && plat && instructor.courses.length > 0 && (
+                    <FlatCohortList
                       instructor={instructor}
-                      course={instructor.courses[0]}
                       selectedCohortId={state.selectedCohortId}
                       dispatch={dispatch}
-                      orderKey={orderKey}
-                      setOrderKey={setOrderKey}
                       readOnly={readOnly}
                     />
                   )}
@@ -256,30 +196,30 @@ export function AppSidebar({ onUpload, onEditInstructor, readOnly }: AppSidebarP
   );
 }
 
-/** 기수 목록 (드래그 재정렬 지원) */
-function CohortList({
-  plat,
+/** Flat cohort list across all courses, sorted by cohort number */
+function FlatCohortList({
   instructor,
-  course,
   selectedCohortId,
   dispatch,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  orderKey: _orderKey,
-  setOrderKey,
-  indent = false,
   readOnly = false,
 }: {
-  plat: { name: string };
   instructor: Instructor;
-  course: Course;
   selectedCohortId: string | null;
   dispatch: ReturnType<typeof useAppStore>["dispatch"];
-  orderKey: number;
-  setOrderKey: (fn: (k: number) => number) => void;
-  indent?: boolean;
   readOnly?: boolean;
 }) {
-  const ordered = getOrderedCohorts(plat.name, instructor.name, course.name, course.cohorts);
+  const hasMultiCourse = instructor.courses.length > 1;
+
+  // Flatten all cohorts from all courses, carry parent course info
+  const flatCohorts: (Cohort & { courseId: string; courseName: string })[] = [];
+  for (const course of instructor.courses) {
+    for (const cohort of course.cohorts) {
+      flatCohorts.push({ ...cohort, courseId: course.id, courseName: course.name });
+    }
+  }
+
+  // Natural sort by cohort label number
+  flatCohorts.sort((a, b) => cohortSortNum(a.label) - cohortSortNum(b.label));
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
     e.dataTransfer.setData("text/plain", String(index));
@@ -293,40 +233,31 @@ function CohortList({
     e.preventDefault();
     const from = parseInt(e.dataTransfer.getData("text/plain"), 10);
     if (isNaN(from) || from === dropIndex) return;
-    const labels = [...ordered.map((c) => c.label)];
-    const [removed] = labels.splice(from, 1);
-    labels.splice(dropIndex, 0, removed);
-    setCohortOrder(plat.name, instructor.name, course.name, labels);
-    setOrderKey((k) => k + 1);
-    fetch("/api/app-settings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type: "cohort_order",
-        platform: plat.name,
-        instructor: instructor.name,
-        course: course.name,
-        labels,
-      }),
-    }).catch(() => {});
+    // Drag reorder is visual only for flat list (no persist for now)
   };
 
   return (
-    <div className={`${indent ? "pl-4" : "pl-7"} py-1.5 space-y-0.5`}>
-      {!indent && (
-        <div
-          onClick={() => dispatch({ type: "SELECT_COHORT", id: null })}
-          className={`py-1.5 px-2.5 rounded-md text-[12px] border-l-2 min-h-[32px] flex items-center cursor-pointer ${
-            !selectedCohortId
-              ? "font-semibold text-primary bg-primary/5 border-l-primary"
-              : "text-muted-foreground border-l-transparent hover:bg-accent"
-          }`}
-        >
-          전체 보기
-        </div>
-      )}
-      {ordered.map((c, index) => {
+    <div className="pl-7 py-1.5 space-y-0.5">
+      {/* "전체 보기" */}
+      <div
+        onClick={() => {
+          dispatch({ type: "SELECT_COURSE", id: null });
+          dispatch({ type: "SELECT_COHORT", id: null });
+        }}
+        className={`py-1.5 px-2.5 rounded-md text-[12px] border-l-2 min-h-[32px] flex items-center cursor-pointer ${
+          !selectedCohortId
+            ? "font-semibold text-primary bg-primary/5 border-l-primary"
+            : "text-muted-foreground border-l-transparent hover:bg-accent"
+        }`}
+      >
+        전체 보기
+      </div>
+
+      {flatCohorts.map((c, index) => {
         const isSelCo = selectedCohortId === c.id;
+        // Show course name when instructor has multiple courses
+        const showCourseName = hasMultiCourse && c.courseName;
+
         return (
           <div
             key={c.id}
@@ -334,7 +265,10 @@ function CohortList({
             onDragStart={readOnly ? undefined : (e) => handleDragStart(e, index)}
             onDragOver={readOnly ? undefined : handleDragOver}
             onDrop={readOnly ? undefined : (e) => handleDrop(e, index)}
-            onClick={() => dispatch({ type: "SELECT_COHORT", id: c.id })}
+            onClick={() => {
+              dispatch({ type: "SELECT_COURSE", id: c.courseId });
+              dispatch({ type: "SELECT_COHORT", id: c.id });
+            }}
             className={`group py-1.5 px-2.5 rounded-md text-[12px] border-l-2 min-h-[32px] flex items-center gap-1 cursor-pointer ${
               isSelCo
                 ? "bg-primary/5 border-l-primary font-semibold text-primary"
@@ -350,19 +284,23 @@ function CohortList({
             </span>}
             <div className="flex-1 min-w-0 flex flex-col justify-center">
               <div className="flex justify-between items-center gap-1">
-                <span className={`truncate ${isSelCo ? "font-semibold text-primary" : ""}`} title={c.courseDetail && c.courseDetail !== course.name ? `${c.label} · ${c.courseDetail}` : String(c.label || "")}>
+                <span
+                  className={`truncate ${isSelCo ? "font-semibold text-primary" : ""}`}
+                  title={showCourseName ? `${c.label} · ${c.courseName}` : String(c.label || "")}
+                >
                   {String(c.label || "")}
-                  {c.courseDetail && c.courseDetail !== course.name && (
-                    <span className="ml-1 text-[10px] text-muted-foreground font-normal">
-                      {c.courseDetail}
-                    </span>
-                  )}
                 </span>
                 <span className="inline-flex items-center gap-0.5 shrink-0" title={`사전 ${c.hasPreSurvey ? (((Array.isArray(c.preResponses) ? c.preResponses.length : 0) || c.preCount || 0) > 0 ? ((Array.isArray(c.preResponses) ? c.preResponses.length : 0) || c.preCount) + "명" : "없음") : "미업로드"} · 후기 ${c.hasPostSurvey ? (((Array.isArray(c.postResponses) ? c.postResponses.length : 0) || c.postCount || 0) > 0 ? ((Array.isArray(c.postResponses) ? c.postResponses.length : 0) || c.postCount) + "명" : "없음") : "미업로드"}`}>
                   <span className={`w-[7px] h-[7px] rounded-full ${(Array.isArray(c.preResponses) ? c.preResponses.length : 0) > 0 ? "bg-emerald-500" : c.hasPreSurvey ? "bg-amber-400" : "bg-muted-foreground/25"}`} />
                   <span className={`w-[7px] h-[7px] rounded-full ${(Array.isArray(c.postResponses) ? c.postResponses.length : 0) > 0 ? "bg-emerald-500" : c.hasPostSurvey ? "bg-amber-400" : "bg-muted-foreground/25"}`} />
                 </span>
               </div>
+              {/* Course name in small text (only for multi-course instructors) */}
+              {showCourseName && (
+                <div className="text-[10px] text-muted-foreground truncate leading-tight" title={c.courseName}>
+                  {c.courseName}
+                </div>
+              )}
               {c.pm && (
                 <div className="mt-0.5">
                   <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted/70 text-[9px]">
