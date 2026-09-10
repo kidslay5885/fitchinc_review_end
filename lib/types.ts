@@ -88,6 +88,8 @@ export interface Cohort {
   postUploadedAt?: string | null;
   /** responses API 호출 완료 여부 */
   dataLoaded?: boolean;
+  /** 파일명에서 추출된 원래 강의명 (레지스트리 매핑 전) */
+  courseDetail?: string;
 }
 
 export interface Course {

@@ -30,12 +30,14 @@ export async function POST(req: NextRequest) {
     const instructor = instructorOverride || parsed.instructor || null;
     const cohort = cohortOverride || parsed.cohort || null;
 
-    // 강의명: 수동 입력 > 레지스트리 매칭 > 파일명 파싱 순
-    const course = courseOverride ?? (
-      (instructor && platform)
-        ? resolveCourse(instructor, platform, file.name) || parsed.course || ""
-        : parsed.course ?? ""
-    );
+    // Course name: manual override > registry match > filename parse
+    const registryCourse = (instructor && platform)
+      ? resolveCourse(instructor, platform, file.name)
+      : "";
+    const course = courseOverride ?? (registryCourse || parsed.course || "");
+
+    // Preserve original course name from filename when registry overrides it
+    const courseDetail = parsed.course || "";
 
     const comments = parseXLSXToComments(buffer, isPre);
     const responses = parseBufferToResponses(buffer, isPre);
@@ -75,6 +77,7 @@ export async function POST(req: NextRequest) {
         platform,
         instructor,
         course,
+        course_detail: courseDetail,
         cohort,
         survey_type: surveyType,
         status: platform && instructor && cohort ? "classified" : "uploaded",

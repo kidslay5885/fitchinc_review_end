@@ -10,7 +10,7 @@ export async function GET() {
       supabase
         .from("surveys")
         .select(
-          "platform, instructor, course, cohort, survey_type, response_count, pm, start_date, end_date, total_students, created_at",
+          "platform, instructor, course, course_detail, cohort, survey_type, response_count, pm, start_date, end_date, total_students, created_at",
           withCount ? { count: "exact" } : undefined,
         )
         .not("platform", "is", null)
@@ -19,15 +19,15 @@ export async function GET() {
         .range(from, to),
     );
 
-    // 4단계 계층 빌드: platform → instructor → course → cohort
-    // Map<platform, Map<instructor, Map<course, Set<cohort>>>>
+    // 4-level hierarchy: platform → instructor → course → cohort
     const platformMap = new Map<string, Map<string, Map<string, Set<string>>>>();
-    const cohortMeta = new Map<string, { pm: string; startDate: string | null; endDate: string | null; totalStudents: number; preCount: number; postCount: number; hasPreSurvey: boolean; hasPostSurvey: boolean; preUploadedAt: string | null; postUploadedAt: string | null }>();
+    const cohortMeta = new Map<string, { pm: string; startDate: string | null; endDate: string | null; totalStudents: number; preCount: number; postCount: number; hasPreSurvey: boolean; hasPostSurvey: boolean; preUploadedAt: string | null; postUploadedAt: string | null; courseDetail: string }>();
 
     for (const s of surveys as Array<{
       platform: string | null;
       instructor: string | null;
       course: string | null;
+      course_detail: string | null;
       cohort: string | null;
       survey_type: string | null;
       response_count: number | null;
@@ -59,12 +59,18 @@ export async function GET() {
         courseMap.get(courseName)!.add(s.cohort);
 
         const key = `${s.platform}|${s.instructor}|${courseName}|${s.cohort}`;
-        const existing = cohortMeta.get(key) || { pm: "", startDate: null, endDate: null, totalStudents: 0, preCount: 0, postCount: 0, hasPreSurvey: false, hasPostSurvey: false, preUploadedAt: null, postUploadedAt: null };
+<<<<<<< HEAD
+        const existing = cohortMeta.get(key) || { pm: "", startDate: null, endDate: null, totalStudents: 0, preCount: 0, postCount: 0, hasPreSurvey: false, hasPostSurvey: false, preUploadedAt: null, postUploadedAt: null, courseDetail: "" };
 
         if (s.pm) existing.pm = s.pm;
         if (s.start_date) existing.startDate = s.start_date;
         if (s.end_date) existing.endDate = s.end_date;
         if (s.total_students) existing.totalStudents = s.total_students;
+
+        // Preserve original course name (course_detail) — use the first non-empty value
+        if (!existing.courseDetail && s.course_detail) {
+          existing.courseDetail = s.course_detail;
+        }
 
         if (s.survey_type === "사전") {
           existing.hasPreSurvey = true;
@@ -81,7 +87,6 @@ export async function GET() {
       }
     }
 
-    // 출력 형태
     const result = Array.from(platformMap.entries()).map(([platformName, instMap]) => ({
       name: platformName,
       instructors: Array.from(instMap.entries()).map(([instName, courseMap]) => ({
@@ -103,6 +108,7 @@ export async function GET() {
               hasPostSurvey: meta?.hasPostSurvey || false,
               preUploadedAt: meta?.preUploadedAt || null,
               postUploadedAt: meta?.postUploadedAt || null,
+              courseDetail: meta?.courseDetail || "",
             };
           }),
         })),

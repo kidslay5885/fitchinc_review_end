@@ -350,8 +350,13 @@ function CohortList({
             </span>}
             <div className="flex-1 min-w-0 flex flex-col justify-center">
               <div className="flex justify-between items-center gap-1">
-                <span className={isSelCo ? "font-semibold text-primary" : ""}>
+                <span className={`truncate ${isSelCo ? "font-semibold text-primary" : ""}`} title={c.courseDetail && c.courseDetail !== course.name ? `${c.label} · ${c.courseDetail}` : String(c.label || "")}>
                   {String(c.label || "")}
+                  {c.courseDetail && c.courseDetail !== course.name && (
+                    <span className="ml-1 text-[10px] text-muted-foreground font-normal">
+                      {c.courseDetail}
+                    </span>
+                  )}
                 </span>
                 <span className="inline-flex items-center gap-0.5 shrink-0" title={`사전 ${c.hasPreSurvey ? (((Array.isArray(c.preResponses) ? c.preResponses.length : 0) || c.preCount || 0) > 0 ? ((Array.isArray(c.preResponses) ? c.preResponses.length : 0) || c.preCount) + "명" : "없음") : "미업로드"} · 후기 ${c.hasPostSurvey ? (((Array.isArray(c.postResponses) ? c.postResponses.length : 0) || c.postCount || 0) > 0 ? ((Array.isArray(c.postResponses) ? c.postResponses.length : 0) || c.postCount) + "명" : "없음") : "미업로드"}`}>
                   <span className={`w-[7px] h-[7px] rounded-full ${(Array.isArray(c.preResponses) ? c.preResponses.length : 0) > 0 ? "bg-emerald-500" : c.hasPreSurvey ? "bg-amber-400" : "bg-muted-foreground/25"}`} />
