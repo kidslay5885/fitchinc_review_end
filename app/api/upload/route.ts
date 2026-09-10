@@ -77,7 +77,6 @@ export async function POST(req: NextRequest) {
         platform,
         instructor,
         course,
-        course_detail: courseDetail,
         cohort,
         survey_type: surveyType,
         status: platform && instructor && cohort ? "classified" : "uploaded",
